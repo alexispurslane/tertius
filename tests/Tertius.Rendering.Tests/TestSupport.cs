@@ -43,12 +43,12 @@ internal static class Gpu
     /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow tests
     /// see every object as geometry; the impostor tests turn them on with a small atlas. The exposure is fixed, at 0 stops
     /// unless asked for, so that a pixel does not depend on the frames before it. Anti-aliasing is off unless asked for, so
-    /// that the pixel tests keep their native values (docs/plans/temporal-renderer.md, section 4). The screen tracer is off unless
-    /// asked for, because the zero case of the setting is off (docs/plans/temporal-renderer.md, section 8). The environment map
+    /// that the pixel tests keep their native values (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 4). The screen tracer is off unless
+    /// asked for, because the zero case of the setting is off (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8). The environment map
     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
-    /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
+    /// impostors are (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Decisions"). One far light has a cascade set unless asked for,
     /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
-    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29). The
+    /// unless asked for, because the zero case of the setting is off (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 29). The
     /// direct pass shades every light pair in full unless asked for, the zero case of the setting, so that a test's
     /// pixels hold the exact light; the key and fill tests ask for key and fill. The output's dither is on unless asked
     /// for, the renderer's default; a test that reads a pixel's exact code turns it off.
@@ -221,7 +221,7 @@ internal static class Gpu
 
     /// <summary>
     /// The entity of the test star, which no test instance holds: a glow of an instance's entity bounces only when no
-    /// light carries that entity (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// light carries that entity (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The bounce source").
     /// </summary>
     public const uint StarEntity = 1_000_000;
 

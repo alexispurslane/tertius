@@ -6,7 +6,7 @@ using Tertius.Simulation;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The cost of the flow of the parts' pushes (docs/plans/parts.md, "Costs and measurements"): 2,500 dynamic crates on the
+/// The cost of the flow of the parts' pushes (https://github.com/alexispurslane/tertius/wiki/parts, "Costs and measurements"): 2,500 dynamic crates on the
 /// Jolt backend, each with <see cref="PartsPerCrate"/> parts that push in every tick, at places off the crate's center of
 /// mass. With no part, the crates push themselves, so the sync point carries no push and the lap of the flow reads only
 /// its test for an empty list. The lap "5b carry the pushes of the parts" in the profile (a build with

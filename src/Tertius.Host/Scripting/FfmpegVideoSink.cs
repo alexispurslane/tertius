@@ -7,7 +7,7 @@ namespace Tertius.Host.Scripting;
 /// A capture sink that makes each capture the next frame of one video, which one ffmpeg process encodes. It writes the
 /// pixels of each frame straight into ffmpeg's standard input, on the thread that calls <see cref="Take"/>, with no copy
 /// and no allocation. ffmpeg encodes them losslessly with <c>libx264rgb</c> at quantizer 0 into a Matroska file, which the
-/// edit encodes again. See docs/plans/blue-danube-demo.md, change 1.
+/// edit encodes again. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 1.
 /// <para>A run that reaches its end calls <see cref="Finish"/>, which reports a failure of ffmpeg. Every other way out
 /// calls only <see cref="Dispose"/>, which ends the file too, so the video plays and holds every frame before the failure.
 /// A video that took no frame leaves no file.</para>

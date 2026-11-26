@@ -37,7 +37,7 @@ public static partial class DemoScenes
     ];
 
     /// <summary>
-    /// The review scene of the screen-space reflections (docs/plans/screen-space-reflections.md, "Part 3"): six strips
+    /// The review scene of the screen-space reflections (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Part 3"): six strips
     /// on the gray slab of <see cref="EarthSurface"/>, objects on them, a gray ambient light and the sun.
     /// <list type="bullet">
     /// <item>The strips <c>strip-0</c> to <c>strip-5</c>, 2 m wide and 12 m long along Z, lie side by side from -X to

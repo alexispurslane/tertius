@@ -6,7 +6,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The demo scenes of the shadows of every light (docs/plans/local-light-shadows.md, "Part 7" and "Cost"): the lamp
+/// The demo scenes of the shadows of every light (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Part 7" and "Cost"): the lamp
 /// halls that the cost measures, with their count, kind and motion of lamps, the scenes of one, two and four stars, and
 /// the checked-in script of each scene.
 /// </summary>
@@ -83,7 +83,7 @@ public sealed class ShadowScenesTests : IDisposable
 
     /// <summary>
     /// The hair hall measures a SIMD group that shades hair and other pixels together under many shadowed lamps
-    /// (docs/plans/skin-and-hair.md, "Cost"), so its view looks at the wall of hair from close by, with the hall's lamps
+    /// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Cost"), so its view looks at the wall of hair from close by, with the hall's lamps
     /// all round.
     /// </summary>
     [Fact]

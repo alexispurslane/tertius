@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The rig poses of a render snapshot (docs/plans/skinning-and-morphs.md, "The rig pose in the snapshot"): the one writer,
+/// The rig poses of a render snapshot (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the snapshot"): the one writer,
 /// <see cref="RenderSnapshot.AddRigPose"/>, what it refuses, the four reads of an entry, and <see cref="RenderSnapshot.Clear"/>.
 /// </summary>
 public sealed class RenderSnapshotRigPoseTests

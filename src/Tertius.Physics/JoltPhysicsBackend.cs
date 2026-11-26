@@ -946,7 +946,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// The step record of <paramref name="frame"/> at the end of the current step, relative to its tree parent now, after any
-    /// hand-off of the step (see "The step record of a step in flight" in docs/plans/rails-components.md). Physics predicts
+    /// hand-off of the step (see "The step record of a step in flight" in https://github.com/alexispurslane/tertius/wiki/rails-components). Physics predicts
     /// every frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
     /// <see cref="InstantMotionOf"/>). The owner's kind decides it:
     /// <list type="bullet">

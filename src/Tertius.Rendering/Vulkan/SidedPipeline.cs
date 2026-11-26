@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// One pipeline of a pass that shades, in its two variants: one that culls back faces, for the one-sided materials, and
-/// one that culls none, for the two-sided ones, hair (docs/plans/skin-and-hair.md, "Both sides of a hair card"). Only
+/// one that culls none, for the two-sided ones, hair (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides of a hair card"). Only
 /// the two-sided variant shades a fiber (<see cref="ShaderConstants.DropsFibers"/>).
 /// </summary>
 internal readonly record struct SidedPipeline(Pipeline OneSided, Pipeline TwoSided)

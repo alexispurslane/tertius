@@ -363,7 +363,7 @@ public sealed class ImpostorManagerTests
             .Manager.Status(Key(3, material: FringedMaterial))
             .Should()
             .BeNull(
-                "a capture has no transparent pass to draw the fringe in (docs/plans/skin-and-hair.md, decision 24)"
+                "a capture has no transparent pass to draw the fringe in (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 24)"
             );
         harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
     }

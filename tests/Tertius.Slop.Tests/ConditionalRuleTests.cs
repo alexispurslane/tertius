@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules about conditions, ported from the scb-check slop rules (docs/plans/code-quality-tooling.md,
+/// The verbosity rules about conditions, ported from the scb-check slop rules (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 17): for each rule, code that it flags and a near miss that it leaves alone.
 /// </summary>
 public sealed class ConditionalRuleTests

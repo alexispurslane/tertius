@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The G-buffer's motion target (docs/plans/temporal-renderer.md, section 3): at each pixel, the last frame's place of the
+/// The G-buffer's motion target (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 3): at each pixel, the last frame's place of the
 /// surface point that the pixel shows minus this frame's place, in image widths and heights with no jitter, and the ratio
 /// of the point's view depth in the last frame to its view depth now. Each test draws two frames and compares the second
 /// frame's motion with the place that the last frame's camera gives the point's last position.

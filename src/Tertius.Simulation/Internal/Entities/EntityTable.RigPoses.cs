@@ -93,7 +93,7 @@ internal sealed partial class EntityTable
     }
 
     /// <summary>
-    /// The rig pose of one posed entity, in three copies of its J joint poses and W weights (docs/plans/skinning-and-morphs.md,
+    /// The rig pose of one posed entity, in three copies of its J joint poses and W weights (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs,
     /// "The rig pose in the simulation"): the back, which the entity writes in its tick, the front, which the sync point
     /// copies from the back, and the placed copy, which the snapshot builder keeps from its last build of the entity.
     /// </summary>

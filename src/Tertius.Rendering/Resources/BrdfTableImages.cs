@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The BRDF tables of <see cref="BrdfTables.Shared"/>, the LTC table of <see cref="LtcTable.Shared"/> and the blue-noise
 /// mask of <see cref="BlueNoiseMask.Shared"/> on the GPU, uploaded in the first frame and never changed
-/// (docs/plans/pbr-brdf.md, "The tables", and ARCHITECTURE.md, "Rectangle lights" and "Randomness and determinism").
+/// (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The tables", and ARCHITECTURE.md, "Rectangle lights" and "Randomness and determinism").
 /// Vulkan requires linear filtering of the tables' three formats, and sampling of the mask's, on every device.
 /// </summary>
 internal sealed class BrdfTableImages : IDisposable

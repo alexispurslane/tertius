@@ -4,7 +4,7 @@ using EarthDate = Tertius.Demo.DemoScenes.EarthDate;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The date of the Earth system (docs/plans/blue-danube-demo.md, "The date and the ground's turn"): where Earth stands on
+/// The date of the Earth system (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The date and the ground's turn"): where Earth stands on
 /// its orbit at the world's time 0, and how far the ground, <c>earth-surface</c>, is turned then. Pure math, with no World.
 /// </summary>
 public sealed class EarthDateTests

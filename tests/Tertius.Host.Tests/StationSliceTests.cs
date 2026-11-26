@@ -366,7 +366,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
 
     [Fact]
     public void EveryReadOfTheStationInEarthIsItsOrbitsPlace() =>
-        // A new frame on rails stands on its rails from the second sync point after its spawn (docs/plans/rails-components.md,
+        // A new frame on rails stands on its rails from the second sync point after its spawn (https://github.com/alexispurslane/tertius/wiki/rails-components,
         // "Other rules" in "The rails components"). At the first, it is one step of its motion behind, about 1.2 mm.
         Samples
             .Where(s => s.Tick >= 2)

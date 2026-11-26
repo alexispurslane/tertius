@@ -455,7 +455,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Aims the anchor of each following frame that no motion intent aimed in the step, a hull or a plain body, where the
-    /// frame's step plan holds it (docs/plans/numeric-frames.md, "Following frames", ticket ter-zsku). In a step without a
+    /// frame's step plan holds it (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames", ticket ter-zsku). In a step without a
     /// motion intent the plan is the record of a kinematic body without one, which the frame tree and physics both take from
     /// <see cref="PhysicsIntent.StepRecordOrStill"/>: it holds still where the step starts, and the frame lands on that plan
     /// and holds still in its semantic frame. So physics aims the anchor as for any plan: at the frame's origin, or in the
@@ -795,7 +795,7 @@ public sealed partial class JoltPhysicsBackend
     /// Writes the frame acceleration of each sleeping dynamic hull. A sleeping hull still rests against gravity, and its
     /// frame's accelerometer reads that: the effective gravity, with the centrifugal and the Euler term of a turning frame,
     /// against which it rests. The field is the linear part, and the two terms are the turning part (V4 of
-    /// docs/plans/spin-gravity.md).
+    /// https://github.com/alexispurslane/tertius/wiki/spin-gravity).
     /// </summary>
     private void RecordSleepingHullAccelerations()
     {
@@ -816,7 +816,7 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// The wake test (docs/plans/spin-gravity.md, "The wake"): true when a bound, in m/s², on how much the acceleration that
+    /// The wake test (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The wake"): true when a bound, in m/s², on how much the acceleration that
     /// a dynamic body of a system feels relative to the system's frame, at any place of those bodies, has changed since they
     /// last woke passes <paramref name="threshold"/>. A sleeping body has no local velocity, so it moves with its frame,
     /// which is right only while what it would feel there stays as it was when it fell asleep. One cause changes that
@@ -881,7 +881,7 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="turns"/>, the force holds the two-turn update too (see <see cref="ApplyTurningUpdate"/>), unless a
     /// steer target moves the body in the step: the steering velocities carry the body to its target in the frame's
     /// coordinates over the step, so they are the chord of the step in flight already, and the update would turn them a
-    /// second time (docs/plans/spin-gravity.md, "The flow per kind of entity"). Writes the acceleration that the frame gave
+    /// second time (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The flow per kind of entity"). Writes the acceleration that the frame gave
     /// the body (see <see cref="BodyRecord.FrameAcceleration"/>). Returns the strength of the effective gravity at the body,
     /// in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the Euler term in a
     /// turning frame, and is the linear gravity otherwise.
@@ -942,7 +942,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Gives the locked dynamic body <paramref name="body"/> of <paramref name="record"/> in a turning frame, whose turns are
-    /// <paramref name="turns"/>, the two-turn update over the step in flight (docs/plans/spin-gravity.md, "The two-turn
+    /// <paramref name="turns"/>, the two-turn update over the step in flight (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn
     /// update"), plus the linear gravity <paramref name="linear"/> at its place, with its field part turned by the turn of the
     /// step, as one force: the change of its semantic
     /// chord that keeps it on its inertial line, in doubles, narrowed once. Its angular velocity follows the angular form, so
@@ -1245,7 +1245,7 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="StartVelocity"/> and <see cref="NextCharacterVelocity"/>). After the update, a character that did not stand loses
     /// its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the
     /// semantic gravity, with the centrifugal and the Euler term of a turning frame, whether the character touches anything
-    /// or not (docs/plans/spin-gravity.md, fork F5): at once when it touched anything in its last update, or in its last
+    /// or not (https://github.com/alexispurslane/tertius/wiki/spin-gravity, fork F5): at once when it touched anything in its last update, or in its last
     /// look-up of contacts at a new place since then, and at most at
     /// <see cref="JoltBackendOptions.CharacterAirUpTurnRate"/> when it touched nothing. So a character that tumbled lands
     /// upright and can stand, a person who jumps across a spinning station comes down feet first on the far floor, and a
@@ -1269,7 +1269,7 @@ public sealed partial class JoltPhysicsBackend
         Vector3 velocity = character.LinearVelocity;
         Vector3 ground = character.GroundVelocity;
         // The character moves away from its ground along the ground's normal, which on a slope and on a faceted floor
-        // differs from up (docs/plans/spin-gravity.md, "Characters").
+        // differs from up (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters").
         Vector3 normal = groundState == GroundState.OnGround ? GroundFaceNormal(character, up) : up;
         bool standing =
             underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, normal) < 0.1f;
@@ -1323,7 +1323,7 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private Vector3 TurnCharacterUp(FrameWorld world, BodyRecord record, CharacterVirtual character, Double3 position)
     {
-        // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
+        // Up follows that gravity whether the character touches anything or not (https://github.com/alexispurslane/tertius/wiki/spin-gravity, fork F5), so a
         // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
         // A character that touched anything in its last update, or in its last look-up of contacts at a new place since
         // then, also with its side or its head, turns its up at once. One
@@ -1386,7 +1386,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The gravity that Jolt reads to press a walking character's weight onto a dynamic body that it touches, for a
     /// character in the system of <paramref name="frame"/> under the effective gravity <paramref name="effective"/>, which
-    /// moves with <paramref name="velocity"/> in the step (docs/plans/spin-gravity.md, "Characters"): the effective gravity
+    /// moves with <paramref name="velocity"/> in the step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"): the effective gravity
     /// plus the Coriolis term on the character's velocity relative to the semantic frame. For a character that stands
     /// (<paramref name="standing"/>), its part along <paramref name="up"/> acts along the ground's normal
     /// <paramref name="normal"/>, and the rest is dropped, because the ground holds it. So on a flat face the press is the
@@ -1423,7 +1423,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The normal of the walkable face that holds <paramref name="character"/> up, which the walk and the test of standing
-    /// go by (docs/plans/spin-gravity.md, "Characters"): of the faces that it touched in its last update, the one whose
+    /// go by (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"): of the faces that it touched in its last update, the one whose
     /// normal lies nearest <paramref name="up"/>, as Jolt chooses the contact that supports a character. When that face is
     /// steeper than a character can stand on (<see cref="JoltBackendOptions.CharacterMaxSlopeDegrees"/>), or the character
     /// touched nothing, it is <paramref name="up"/>. Jolt's own ground normal is the mean of the normals of every face that
@@ -1454,7 +1454,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The part of <paramref name="walk"/>, a velocity across up, that lies in the ground plane whose normal is
-    /// <paramref name="normal"/>, at the speed of <paramref name="walk"/> (docs/plans/spin-gravity.md, "Characters", fork
+    /// <paramref name="normal"/>, at the speed of <paramref name="walk"/> (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork
     /// F6). On ground whose normal is up the walk lies in the plane already, and it comes back unchanged. A walkable slope
     /// is less than 90 degrees from up, so the walk always has a part in the plane.
     /// </summary>
@@ -1469,7 +1469,7 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// What the velocity of a walking character means at the start of its update (docs/plans/spin-gravity.md, "Characters"),
+    /// What the velocity of a walking character means at the start of its update (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"),
     /// whose Jolt velocity is <paramref name="velocity"/>, whose ground moves at <paramref name="ground"/> with the normal
     /// <paramref name="normal"/>, whose up is <paramref name="up"/>, and which stands in this step when
     /// <paramref name="standing"/> is true. A standing character takes the ground's velocity plus the part of its desired
@@ -1507,7 +1507,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The velocity that a walking character in the system of <paramref name="frame"/>, at <paramref name="position"/> in
     /// it, under the linear gravity <paramref name="linear"/> there, moves with in the step, by its case
-    /// <paramref name="start"/> (docs/plans/spin-gravity.md, "Characters"), with the velocity change that forces and impulses
+    /// <paramref name="start"/> (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"), with the velocity change that forces and impulses
     /// gave it since its last update. Writes the acceleration that the frame gave it (see
     /// <see cref="BodyRecord.FrameAcceleration"/>). The character moves by the chord of the step:
     /// <list type="bullet">
@@ -1520,7 +1520,7 @@ public sealed partial class JoltPhysicsBackend
     /// line, as for a dynamic body (see <see cref="ApplyTurningUpdate"/>). A velocity change acts at the start of the step,
     /// in the frame's axes then, so it enters as the change of the chord behind that has the same effect
     /// (see <see cref="FrameTurn.ChangeBehind"/>), which the update carries by the turn of the step in flight alone
-    /// (docs/plans/spin-gravity.md, "Impulses"). A force is in that change too, and the update turns it by the same turn as
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Impulses"). A force is in that change too, and the update turns it by the same turn as
     /// a dynamic body's force.</item>
     /// </list>
     /// In a frame that does not turn, every rule is the float rule of before the rotation terms, to the bit.
@@ -1679,7 +1679,7 @@ public sealed partial class JoltPhysicsBackend
     /// acceleration that the parent frame gave it (see <see cref="AppliedFrameAcceleration.Total"/>), the gravity and in a
     /// turning parent the rotation terms, turned into the frame's own axes. So a ship that rests on the floor of a spinning
     /// station reads ω² R toward the axis, and every change of velocity that the frame did not give reads as proper
-    /// acceleration (docs/plans/spin-gravity.md, "V4, the acceleration that the frame gave a body"). Also the hull's
+    /// acceleration (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V4, the acceleration that the frame gave a body"). Also the hull's
     /// acceleration and angular acceleration in
     /// the update, in the axes of its home, which leave out what the intents set before it (see
     /// <see cref="CaptureHullVelocitiesAfterIntents"/>).
@@ -1738,7 +1738,7 @@ public sealed partial class JoltPhysicsBackend
                 applied + (Double3)acceleration - ((Double3)owner.VelocityAfterIntents - before) / joltStep;
             // When Jolt puts the hull to sleep in the update, it sets its angular velocity to zero. That reset is no motion of
             // the step, so it gives no angular acceleration: otherwise the frame tree would predict the next step's rate as
-            // the last rate reversed and turn the sleeping hull's frame back (docs/plans/spin-gravity.md, "V3").
+            // the last rate reversed and turn the sleeping hull's frame back (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V3").
             owner.AngularAcceleration = bodies.IsActive(owner.Body)
                 ? (bodies.GetAngularVelocity(owner.Body) - owner.AngularVelocityAfterIntents) / joltStep
                 : Vector3.Zero;

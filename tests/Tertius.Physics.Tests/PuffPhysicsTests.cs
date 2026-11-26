@@ -215,7 +215,7 @@ internal static class PuffTesting
 }
 
 /// <summary>
-/// How puffs move on the World and the real Jolt backend (docs/plans/particles.md, "The rule of motion" and "The flow per
+/// How puffs move on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion" and "The flow per
 /// kind of frame"): a puff is a loose body without a shape in the frame of its birth, which its frame's motion, its field
 /// and its medium move. The expected values come from the free body's straight line in inertial space, from the motion of
 /// the frame, or from a real body that physics moves beside the puff.

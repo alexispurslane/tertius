@@ -9,7 +9,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The shuttle's <see cref="RendezvousAutopilot"/>, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md,
+/// The shuttle's <see cref="RendezvousAutopilot"/>, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// "The rendezvous autopilot"). The demo's station flies its orbit, 400 km up, in a root frame with Earth's point gravity,
 /// and the shuttle flies near it with its flight controls: the autopilot, then the actuators of the demo, the attitude
 /// autopilot and the control of the main engine and the jets (see <c>Shuttle.Actuators</c>). Between the autopilot and the actuators, a

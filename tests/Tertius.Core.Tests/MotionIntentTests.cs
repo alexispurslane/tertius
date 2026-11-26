@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The motion intent, a union of an end pose, a full sample and a steer target (docs/plans/rails-components.md, "The
+/// The motion intent, a union of an end pose, a full sample and a steer target (https://github.com/alexispurslane/tertius/wiki/rails-components, "The
 /// motion intent" and "MoveKinematic as an end pose"): the step record that each case gives for a step that starts at a
 /// pose, the pose that physics aims at, how each case converts into another frame, and the two reads of
 /// <see cref="PhysicsIntent"/> that use it, <see cref="PhysicsIntent.StepRecord"/> and <see cref="PhysicsIntent.IsEmpty"/>

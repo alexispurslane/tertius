@@ -1,4 +1,4 @@
-"""The model library: the Python helpers of scripted models (docs/plans/asset-pipeline.md, "Scripted models").
+"""The model library: the Python helpers of scripted models (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Scripted models").
 
 Modules:
     run       runs model scripts: new_scene, run_script, load_model

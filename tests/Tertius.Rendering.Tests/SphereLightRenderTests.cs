@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The highlight of a sized light on the GPU (docs/plans/pbr-brdf.md, "Sized lights"): a mirror shows the light's disc
+/// The highlight of a sized light on the GPU (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Sized lights"): a mirror shows the light's disc
 /// at the light's angular size and at one radiance across its inside, and a light of radius 0 shades as the point light
 /// did before the widened lobe. At the edges of the model, the GPU shows the C# light: on a fully rough surface, inside
 /// a light's sphere, and where the representative point sinks below the horizon.

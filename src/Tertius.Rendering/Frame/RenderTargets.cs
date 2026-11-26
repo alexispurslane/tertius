@@ -26,12 +26,12 @@ namespace Tertius.Rendering;
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// <item><term>shading</term>
 /// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 1 in b where the pixel's entity holds a light, the
-/// shading model's code in a, all 0 where nothing lit draws (docs/plans/skin-and-hair.md, "The shading target").
+/// shading model's code in a, all 0 where nothing lit draws (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 /// </description></item>
 /// <item><term>motion</term>
 /// <description>R16G16B16A16_SFLOAT: xy the last drawn frame's place of the pixel's point minus this frame's place, in
 /// units of the image's size, with no jitter; z the ratio of the point's view depth in the last frame to its view depth in
-/// this frame (docs/plans/temporal-renderer.md, "Jitter"); alpha 1 where the surface test chose the pixel place of the pixel
+/// this frame (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter"); alpha 1 where the surface test chose the pixel place of the pixel
 /// history rule (screen.glsl), else 0. (2, 2) where the point has no last place. The G-buffer clears it to 0, and the
 /// surface test writes the sky's motion and the alpha. It is also a storage image, for the surface test.
 /// </description></item>
@@ -39,9 +39,9 @@ namespace Tertius.Rendering;
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct light's images
 /// are R16G16B16A16_SFLOAT: the diffuse and the specular part of each lit pixel's direct light, each divided by its material
 /// factor and pre-exposed, 0 for sky and impostors, which the direct pass draws and the composite and the screen tracer
-/// read as storage images (docs/plans/temporal-renderer.md, section 7). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
+/// read as storage images (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
 /// light D of each skin pixel, which the composite writes, and the skin mask, whose pixels the skin scatter spreads
-/// (docs/plans/skin-and-hair.md, "The diffuse light D").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
 /// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under the skin scatter the HDR target is
 /// also a storage image, which the scatter's columns pass writes; without it it is not, so a frame is the frame from before
@@ -62,7 +62,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The back share's format: a color target format that the Vulkan spec requires, exact at 0 and at 1
-    /// (docs/plans/back-face-depth-layer.md, decision 9).
+    /// (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 9).
     /// </summary>
     public const Format BackShareFormat = Format.R16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
@@ -171,7 +171,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The back share of each pixel after <see cref="BackFacePass"/>, or null under <see cref="NoScreenTrace"/>: its front
-    /// distance over the distance of the nearest counted fragment, 0 for none (docs/plans/back-face-depth-layer.md).
+    /// distance over the distance of the nearest counted fragment, 0 for none (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer).
     /// </summary>
     public GpuImage? BackShare { get; private set; }
 
@@ -413,7 +413,7 @@ internal sealed class RenderTargets : IDisposable
     /// Why a device with <paramref name="maxColorAttachments"/> color attachments per pass and
     /// <paramref name="maxFragmentOutputAttachments"/> outputs of a fragment shader cannot draw the G-buffer, or null when
     /// it can. The renderer asks for 8 of each, which every desktop Linux driver, lavapipe and MoltenVK offer, though the
-    /// G-buffer draws 7 (docs/plans/temporal-renderer.md, "Portable Vulkan"). The spec's least is 4 of each.
+    /// G-buffer draws 7 (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Portable Vulkan"). The spec's least is 4 of each.
     /// </summary>
     internal static string? ColorAttachmentProblem(uint maxColorAttachments, uint maxFragmentOutputAttachments)
     {
@@ -426,7 +426,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The G-buffer draws seven color attachments, and the surface test writes the motion target as a storage image
-    /// (docs/plans/temporal-renderer.md, "Portable Vulkan").
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Portable Vulkan").
     /// </summary>
     private static void CheckMotionTarget(VulkanDevice device)
     {
@@ -469,7 +469,7 @@ internal sealed class RenderTargets : IDisposable
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
         if (depthPyramid)
             CheckPyramidFormats(device);
-        // The spec requires all three of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device
+        // The spec requires all three of RGBA16F on every device (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Required device
         // features"). The light pyramid samples the direct light.
         const FormatFeatureFlags drawnAndStored =
             FormatFeatureFlags.ColorAttachmentBit

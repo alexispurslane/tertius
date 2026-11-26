@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Tertius.Simulation;
 
 /// <summary>
-/// The puffs of a World (docs/plans/particles.md, "The puff store"). Puffs are not entities: each is a row of this table,
+/// The puffs of a World (https://github.com/alexispurslane/tertius/wiki/particles, "The puff store"). Puffs are not entities: each is a row of this table,
 /// with a place, a chord, an age and a look index. The rows of one frame lie together in one range, so no row holds a
 /// frame, and what the puffs of an emitter share lies once in the look table. The World owns the table, and only its sync
 /// point and its destroy path write it, each through one method that the World calls once:
@@ -173,7 +173,7 @@ internal sealed class PuffTable
     /// rule of motion of its frame, and the puffs whose age reached their life die. It reads the loose-body step of each
     /// range's frame once, which describes the step that ended from step 2 of the sync point on. It cuts the rows into equal
     /// slices, on the workers from <see cref="StepParallelThreshold"/> puffs on, and each slice compacts its survivors toward
-    /// its first row. The join then moves the slices together in slice order (docs/plans/particles.md, "The parallel
+    /// its first row. The join then moves the slices together in slice order (https://github.com/alexispurslane/tertius/wiki/particles, "The parallel
     /// pieces"). A range whose frame is not live comes only from a bug: a Debug build fails a contract, and a Release build
     /// drops the range and records an error.
     /// </summary>

@@ -395,10 +395,10 @@ Group the members of a type by kind, in this order: constants, static fields and
 
 ## Comments
 
-One fact has one home. The model says how the parts work together. The model and the reasons for design decisions live in ARCHITECTURE.md or in a design doc in `docs/plans`. A comment points to them and never repeats them.
+One fact has one home. The model says how the parts work together. The model and the reasons for design decisions live in ARCHITECTURE.md or in a design doc in `https://github.com/alexispurslane/tertius/wiki`. A comment points to them and never repeats them.
 
 - A doc comment says what a member is or does, in plain English, and the invariants that it keeps or needs.
-- If the reason belongs to the member alone, the doc comment gives it in one sentence. A reason that spans several members goes into the docs, and the comment points to its section, such as `(docs/plans/rails-components.md, "The follow kind")`.
+- If the reason belongs to the member alone, the doc comment gives it in one sentence. A reason that spans several members goes into the docs, and the comment points to its section, such as `(https://github.com/alexispurslane/tertius/wiki/rails-components, "The follow kind")`.
 - The `<summary>` and `<remarks>` of a doc comment hold at most 50 words together. Each `<param>`, `<returns>` and `<typeparam>` holds at most 20 words.
 - A type that keeps invariants lists them in its doc comment as a `<list>`, one item per invariant, each at most 25 words. The list does not count toward the 50 words.
 - A comment in code gives the reason for the code, never a description of the code under it.

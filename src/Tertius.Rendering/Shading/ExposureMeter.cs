@@ -4,7 +4,7 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The C# copy of the exposure's meter and approach (docs/plans/auto-exposure.md, "The math"). meter.glsl,
+/// The C# copy of the exposure's meter and approach (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The math"). meter.glsl,
 /// exposure_meter.comp and exposure_adapt.comp compute the same, and ExposureShaderTests pins them to it.
 /// </summary>
 internal static class ExposureMeter

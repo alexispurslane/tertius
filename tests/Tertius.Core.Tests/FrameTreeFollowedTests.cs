@@ -5,7 +5,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The frame tree tells how each frame followed its owner at the last sync point (<see cref="FrameTree.Followed"/>): the
-/// follow kind that the frame's row stores beside the record of the step that ended (docs/plans/rails-components.md, "The
+/// follow kind that the frame's row stores beside the record of the step that ended (https://github.com/alexispurslane/tertius/wiki/rails-components, "The
 /// follow kind"). Step 2 writes it with the record (<see cref="FrameTree.TakeStepRecords"/>), and
 /// the tree tells which kind a record of a step has, from the intents that the step applied
 /// (<see cref="FrameTree.FollowKindInStep"/>): the record of a hull that was dynamic in the step is physics, the record of a
@@ -228,7 +228,7 @@ public sealed class FrameTreeFollowedTests
 
     /// <summary>
     /// Physics moves a static hull only by a teleport. A static hull refuses every motion intent, so one in its intent comes
-    /// only from a bug, which physics ignores (docs/plans/rails-components.md, "The flow per kind of entity"), and the
+    /// only from a bug, which physics ignores (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow per kind of entity"), and the
     /// record stays static.
     /// </summary>
     [Fact]

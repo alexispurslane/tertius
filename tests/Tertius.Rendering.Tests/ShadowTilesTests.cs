@@ -5,9 +5,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="ShadowTiles"/>: which near lights get tiles of the atlas, which layer each tile takes, which casters each
-/// tile draws, when a tile is drawn again, and each tile's projection (docs/plans/local-light-shadows.md, "The budget",
+/// tile draws, when a tile is drawn again, and each tile's projection (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The budget",
 /// "Tile views", "Casters", "The cache"), the main view's lights before the lights that only a face of a map keeps
-/// (docs/plans/environment-map.md, decision 20), and the margin by which a holder keeps its tiles (settled fork 2). Every
+/// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20), and the margin by which a holder keeps its tiles (settled fork 2). Every
 /// frame is submitted, then checks the invariants, unless a test says otherwise.
 /// </summary>
 public sealed class ShadowTilesTests
@@ -874,14 +874,14 @@ public sealed class ShadowTilesTests
                     "entity in the slot of a destroyed one" => caster with { Entity = new(Index: 7, Generation: 2) },
                     "part" => caster with { Part = 1 },
                     "mesh" => caster with { Mesh = 3 },
-                    // A cutout material shadows only its core (docs/plans/skin-and-hair.md, "The cutout test").
+                    // A cutout material shadows only its core (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The cutout test").
                     _ => caster with { Material = 5, Alpha = new CutoutAlpha(Cutoff: 0.5f) },
                 }
             )
             .Should()
             .ContainSingle();
 
-    // Posed casters (docs/plans/skinning-and-morphs.md, fork 1, B): the record keeps a posed caster's static mesh and pose
+    // Posed casters (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, fork 1, B): the record keeps a posed caster's static mesh and pose
     // rows. A posed caster draws frame mesh 2, the copy of static mesh 1, the cylinder or the box.
 
     [Fact]

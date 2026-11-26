@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// After the G-buffer pass and before the depth pyramid: writes the back share of each pixel into
-/// <see cref="RenderTargets.BackShare"/> (docs/plans/back-face-depth-layer.md, decision 4). It draws the G-buffer's
+/// <see cref="RenderTargets.BackShare"/> (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4). It draws the G-buffer's
 /// indirect commands of each depth range, far to near, with the range's jittered matrix and a cleared depth, and keeps
 /// the nearest fragment that counts behind the pixel's front surface.
 /// </summary>

@@ -14,7 +14,7 @@ public static class Program
     private const string GrayBox = "--gray-box";
 
     /// <summary>
-    /// Runs one of the demo's scenes. See <see cref="ScriptCommand"/> and docs/plans/host-and-scripted-runs.md.
+    /// Runs one of the demo's scenes. See <see cref="ScriptCommand"/> and https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs.
     /// <list type="bullet">
     /// <item><c>--script scripts/drop-box.json --headless --out captures/drop-box</c> runs a script with no window.</item>
     /// <item><c>--script scripts/drop-box.json --headless --out captures/drop-box --video captures/drop-box.mkv --fps 30</c>

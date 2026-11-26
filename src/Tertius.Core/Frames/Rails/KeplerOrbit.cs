@@ -219,7 +219,7 @@ public record struct KeplerOrbit(
     /// and <see cref="AngularVelocityAt"/> there to the last bit. The chord velocity is <see cref="Chord"/> of that state.
     /// The acceleration is the pull (<see cref="Acceleration"/>) where the step starts, the end place less the chord times
     /// the step. The angular acceleration is the mean over the step, the meaning of every step record's angular acceleration
-    /// (docs/plans/spin-gravity.md, "V3"): the change of the angular velocity over the step, divided by the step, with
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V3"): the change of the angular velocity over the step, divided by the step, with
     /// <see cref="AngularVelocityAt"/> solved at the start of the step too. It is zero for <see cref="Spin"/>, which turns
     /// steadily. Around a parent without G·M, the frame rests at the parent's origin with no chord and no acceleration.
     /// </summary>

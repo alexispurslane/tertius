@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// A hair fiber at one point, after its maps: the C# copy of hairResponse in hair.glsl and of strandOf and fiberNormal in
-/// material.glsl (docs/plans/skin-and-hair.md, "The hair model", "The strand and the fiber normal").
+/// material.glsl (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The hair model", "The strand and the fiber normal").
 /// </summary>
 internal readonly record struct HairFiber(Double3 BaseColor, double Roughness, double Reflectance)
 {

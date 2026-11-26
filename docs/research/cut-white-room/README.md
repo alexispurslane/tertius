@@ -17,7 +17,7 @@ The hypothesis holds. The cabin's map, map 2, holds the exterior's light at the 
 
 ## Why the map keeps the exterior's light
 
-Every map is captured at the eye (docs/plans/environment-maps-per-frame.md, decisions 3 and 4). On both cameras the served chain is the same three frames: 4294967296, 4294967297 and 4294967299. So `EnvironmentChain.Keeps` (decision 9) keeps every map at the cut, because it compares only frames:
+Every map is captured at the eye (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decisions 3 and 4). On both cameras the served chain is the same three frames: 4294967296, 4294967297 and 4294967299. So `EnvironmentChain.Keeps` (decision 9) keeps every map at the cut, because it compares only frames:
 
 ```csharp
     public static bool Keeps(ReadOnlySpan<long> drawnFor, ReadOnlySpan<long> served, int map)

@@ -26,7 +26,7 @@ internal sealed record ScatterField(
 
 /// <summary>
 /// One pass of the separable scatter at one skin pixel, the C# copy of scatterAlong in skin_scatter.glsl
-/// (docs/plans/skin-and-hair.md, "The two passes").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes").
 /// </summary>
 internal static class SkinScatter
 {

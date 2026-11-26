@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Where the coast of the <see cref="RendezvousAutopilot"/>'s transfer starts, on the World and the real Jolt backend
-/// (docs/plans/blue-danube-demo.md, "The transfer guidance"). In a low orbit, the shuttle turns about 4 degrees in the last
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The transfer guidance"). In a low orbit, the shuttle turns about 4 degrees in the last
 /// minute, so the coast of the last <see cref="TransferGuidance.CoastTime"/> starts well before the transfer angle nears 1
 /// degree, where <see cref="KeplerOrbit.Lambert"/> refuses it. <see cref="HighOrbitRun"/> flies a plan where it does not:
 /// a station in a geostationary orbit turns only 0.25 degrees a minute.

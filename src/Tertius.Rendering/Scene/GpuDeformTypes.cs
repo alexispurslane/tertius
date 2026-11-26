@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Tertius.Rendering;
 
-// C# mirrors of the structs of Shaders/deform.comp, in std430 (docs/plans/skinning-and-morphs.md, "The layouts", and its
+// C# mirrors of the structs of Shaders/deform.comp, in std430 (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The layouts", and its
 // change by ter-3yy5, which added the card). Change both sides together; GpuDeformTypesTests checks the sizes and the
 // offsets.
 
@@ -64,7 +64,7 @@ internal struct GpuMorphDelta
 
 /// <summary>
 /// One job of the deform pass's job table, the GPU form of a <see cref="DeformJob"/>. 28 bytes
-/// (docs/plans/skinning-and-morphs.md, "The layouts").
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The layouts").
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuDeformJob

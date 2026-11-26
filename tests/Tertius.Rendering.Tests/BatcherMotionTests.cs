@@ -5,7 +5,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The placement history (docs/plans/temporal-renderer.md, "The placement history"): the batch joins the snapshot's
+/// The placement history (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement history"): the batch joins the snapshot's
 /// instances with the keys and the rows of the last drawn frame, and gives each placed instance its motion row. An
 /// instance that the last frame drew moves from the rows that the last frame drew; a new key, a new generation or a new
 /// mesh is new; an instance without an identity is still in the camera's frame. No GPU needed.

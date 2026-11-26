@@ -4,7 +4,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The loose-body step of a frame on the World and the real backend (docs/plans/particles.md, "The rule of motion"). After
+/// The loose-body step of a frame on the World and the real backend (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion"). After
 /// step 2 of a sync point, <see cref="FrameTree.LastLooseBodyStep"/> gives the linear gravity that the step that ended
 /// applied: physics reads the frame's field less its stored proper acceleration during the step, and step 2 then writes a
 /// new proper acceleration. The loose-body step keeps the value that the step found, so a puff that steps after step 2

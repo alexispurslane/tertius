@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Scenes and reads for the GPU tests of the environment map (docs/plans/environment-map.md, "GPU tests of the map
+/// Scenes and reads for the GPU tests of the environment map (https://github.com/alexispurslane/tertius/wiki/environment-map, "GPU tests of the map
 /// itself"). The camera sits at the origin with identity rotation and frame 0.
 /// </summary>
 internal static class EnvironmentScenes
@@ -167,7 +167,7 @@ internal static class EnvironmentScenes
 }
 
 /// <summary>
-/// The faces of the environment map on the GPU (docs/plans/environment-map.md, "The capture" and "Which faces a frame
+/// The faces of the environment map on the GPU (https://github.com/alexispurslane/tertius/wiki/environment-map, "The capture" and "Which faces a frame
 /// draws"): what a face holds, how it is lit, and which faces a frame draws.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -302,7 +302,7 @@ public sealed class EnvironmentFaceTests
 
     /// <summary>
     /// A face stores 1000 m over the distance from the eye to the surface in each texel, along the texel's own direction:
-    /// the radial distance, not the depth along the face's axis (docs/plans/environment-map-distances.md, "The distance
+    /// the radial distance, not the depth along the face's axis (https://github.com/alexispurslane/tertius/wiki/environment-map-distances, "The distance
     /// store"). A wall 4 m ahead fills face +X, a square 100 km up, in the middle range, covers the center of face +Y, and
     /// face −X sees only the sky.
     /// </summary>
@@ -561,7 +561,7 @@ public sealed class EnvironmentFaceTests
     [Fact]
     public void AGlowOfAnEntityThatHoldsALightAddsNothingToTheMap()
     {
-        // The entity sends its power once, through its light, and its glow is that light's face (docs/plans/environment-
+        // The entity sends its power once, through its light, and its glow is that light's face (https://github.com/alexispurslane/tertius/wiki/environment-
         // map.md, "How a face is lit"). Else the map's irradiance lights the room with the lamp's power a second time.
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try

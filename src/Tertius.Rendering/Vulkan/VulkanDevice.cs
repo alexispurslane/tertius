@@ -496,16 +496,16 @@ internal sealed unsafe class VulkanDevice : IDisposable
             // The transparent pass blends with a second output: what a pane lets through.
             DualSrcBlend = true,
             // The ambient pass adds D's ambient part to the diffuse image with a storage write at skin pixels
-            // (docs/plans/skin-and-hair.md, decision 14).
+            // (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 14).
             FragmentStoresAndAtomics = true,
             SamplerAnisotropy = true,
             // The depth pyramid stores RG32F images, the surface test an R16UI image and the screen tracer's plan an R8UI
             // image.
             ShaderStorageImageExtendedFormats = true,
             // AMD's FSR 3.1 accumulate pass writes its output image, declared with no format
-            // (docs/plans/temporal-renderer.md, "FSR 3.1").
+            // (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "FSR 3.1").
             ShaderStorageImageWriteWithoutFormat = true,
-            // The environment maps of the chain's frames are cube arrays (docs/plans/environment-maps-per-frame.md,
+            // The environment maps of the chain's frames are cube arrays (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame,
             // decision 18).
             ImageCubeArray = true,
         };

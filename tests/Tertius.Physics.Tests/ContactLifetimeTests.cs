@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// reports them again when the body wakes. A growth of the system forgets every contact too. A contact that really ends
 /// while a body sleeps or is static still ends, so it is reported again when it starts again. A hull that changes its
 /// motion ends each contact that its new motion cannot make, such as a touch of a static body when it parks, and keeps
-/// each one that its new motion can make (rule 6 of docs/plans/complete-ghosts.md). The tests run the World on the real backend and count the contacts in the step
+/// each one that its new motion can make (rule 6 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts). The tests run the World on the real backend and count the contacts in the step
 /// outputs that Jolt really sent, which <see cref="FaultInjectingBackend"/> records.
 /// </summary>
 public sealed class ContactLifetimeTests
@@ -195,7 +195,7 @@ public sealed class ContactLifetimeTests
     /// A lander with a dynamic hull rests on the floor. The game parks the lander for a second and then unparks it, each
     /// with a change of the hull's motion in a tick. A static body touches no static body, so the parked lander's touch of
     /// the floor ends at the park, and the lander touches the floor again when it is unparked: every pair of a body follows
-    /// its new motion at once (rule 6 of docs/plans/complete-ghosts.md, which the user decided on 2026-10-17). Jolt does
+    /// its new motion at once (rule 6 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts, which the user decided on 2026-10-17). Jolt does
     /// not simulate the parked lander or the floor, so it never drops their pair on its own, and the backend ends it at
     /// the change. Before ter-7ul9 the touch went on through the park, as the reviewer's probe C1 of the contact ledger
     /// asked, because the ledger counted a pair of two bodies that Jolt does not simulate as held.

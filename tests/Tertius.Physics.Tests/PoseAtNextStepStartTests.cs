@@ -5,7 +5,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// <see cref="Self.PoseAtNextStepStartIn"/> gives the pose where the entity starts the next step, which is where the step
-/// that runs beside the tick leaves it (docs/plans/rails-components.md, "The motion intent, PhysicsIntent.Move"). A kinematic
+/// that runs beside the tick leaves it (https://github.com/alexispurslane/tertius/wiki/rails-components, "The motion intent, PhysicsIntent.Move"). A kinematic
 /// body without a motion intent in that step holds still in its semantic frame, whatever numeric frame holds it, so a rails
 /// component that starts from the read starts where the body stands (see also
 /// <see cref="StoppedBodyInNumericHomeTests"/>). The following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
@@ -82,7 +82,7 @@ public sealed class PoseAtNextStepStartTests
 
     /// <summary>
     /// A plain kinematic ball that end poses move at 1,200 m/s through space without gravity rests in a following frame that
-    /// moves with it (docs/plans/numeric-frames.md, "Following frames"). Its end poses stop, so a step runs without a motion
+    /// moves with it (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). Its end poses stop, so a step runs without a motion
     /// intent: the ball holds still in its home, whose plan holds the ball still, so the home holds still in space too
     /// (ticket ter-zsku). A read of the next step's start in that step's tick gives the place where the ball stands when the
     /// step ends, which is where it stood. Before ter-zsku the home fell on without a plan, 20 m in the step.

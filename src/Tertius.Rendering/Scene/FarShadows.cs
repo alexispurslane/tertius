@@ -1,6 +1,6 @@
 namespace Tertius.Rendering;
 
-/// <summary>The slots of the far lights (docs/plans/local-light-shadows.md, "Shadows of each light").</summary>
+/// <summary>The slots of the far lights (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Shadows of each light").</summary>
 internal static class FarShadows
 {
     /// <summary>The least share of the brightest far light's rank irradiance for which a far light gets far shadows.</summary>
@@ -14,7 +14,7 @@ internal static class FarShadows
     /// tier first, and each from the cascade sets that the tiers above leave. So the lights of a tier get the slots that
     /// they get without the lower tiers: a spot lamp whose axis misses the view cannot take a set from a light whose light
     /// falls in view, and a light that only a face keeps cannot take one from the main view's lights
-    /// (docs/plans/environment-map.md, decision 20). In each choice the far lights of the tier that cast shadows and have
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20). In each choice the far lights of the tier that cast shadows and have
     /// at least Share of the brightest rank irradiance (<see cref="LightUnits.RankIrradiance"/>) of far lights of that tier
     /// and the tiers above, shadowed or not, get a slot: the next cascade set for the brightest, ties in list order, while
     /// sets are left, and FarShadowsOnly for the rest. The share counts from the tiers above too, because their lights
@@ -104,7 +104,7 @@ internal static class FarShadows
             float irradiance = LightUnits.RankIrradiance(lights[i]);
             // Strictly brighter only, so that of equal lights the first in the list wins. The list is in the snapshot's
             // order, the slot order of the entity table, which every run shares, so the choice is deterministic
-            // (docs/plans/local-light-shadows.md, decision 24).
+            // (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 24).
             if (brightest is null || irradiance > most)
             {
                 brightest = i;

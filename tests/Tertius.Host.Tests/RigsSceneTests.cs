@@ -8,7 +8,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The demo scenes of skinning and morph targets (docs/plans/skinning-and-morphs.md, "Part 5"): <c>rigs</c>, whose
+/// The demo scenes of skinning and morph targets (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 5"): <c>rigs</c>, whose
 /// bending cylinder, morphing box and twisting cylinder sway, and <c>rigs-crowd</c>, whose 100 cylinders of 20,202
 /// vertices measure the cost. Each posed instance draws a deformed copy, the sway is the same on every run, and each
 /// scene has a checked-in script of its own name.

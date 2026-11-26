@@ -4,7 +4,7 @@ using Tertius.Simulation;
 namespace Tertius.Demo;
 
 /// <summary>
-/// The puffs that one kind of jet blows (docs/plans/blue-danube-demo.md, "The plumes"): what its puffs share,
+/// The puffs that one kind of jet blows (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes"): what its puffs share,
 /// <see cref="Look"/>, how many it makes in each second at full throttle, <see cref="FullRate"/>, their speed relative to
 /// the jet, <see cref="Speed"/>, in m/s, and the half-angle of their cone, <see cref="Spread"/>, in rad. A jet sets the
 /// emitter of its own part in each tick from its throttle, <see cref="At"/>, so its plume shows exactly while it pushes.

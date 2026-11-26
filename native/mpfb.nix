@@ -1,6 +1,6 @@
 # MPFB 2.0.18: the MakeHuman add-on for Blender, unpacked. Scripted models of people run its code inside the build,
 # through tools/blender/tertius_blender/mpfb.py: its sliders, its base mesh and targets, its rigs and its fitting of
-# the MakeHuman body-part assets (docs/plans/asset-pipeline.md, "Humans from MPFB"). Nothing installs it into the
+# the MakeHuman body-part assets (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Humans from MPFB"). Nothing installs it into the
 # user's Blender: native/blender-extensions.nix links this folder as the system extension "mpfb", and a run enables
 # it for itself only. The assets shell gives the folder as TERTIUS_MPFB.
 # Source: the Blender extensions platform, https://extensions.blender.org/add-ons/mpfb/ (45,956,992 bytes).

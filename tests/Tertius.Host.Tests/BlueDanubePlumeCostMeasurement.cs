@@ -11,7 +11,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The measurement of the demo's plumes (docs/plans/blue-danube-demo.md, "The plumes"): the wall time of the master of the
+/// The measurement of the demo's plumes (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes"): the wall time of the master of the
 /// checked-in scripts/blue-danube.json, headless at 1280x720 into a video at 60 frames per second, as the command makes
 /// it, with the default puff capacity of 4,096 and with a capacity of 0, which turns puffs off. Each capacity runs once,
 /// in that order, because one run takes minutes. The report gives both times, their difference per frame, the peak count

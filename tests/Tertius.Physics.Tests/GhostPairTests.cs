@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A contact of two ghosts, one of them a sensor, is a contact of their entities (the first half of ticket ter-3mwi, item 2
-/// of docs/plans/complete-ghosts.md). Jolt makes a contact of two ghosts only when one of them is a sensor, because no ghost
+/// of https://github.com/alexispurslane/tertius/wiki/complete-ghosts). Jolt makes a contact of two ghosts only when one of them is a sensor, because no ghost
 /// is dynamic in Jolt. The contact filter judges such a pair by the contact motions of both ghosts, the motions of their
 /// real bodies, and the ledger counts it once, however many systems hold it. Each scene runs across frames and with the
 /// same bodies in one frame, and both runs hear the same events.

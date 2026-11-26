@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The card numbers of a mesh (docs/plans/skin-and-hair.md, "The card number"): each connected strip of triangles is
+/// The card numbers of a mesh (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The card number"): each connected strip of triangles is
 /// one card, and every vertex of a triangle carries the number of the triangle's card.
 /// </summary>
 public sealed class MeshCardsTests
@@ -105,7 +105,7 @@ public sealed class MeshCardsTests
     {
         // Two strips that fan out from one root at the origin, as an exporter can snap two cards' roots to one scalp
         // vertex. Each strip has its own copy of the root. The cost of the join by position: the two never shade each
-        // other under the screen-space light (docs/plans/skin-and-hair.md, "Known limits").
+        // other under the screen-space light (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Known limits").
         Vertex[] vertices =
         [
             At(new(0, 0, 0), Vector3.UnitY),

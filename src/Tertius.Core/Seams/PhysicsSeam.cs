@@ -545,7 +545,7 @@ public struct PhysicsIntent
     /// <summary>
     /// The step record of a kinematic body that takes the intent, in a step of <paramref name="step"/> seconds: the record of
     /// its end pose or full sample (see <see cref="StepRecord"/>), or else the record of a kinematic body without a motion
-    /// intent, which holds still where the step starts, with no velocity, acceleration or turn (docs/plans/numeric-frames.md,
+    /// intent, which holds still where the step starts, with no velocity, acceleration or turn (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Following frames"). A steer target, which a kinematic body refuses, gives the still record too. The step starts as
     /// <see cref="StepRecord"/> says. The frame tree takes this record as the step plan of a following frame's anchor, and
     /// physics aims a kinematic body at it, so the two agree to the last bit.
@@ -765,7 +765,7 @@ public readonly record struct ContactEnded(Entity A, Entity B);
 
 /// <summary>
 /// The step record of a frame whose hull physics moved in the step: the frame's motion over the step that just ended (see
-/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> is relative to the
+/// "One motion record per frame" in https://github.com/alexispurslane/tertius/wiki/rails-components). Every field of <see cref="Motion"/> is relative to the
 /// frame's tree parent after this step, in its axes. If the step also handed the frame off, the parent is the hand-off's
 /// <see cref="HandOff.To"/>, so the sync point applies hand-offs first. The sync point puts the frame on its record (see
 /// <c>World.FollowOwners</c>).
@@ -837,7 +837,7 @@ public sealed class PhysicsStepOutput
 /// The physics engine as the simulation sees it. <see cref="ApplyChanges"/> runs at the sync point.
 /// <see cref="Step"/> runs on the physics thread while gameplay runs. Every linear velocity of a body on this seam is the
 /// velocity of the body's origin, the point that its pose names, not of its center of mass
-/// (docs/plans/real-physics-in-tests.md, "The velocity point").
+/// (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests, "The velocity point").
 /// </summary>
 public interface IPhysicsBackend : IDisposable
 {

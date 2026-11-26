@@ -4,7 +4,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// A point light that an entity carries: a sphere that sends its power the same in every direction, in SI units
-/// (docs/plans/local-light-shadows.md, "Light data"). It sits at the entity's pose composed with <see cref="Offset"/>.
+/// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Light data"). It sits at the entity's pose composed with <see cref="Offset"/>.
 /// </summary>
 /// <param name="Offset">The light's pose relative to the entity. A zeroed rotation, as in a defaulted pose, counts as the identity.</param>
 /// <param name="Color">Linear RGB that scales the power per channel.</param>
@@ -22,7 +22,7 @@ public readonly record struct PointLightData(Pose Offset, Vector3 Color, float P
 
 /// <summary>
 /// A spot light that an entity carries: a sphere that sends its power through a cone along the local -Z axis of its pose,
-/// which is the entity's pose composed with <see cref="Offset"/>, in SI units (docs/plans/local-light-shadows.md, "Light
+/// which is the entity's pose composed with <see cref="Offset"/>, in SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Light
 /// data").
 /// </summary>
 /// <param name="Offset">The light's pose relative to the entity. A zeroed rotation, as in a defaulted pose, counts as the identity.</param>
@@ -106,7 +106,7 @@ public readonly record struct RectLightData(
 /// the render snapshot. To switch a light off and on again, keep the light value and write the default over it.
 /// </summary>
 /// <remarks>
-/// This is a generated union (docs/plans/union-tooling.md) of <see cref="PointLightData"/>,
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling) of <see cref="PointLightData"/>,
 /// <see cref="SpotLightData"/>, <see cref="TubeLightData"/> and <see cref="RectLightData"/>. Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>

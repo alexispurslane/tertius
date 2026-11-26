@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The GPU plumbing of the environment map (docs/plans/environment-map.md, "Images and buffers" and "Portable Vulkan"):
+/// The GPU plumbing of the environment map (https://github.com/alexispurslane/tertius/wiki/environment-map, "Images and buffers" and "Portable Vulkan"):
 /// the descriptors that its compute passes need, what a map that fails to start or to grow leaves behind, and the drawn
 /// chain and the readback of a slot when a drawn frame fails before its submission. Validation is on.
 /// </summary>

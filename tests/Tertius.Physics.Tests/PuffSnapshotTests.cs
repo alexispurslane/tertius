@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The puffs of the render snapshot that the World publishes at step 11 (docs/plans/particles.md, "The render snapshot"
+/// The puffs of the render snapshot that the World publishes at step 11 (https://github.com/alexispurslane/tertius/wiki/particles, "The render snapshot"
 /// and "Task 6: the assembly"): the snapshot shows the rows of the puff table, placed through the frame tree relative to
 /// the camera, on the real World and Jolt backend.
 /// </summary>

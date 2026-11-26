@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The CPU side of the cascade sets (docs/plans/local-light-shadows.md, Part 4): each far light with a
+/// The CPU side of the cascade sets (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 4): each far light with a
 /// <see cref="CascadeSet"/> gets four cascades of its own, along its own direction, and the shadow pass culls each caster
 /// against every cascade of every set. No GPU needed. The camera sits at the render origin and looks down −Z at
 /// 1600 × 900. Two stars cast shadows: the brighter, straight above, takes set 0, and the other, along +X, set 1.

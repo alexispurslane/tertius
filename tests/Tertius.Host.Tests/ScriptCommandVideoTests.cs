@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The command line with <c>--video</c>: a headless run whose captures go into one video, which the real ffmpeg of the
-/// dev shell encodes, and the failures of ffmpeg. See docs/plans/blue-danube-demo.md, change 1.
+/// dev shell encodes, and the failures of ffmpeg. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 1.
 /// </summary>
 public sealed class ScriptCommandVideoTests : IDisposable
 {

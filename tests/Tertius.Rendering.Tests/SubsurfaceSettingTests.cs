@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="SubsurfaceSetting"/> and <see cref="RendererOptions.Subsurface"/>: the zero case, the default of the
-/// options and the rule that refuses a setting (docs/plans/skin-and-hair.md, decision 29), with no GPU.
+/// options and the rule that refuses a setting (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 29), with no GPU.
 /// </summary>
 public sealed class SubsurfaceSettingTests
 {

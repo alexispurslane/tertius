@@ -7,7 +7,7 @@ using StationExit = Tertius.Demo.DemoScenes.StationExit;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The exit in the checked-in long script, scripts/blue-danube.json (docs/plans/blue-danube-demo.md, "The exit", "Sections
+/// The exit in the checked-in long script, scripts/blue-danube.json (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit", "Sections
 /// of the long script"): the run of <see cref="BlueDanubeRendezvousRun"/> goes on after the docking's film <c>docked</c>
 /// through the exit's films to <c>floor</c>, and the coda follows. So one run goes from the terminal on the ground through
 /// the launch, the rendezvous and the docking to the person on the wheel's floor. The exit's own run of the scene

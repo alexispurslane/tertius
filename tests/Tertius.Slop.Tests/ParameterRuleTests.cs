@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules of the user's about parameters and what a function returns (docs/plans/code-quality-tooling.md,
+/// The verbosity rules of the user's about parameters and what a function returns (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 17): for each rule, code that it flags and a near miss.
 /// </summary>
 public sealed class ParameterRuleTests

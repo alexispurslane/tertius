@@ -1,6 +1,6 @@
 namespace Tertius.Rendering;
 
-/// <summary>The DFG and lobe-sky tables, computed once per process (docs/plans/pbr-brdf.md, "The tables").</summary>
+/// <summary>The DFG and lobe-sky tables, computed once per process (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The tables").</summary>
 /// <remarks>The texels of each axis span its range from end to end (<see cref="TexelValue"/>).</remarks>
 internal sealed class BrdfTables
 {

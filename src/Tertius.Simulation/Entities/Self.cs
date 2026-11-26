@@ -209,7 +209,7 @@ public readonly ref struct Self
 /// <see cref="InvalidOperationException"/>
 /// when the entity has no body, except the four that push: <see cref="AddForce"/>, <see cref="AddTorque"/>,
 /// <see cref="AddImpulse"/> and <see cref="AddAngularImpulse"/>. Those also work on a part, an attached entity whose chain
-/// root has a body (docs/plans/parts.md): the part writes its own push, and the sync point after the tick carries it to
+/// root has a body (https://github.com/alexispurslane/tertius/wiki/parts): the part writes its own push, and the sync point after the tick carries it to
 /// the root's body, where a force and an impulse act at the part's place, with the torque of their lever about the body's
 /// center of mass (see <see cref="BodyFacts.CenterOfMass"/>). The root's components do not see a part's push, as they do
 /// not see a contact. The properties work for every entity: <see cref="Pending"/> is the empty intent for an entity
@@ -369,7 +369,7 @@ public readonly ref struct BodyHandle
 
     /// <summary>
     /// Gives the hull of the frame that the entity owns the motion <paramref name="motion"/> from the next step on, for
-    /// example <see cref="BodyMotion.Static"/> to park a ship (docs/plans/rails-components.md, "Changes of motion"). Physics
+    /// example <see cref="BodyMotion.Static"/> to park a ship (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). Physics
     /// gives the Jolt body the new motion at the start of the next step, which runs beside the next tick, and every read
     /// about that step counts it at once: <see cref="NextStepMotion"/> and the guards of the writes after it in this tick and
     /// in the next one. The stored motion, which <see cref="FrameTree.HullMotion"/> and the body facts show, describes the

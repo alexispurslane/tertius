@@ -62,7 +62,7 @@ public readonly record struct Fsr3Upscaling(RenderScaleSetting RenderScale, floa
     public static Fsr3Upscaling Default => new(FrameTimeTarget.Default, 0);
 }
 
-/// <summary>The one anti-aliasing and upscale setting (docs/plans/temporal-renderer.md, section 4).</summary>
+/// <summary>The one anti-aliasing and upscale setting (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 4).</summary>
 [GeneratedUnion(typeof(NoUpscaling), typeof(Fsr3Upscaling), ZeroCase = typeof(NoUpscaling))]
 public readonly partial struct UpscalingSetting
 {

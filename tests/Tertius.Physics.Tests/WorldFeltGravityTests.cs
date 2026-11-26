@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// The public read of the gravity that a body feels in a frame over the last finished step,
 /// <see cref="FrameTree.FeltGravity"/>,
-/// on the World and the real Jolt backend (docs/plans/spin-gravity.md, "V5, the effective gravity"): the frame's field at
+/// on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the effective gravity"): the frame's field at
 /// the place, less the frame's proper acceleration, plus the centrifugal term −ω × (ω × r) and the Euler term −α × r of the
 /// frame's inertial turn, in the frame's axes. The stations of the tests are frames without a body and without a field,
 /// which turn about their parent's +Y. A rate ω about +Y gives a body at (x, y, z) the centrifugal acceleration

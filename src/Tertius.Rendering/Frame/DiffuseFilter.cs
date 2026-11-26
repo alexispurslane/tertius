@@ -22,7 +22,7 @@ namespace Tertius.Rendering;
 /// The light of dispatch <see cref="FeedbackDispatch"/> replaces the slow history's light, as the paper feeds back its
 /// first step: the filter is the slow history's second writer, after the accumulation. That dispatch also writes the
 /// deviation that moves with the light into the fast history as its retained deviation
-/// (docs/plans/bounce-light-confidence.md, section 7). The last dispatch writes <see cref="Filtered"/>, which the
+/// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7). The last dispatch writes <see cref="Filtered"/>, which the
 /// composite shows and the next frame's rays read at their hits.
 /// </para>
 /// <para>

@@ -9,7 +9,7 @@ public static partial class DemoScenes
     /// <summary>The perceptual roughness of the slabs of the bounce light's scenes, as in the GPU tests.</summary>
     private const float BounceSlabRoughness = 0.8f;
 
-    /// <summary>The scenes of the GPU tests of the bounce light (docs/plans/screen-space-illumination.md, "Part 7").</summary>
+    /// <summary>The scenes of the GPU tests of the bounce light (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "Part 7").</summary>
     private static IEnumerable<Scene> BounceLightScenes =>
         [new("bounce-red-wall", BounceRedWall), new("bounce-raised-box", BounceRaisedBox)];
 

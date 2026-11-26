@@ -4,7 +4,7 @@ namespace Tertius.Slop;
 
 /// <summary>
 /// The measures of one function: where it is, its cyclomatic complexity and its source lines of code
-/// (docs/plans/code-quality-tooling.md, decision 16).
+/// (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16).
 /// </summary>
 public readonly record struct FunctionMeasure
 {

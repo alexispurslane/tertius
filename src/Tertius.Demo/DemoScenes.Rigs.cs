@@ -42,11 +42,11 @@ public static partial class DemoScenes
     /// <summary>The half extents of the morphing box, in meters: a cube 0.8 m on a side.</summary>
     private static readonly Vector3 RigBoxHalfExtents = new(0.4f);
 
-    /// <summary>The scenes of skinning and morph targets (docs/plans/skinning-and-morphs.md, "Part 5").</summary>
+    /// <summary>The scenes of skinning and morph targets (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 5").</summary>
     private static IEnumerable<Scene> RigScenes => [new("rigs", Rigs), new("rigs-crowd", RigsCrowd)];
 
     /// <summary>
-    /// The review scene of skinning and morph targets (docs/plans/skinning-and-morphs.md, "Part 5"): in the root frame
+    /// The review scene of skinning and morph targets (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 5"): in the root frame
     /// <c>ground</c>, in daylight, three rigs that <see cref="RigSway"/> sways with a period of 4 s, each to one side 1 s
     /// in and to the other 3 s in.
     /// <list type="bullet">
@@ -165,7 +165,7 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The crowd of the rigs scenes, which measures the cost of the deformation (docs/plans/skinning-and-morphs.md,
+    /// The crowd of the rigs scenes, which measures the cost of the deformation (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs,
     /// "Memory and cost"): in the root frame <c>ground</c>, in daylight, 100 blue bending cylinders, <c>cylinder-0</c> to
     /// <c>cylinder-99</c>, of 20,202 vertices each, 1.2 m apart on a square grid round the origin. Each bends as
     /// <c>bending-cylinder</c> of <see cref="Rigs"/> does, with a phase 0.61 rad past its neighbor's. A gray
@@ -178,7 +178,7 @@ public static partial class DemoScenes
         FrameHandle ground = RigGround(world: world, resources: resources, scene: scene, halfSize: 9);
 
         // 200 rings of 100 vertices: a wall of 20,000 vertices, the size of a human, and two caps of 101 that add about 1%
-        // (docs/plans/skinning-and-morphs.md, "Memory and cost").
+        // (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Memory and cost").
         MeshData cylinder = Primitives.BendingCylinder(
             radius: RigCylinderRadius,
             length: RigCylinderLength,
@@ -260,7 +260,7 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The render row of a rig of <paramref name="mesh"/> in <paramref name="color"/>, which casts shadows. Its bounding
-    /// radius of 0 lets the renderer cull it by its posed bound (docs/plans/skinning-and-morphs.md, decision 24).
+    /// radius of 0 lets the renderer cull it by its posed bound (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, decision 24).
     /// </summary>
     private static RenderData RigDrawn(IRenderResources resources, MeshData mesh, Vector4 color) =>
         new()

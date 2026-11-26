@@ -4,8 +4,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The six faces of the environment map: their axes after Vulkan's face table, the solid angle of their texels, their
-/// view projections and their culling (docs/plans/environment-map.md, "The faces and their axes"), and the faces of a map
-/// that lies in the axes of its own frame (docs/plans/environment-maps-per-frame.md, decision 9).
+/// view projections and their culling (https://github.com/alexispurslane/tertius/wiki/environment-map, "The faces and their axes"), and the faces of a map
+/// that lies in the axes of its own frame (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 9).
 /// </summary>
 public sealed class CubeFacesTests
 {

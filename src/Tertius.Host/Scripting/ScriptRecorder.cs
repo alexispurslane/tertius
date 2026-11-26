@@ -5,7 +5,7 @@ namespace Tertius.Host.Scripting;
 /// <summary>
 /// Builds the script that replays a session of free play: the input that the game got and the views that were switched,
 /// each at the tick it happened, with the ticks between them as run steps. The script starts at the camera of the world,
-/// and ends with a dump named <see cref="EndDump"/>. See docs/plans/host-and-scripted-runs.md, "Recording free play".
+/// and ends with a dump named <see cref="EndDump"/>. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "Recording free play".
 /// Not thread-safe. The simulation thread that ticks the world calls it.
 /// </summary>
 /// <remarks>

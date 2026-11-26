@@ -6,7 +6,7 @@ using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The places of the coda on the wheel's floor (docs/plans/blue-danube-demo.md, "The coda"), from the scene's constants,
+/// The places of the coda on the wheel's floor (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"), from the scene's constants,
 /// with no World: the stack, the stand, the lane of the throws, the marks and the cameras.
 /// </summary>
 public sealed class WheelCodaGeometryTests

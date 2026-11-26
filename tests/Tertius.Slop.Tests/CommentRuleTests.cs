@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules about comments and directives (docs/plans/code-quality-tooling.md, decision 17): a decorative
+/// The verbosity rules about comments and directives (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17): a decorative
 /// banner, from scb-check, and the user's rules for a comment that repeats the code under it, a doc comment that repeats
 /// a name, commented-out code, a TODO without a ticket and a region.
 /// </summary>

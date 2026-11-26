@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The irradiance cube of a map: D(n), the map's ambient diffuse radiance, for every unit normal n, convolved in each
-/// drawn frame from the map's radiance (docs/plans/environment-map.md, "The irradiance"). environment_irradiance.comp is
+/// drawn frame from the map's radiance (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance"). environment_irradiance.comp is
 /// the GLSL copy of <see cref="Convolve"/>.
 /// </summary>
 internal static class IrradianceCube

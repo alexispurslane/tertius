@@ -80,7 +80,7 @@ internal sealed partial class SpatialIndex
     /// <summary>
     /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
     /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
-    /// This is a generated union (docs/plans/union-tooling.md).
+    /// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling).
     /// </summary>
     [GeneratedUnion(typeof(InCell))]
     private readonly partial struct Placement

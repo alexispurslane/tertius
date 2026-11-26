@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Lit puffs on the GPU (docs/plans/particles.md, "Lit puffs"). A lit puff scatters the light that reaches its center
+/// Lit puffs on the GPU (https://github.com/alexispurslane/tertius/wiki/particles, "Lit puffs"). A lit puff scatters the light that reaches its center
 /// equally in every direction: L = albedo × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π)). The camera is at the render
 /// origin with identity rotation, so it looks down −Z with +Y up.
 /// </summary>

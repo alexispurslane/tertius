@@ -1,7 +1,7 @@
 namespace Tertius.Simulation;
 
 /// <summary>
-/// The rules of a puff's birth (docs/plans/particles.md, "Births"): how many puffs an emitter makes in a step and when in
+/// The rules of a puff's birth (https://github.com/alexispurslane/tertius/wiki/particles, "Births"): how many puffs an emitter makes in a step and when in
 /// the step each one is born, the seed and the ejection direction of each, and the newborn's state at the end of the
 /// step. They are pure functions. <see cref="PuffTable.AddNewborns"/> calls them for every emitter at step 7c of the sync
 /// point.
@@ -98,7 +98,7 @@ internal static class PuffBirths
     }
 
     /// <summary>
-    /// The state of a newborn at the end of the step (docs/plans/particles.md, "The newborn's state"). It rode with its
+    /// The state of a newborn at the end of the step (https://github.com/alexispurslane/tertius/wiki/particles, "The newborn's state"). It rode with its
     /// emitter until its birth, then flew free for <paramref name="age"/> seconds at the emitter's velocity plus the ejection
     /// velocity, slowed by one implicit step of the medium's drag over its age. Its chord is the chord behind its instant
     /// velocity: the instant velocity less half a step of its acceleration, turned back by the turn of the step in a turning

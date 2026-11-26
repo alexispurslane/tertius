@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Tertius.Slop.Rules;
 
-// The verbosity rules about conditions, ported from the scb-check slop rules (docs/plans/code-quality-tooling.md,
+// The verbosity rules about conditions, ported from the scb-check slop rules (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 // decision 17). Each finding covers the node that the rewrite replaces.
 
 /// <summary>An else-if that repeats an earlier condition of its chain.</summary>

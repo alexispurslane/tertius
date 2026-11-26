@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Physics moves every kinematic body that a motion intent moves by one branch: it aims the body at the pose of the intent,
 /// the end pose or the full sample's pose, and puts it exactly there after the Jolt update, because Jolt reaches a kinematic
-/// target only to the float rounding of the velocity that it gives the body (docs/plans/rails-components.md, "MoveKinematic
+/// target only to the float rounding of the velocity that it gives the body (https://github.com/alexispurslane/tertius/wiki/rails-components, "MoveKinematic
 /// as an end pose"). The tests run the real World on the real Jolt backend.
 /// </summary>
 public sealed class KinematicEndPoseTests

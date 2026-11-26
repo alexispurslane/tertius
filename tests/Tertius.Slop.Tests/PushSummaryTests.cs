@@ -4,7 +4,7 @@ using Tertius.Slop.History;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The summary that the pre-push hook prints (docs/plans/code-quality-tooling.md, decision 18): the metrics at the last
+/// The summary that the pre-push hook prints (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 18): the metrics at the last
 /// push against now, and the pushed commits whose notes raised a metric the most.
 /// </summary>
 public sealed class PushSummaryTests

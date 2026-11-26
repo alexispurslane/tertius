@@ -8,7 +8,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Capture steps on the real headless renderer: the image files, what they show, the camera step, and their stability
-/// from run to run. See docs/plans/host-and-scripted-runs.md, "Captures and the camera".
+/// from run to run. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "Captures and the camera".
 /// </summary>
 public sealed class CaptureTests : IDisposable
 {

@@ -432,7 +432,7 @@ public sealed class WorldSpawnRefusalTests
     /// A spawn velocity is the first velocity of a body that physics integrates, a dynamic body or a character. Every other
     /// entity moves only by its motion intents, its teleports, its transform writes or its parent, so a spawn refuses a
     /// linear or angular velocity on it, which would otherwise claim a motion that nothing carries out
-    /// (docs/plans/rails-components.md, "Which entity takes a spawn velocity"). A kinematic hull is the one exception (see
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Which entity takes a spawn velocity"). A kinematic hull is the one exception (see
     /// <see cref="AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity"/>).
     /// </summary>
     [Theory]
@@ -537,7 +537,7 @@ public sealed class WorldSpawnRefusalTests
 
     /// <summary>
     /// A dynamic body, a character and a dynamic hull are the bodies that physics integrates, so each one starts with its
-    /// spawn velocity (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// spawn velocity (https://github.com/alexispurslane/tertius/wiki/rails-components, "Which entity takes a spawn velocity").
     /// </summary>
     [Theory]
     [InlineData("a dynamic body")]
@@ -587,7 +587,7 @@ public sealed class WorldSpawnRefusalTests
 
     /// <summary>
     /// A kinematic hull keeps its spawn velocity as the velocity of its frame until its first sync point, so the numeric
-    /// update can give a fast hull its following frame at spawn (docs/plans/rails-components.md, "The first motion intent of
+    /// update can give a fast hull its following frame at spawn (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first motion intent of
     /// a spawn").
     /// </summary>
     [Fact]

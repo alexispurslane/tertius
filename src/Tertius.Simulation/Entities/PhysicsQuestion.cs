@@ -33,7 +33,7 @@ internal readonly record struct OverlapQuestion(QueryShape Shape, DPose Pose);
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is a generated union (docs/plans/union-tooling.md) of <see cref="RayQuestion"/>, <see cref="ShapeCastQuestion"/>
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling) of <see cref="RayQuestion"/>, <see cref="ShapeCastQuestion"/>
 /// and <see cref="OverlapQuestion"/>. The default value holds no case, and only a bug puts it in a request: the World
 /// builds every question from a case after it checked the arguments, and the runner refuses a request whose question is
 /// the default. The constructors store what they get. The checks and the unit direction belong to the World

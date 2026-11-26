@@ -12,7 +12,7 @@ public static partial class DemoScenes
     private const double HairRugTilt = 10;
 
     /// <summary>
-    /// The review scene of the hair reflections (docs/plans/skin-and-hair.md, decision 35): two square hair cards of
+    /// The review scene of the hair reflections (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 35): two square hair cards of
     /// 2 m that lie on the gray floor of <see cref="EarthSurface"/>, under the sun and a glowing bar behind them.
     /// <list type="bullet">
     /// <item>Both rugs are brown hair of roughness 0.15, whose strands run along the floor toward +Z. The rug

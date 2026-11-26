@@ -241,7 +241,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     {
         bool excluded = (instance.Flags & Excluded) != 0;
         // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
-        // (docs/plans/skinning-and-morphs.md, decision 25).
+        // (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, decision 25).
         bool deformed = scene.IsDeformed(instance.Mesh);
         bool hasVolume = instance.Radius > 0f;
         bool nearlyInside = instance.Distance < MinimumDistance * instance.Radius;
@@ -250,7 +250,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
 
     /// <summary>
     /// Whether a capture can draw an object whose material draws as <paramref name="alpha"/>. A capture has no transparent
-    /// pass, so glass and a fringe cannot be captured (docs/plans/skin-and-hair.md, decision 24).
+    /// pass, so glass and a fringe cannot be captured (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 24).
     /// </summary>
     private static bool Capturable(AlphaMode alpha) =>
         alpha switch
@@ -632,7 +632,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The light a capture bakes in, at the object (docs/plans/local-light-shadows.md, "The impostor signature"): the sum of
+    /// The light a capture bakes in, at the object (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The impostor signature"): the sum of
     /// every light's irradiance past its far shadows, the ambient light, and the sum of each light's direction in object
     /// space weighted by the length of its irradiance.
     /// </summary>
@@ -669,7 +669,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
 
     /// <summary>
     /// The ambient part of a <see cref="LightSignature"/>, after the frame's <see cref="AmbientSource"/>
-    /// (docs/plans/environment-map.md, "Impostors"). This is a generated union (docs/plans/union-tooling.md).
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, "Impostors"). This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling).
     /// </summary>
     [GeneratedUnion(typeof(HemisphereSignature), typeof(MapSignature))]
     private readonly partial struct AmbientSignature
@@ -727,7 +727,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     /// <summary>
     /// The frame's lights, ambient light, occluders and atmosphere, as the capture shader sees them: only the lights that
     /// the main view keeps (<see cref="PreparedLight.InMainView"/>), so a light that only a face of the map keeps changes no
-    /// signature (docs/plans/environment-map.md, decision 20).
+    /// signature (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20).
     /// </summary>
     private readonly ref struct SceneLight(PreparedScene scene)
     {

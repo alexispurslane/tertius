@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The point of a body that its linear velocity belongs to, on the World and the real Jolt backend
-/// (docs/plans/real-physics-in-tests.md, "The velocity point"): every linear velocity that crosses the physics seam is
+/// (https://github.com/alexispurslane/tertius/wiki/real-physics-in-tests, "The velocity point"): every linear velocity that crosses the physics seam is
 /// the velocity of the body's origin, the point that its pose names, also for a spinning body whose center of mass lies
 /// off its origin.
 /// <para>

@@ -1,6 +1,6 @@
 # The acceptance record of the reflection step cap of 96 (ticket t2-pw52)
 
-A reflection ray of the screen tracer walks the depth image in steps. The step cap is the largest number of steps of one walk. `ScreenTrace.Default` now sets the reflection step cap to 96. Before, it was 128, the value of ticket `ter-w1o3` from earlier on 2026-11-12. This folder keeps the measurements behind the change. The change is decision 41 of `docs/plans/temporal-renderer.md`.
+A reflection ray of the screen tracer walks the depth image in steps. The step cap is the largest number of steps of one walk. `ScreenTrace.Default` now sets the reflection step cap to 96. Before, it was 128, the value of ticket `ter-w1o3` from earlier on 2026-11-12. This folder keeps the measurements behind the change. The change is decision 41 of `https://github.com/alexispurslane/tertius/wiki/temporal-renderer`.
 
 The value comes from the step cap search of section A13 of [the addendum](../addendum.md). The search ran on main at `c87eac88f`. Main then gained the blue-noise draws of the reflection rays (ticket `ter-s97m`). So every measurement of this record ran again, on main at `b93ab3570`.
 

@@ -8,7 +8,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The fixed color of each kind of frame outline, as the shader unpacks it (<c>unpackUnorm4x8</c>: red in the lowest
 /// byte), with the sRGB encoding of a display color and alpha 1. They are the five frame bubble colors of the editor
-/// palette (docs/plans/editor.md), one for each kind, chosen to stand out against black space and gray boxes.
+/// palette (https://github.com/alexispurslane/tertius/wiki/editor), one for each kind, chosen to stand out against black space and gray boxes.
 /// </summary>
 internal static class OutlineColors
 {

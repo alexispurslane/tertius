@@ -39,7 +39,7 @@ public sealed class WorldOptions
     public bool DisposePhysics { get; set; }
 
     /// <summary>
-    /// The most puffs that live at once (docs/plans/particles.md, "The cap and its switch"). When the births of a step would
+    /// The most puffs that live at once (https://github.com/alexispurslane/tertius/wiki/particles, "The cap and its switch"). When the births of a step would
     /// pass it, the oldest puffs die first. 0 turns puffs off: no emitter makes a puff, and the step and the births of the
     /// puffs do nothing. It is the one switch of the puffs, and a world option, because the simulation steps the puffs in
     /// every tick, also with no renderer. Gameplay and physics read nothing of the puffs, so a world reaches the same states
@@ -48,7 +48,7 @@ public sealed class WorldOptions
     public int PuffCapacity { get; set; } = 4096;
 
     /// <summary>
-    /// The thresholds that decide which bodies the engine puts into numeric frames (docs/plans/numeric-frames.md,
+    /// The thresholds that decide which bodies the engine puts into numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Membership"). Numeric frames are an engine detail, so only the engine and its tests set them.
     /// </summary>
     internal NumericFrameOptions NumericFrames { get; set; } = new();

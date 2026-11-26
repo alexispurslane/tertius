@@ -53,11 +53,11 @@ namespace Tertius.Rendering;
 /// its bounds as a storage image, for the compute stage. One with the atlas, written once.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
 /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
-/// compute stage (docs/plans/skinning-and-morphs.md, "The pass"), and this frame's kept positions (binding 5). One per
+/// compute stage (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The pass"), and this frame's kept positions (binding 5). One per
 /// frame in flight.</description></item>
 /// <item><term>surface test</term><description>set 3 of <see cref="SurfaceTestLayout"/>: the last surface history and
 /// the last device depth as sampled images, and the motion target, this frame's surface history, the surface test image
-/// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
+/// and this frame's device depth as storage images (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The surface test"). Two, one per parity of the drawn frames,
 /// rewritten on resize.</description></item>
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
 /// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
@@ -83,7 +83,7 @@ namespace Tertius.Rendering;
 /// <see cref="FaceLightLayout"/> add set 3 and are compatible with it for sets 0 to 2. The
 /// compute layouts of the depth pyramid, <see cref="PyramidLayout"/>, of the screen tracer, <see cref="ScreenTraceLayout"/>,
 /// of the accumulator and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their
-/// shaders read include the compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
+/// shaders read include the compute stage (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Descriptor sets").
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
@@ -377,7 +377,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout ExposureSet { get; }
 
     /// <summary>
-    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler (docs/plans/environment-map.md,
+    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler (https://github.com/alexispurslane/tertius/wiki/environment-map,
     /// "Images and buffers").
     /// </summary>
     public DescriptorSetLayout EnvironmentPrefilterSet { get; }
@@ -531,7 +531,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// One part of a signal's images for its accumulation, all storage images for the compute stage: 0 the sample, 1 the
     /// slow history, 2 the last frame's fast history, 3 this frame's, 4 the scratch, 5 the surface test image and 6 the
-    /// motion target (docs/plans/temporal-renderer.md, "Images").
+    /// motion target (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Images").
     /// </summary>
     public DescriptorSetLayout SignalSet { get; }
 
@@ -1374,8 +1374,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> and binding 13
     /// <paramref name="environment"/> as their immutable samplers. Bindings 12, 14 and 16 are partially bound: they stay
-    /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29, and
-    /// docs/plans/environment-map-distances.md, decision 29). Binding 15, the tile views, is partially bound too: it stays
+    /// empty with the map off, as the bindless array's unused slots do (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 29, and
+    /// https://github.com/alexispurslane/tertius/wiki/environment-map-distances, decision 29). Binding 15, the tile views, is partially bound too: it stays
     /// empty without the local shadow atlas. So is binding 18, the kept positions, which stays empty without the
     /// deformation.
     /// </summary>

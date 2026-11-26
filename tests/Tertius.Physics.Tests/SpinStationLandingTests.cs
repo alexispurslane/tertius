@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The landing case of numeric frames inside a turning frame, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "The landing case"). The spike found one failure: a person crossed the middle of a spinning
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The landing case"). The spike found one failure: a person crossed the middle of a spinning
 /// station at 40 m/s, got a falling frame five ticks before it landed, landed 0.7 m deep in the floor and went through it.
 /// A free path through the axis at 40 m/s meets the floor at sqrt(40² + 31.3²) = 50.8 m/s relative to the station, past the
 /// 50 m/s from which a group with a body that thrusts gets a falling frame.
@@ -19,7 +19,7 @@ namespace Tertius.Physics.Tests;
 /// <para>
 /// Since ticket ter-dhkf, the merge test of numeric frames links every group to every static body within the reach of
 /// their bounding spheres, grown by their relative speed times the lookahead time, and the group takes the static body's
-/// home (docs/plans/numeric-frames.md, "Anchors"). A slab's bounding sphere has a radius of 11 m, so a body that falls in a
+/// home (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). A slab's bounding sphere has a radius of 11 m, so a body that falls in a
 /// numeric frame joins the station's own system about 11 m before it can touch the floor, with any lookahead time, and
 /// Jolt sweeps it against the real floor there. These tests pin that.
 /// </para>
@@ -432,7 +432,7 @@ public sealed class SpinStationLandingTests
     /// of its crossing, and joins the station's own system only where its bounding sphere meets a slab's, 11 m from the floor.
     /// It moves as it does in the station's own system all the way, within a float step at its speed before it lands, and
     /// lands there. In the falling frame the origin moves on the inertial line of a free body at its place, and the body feels
-    /// only the difference of its rotation terms and the origin's (docs/plans/spin-gravity.md, "The origin of a falling
+    /// only the difference of its rotation terms and the origin's (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The origin of a falling
     /// frame"), so a crate, which feels them, keeps a small velocity relative to its home while it falls: it starts at
     /// 0.21 m/s, half a step of the crate's rotation terms of 25.7 m/s², by which a chord and an instant velocity differ, and
     /// grows by less than 1 mm/s a tick as the crate and the origin drift apart, far below the drain speed of 1 m/s at which

@@ -2,7 +2,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The running entity's own rig pose, for writing: the back copy, which the sync point publishes with the render row
-/// (docs/plans/skinning-and-morphs.md, "The rig pose in the simulation"). Take it from <see cref="Self.RigPose"/>.
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the simulation"). Take it from <see cref="Self.RigPose"/>.
 /// </summary>
 public readonly ref struct RigPoseWriter
 {

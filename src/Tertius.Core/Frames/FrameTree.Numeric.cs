@@ -16,14 +16,14 @@ internal readonly record struct NumericMove(Entity Entity, FrameHandle From, Fra
 /// of its anchors (ticket ter-dhkf). The only anchors whose homes a group cannot share are the anchor of a following frame,
 /// a hull or a plain body, which moves with its motion intents, and an anchor at rest or another such anchor: the group
 /// takes one home, and each anchor of a following frame that lives elsewhere keeps a ghost in it
-/// (docs/plans/numeric-frames.md, "Anchors", "Following frames" and "Limits"). So <see cref="Anchor"/> is always the
+/// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", "Following frames" and "Limits"). So <see cref="Anchor"/> is always the
 /// anchor of a following frame, and <see cref="Frame"/> a frame of its semantic frame: the semantic frame itself, or a
 /// numeric frame of it.
 /// </summary>
 internal readonly record struct NumericGhost(Entity Anchor, FrameHandle Frame);
 
 /// <summary>
-/// The numeric frames of the tree (docs/plans/numeric-frames.md): frames that the engine makes around a group of bodies,
+/// The numeric frames of the tree (https://github.com/alexispurslane/tertius/wiki/numeric-frames): frames that the engine makes around a group of bodies,
 /// only for precision. Gameplay never sees them. <see cref="UpdateNumericFrames"/> runs their rules once per sync point.
 /// </summary>
 public sealed partial class FrameTree
@@ -55,7 +55,7 @@ public sealed partial class FrameTree
     private bool[] apart = [];
 
     // The anchor of each following frame, by entity: a hull whose frame hangs at its origin, or a plain body that is a member
-    // of its system there (docs/plans/numeric-frames.md, "Following frames"). Null for every other frame.
+    // of its system there (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). Null for every other frame.
     private Entity[] anchor = new Entity[64];
 
     // Scratch of DropLostAnchors: true for each following frame, by index, that a body of the update anchors.
@@ -100,7 +100,7 @@ public sealed partial class FrameTree
     /// Step 2 of the sync point, before the rows of the bodies take the end of the step, when the anchor of the following
     /// frame <paramref name="following"/> ended the step at the frame's origin, where physics aims it: the frame takes the
     /// place and the chord of its step plan, the anchor's record of the step that just ended in its semantic parent
-    /// (docs/plans/rails-components.md, "The step plan of a following frame"). Every following frame has a step plan from
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "The step plan of a following frame"). Every following frame has a step plan from
     /// <see cref="BeginStep"/> to the end of the step, also in a step without a motion intent, whose plan holds the
     /// anchor still. The landing acceleration of the step put the frame there to its rounding (see
     /// <see cref="AdvanceNumericFrames"/>), so its contents keep their places in it: the move is that rounding. The anchor
@@ -119,7 +119,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// Step 2 of the sync point, after the anchor of the following frame <paramref name="following"/> took a record that put
     /// it away from the frame's origin: it teleported in the step, so its step plan started at the teleport's pose, and
-    /// physics put it on the plan's place and not at that origin (see docs/plans/rails-components.md, "The step plan of a
+    /// physics put it on the plan's place and not at that origin (see https://github.com/alexispurslane/tertius/wiki/rails-components, "The step plan of a
     /// following frame"). In a step without a motion intent the plan holds the anchor still at the teleport's pose. The frame
     /// jumps to the anchor's place in the semantic parent, the step plan's place, with the plan's chord. The frame of a hull
     /// goes back to the origin. Everything else in the frame keeps its place and velocity in the semantic frame, as without
@@ -158,7 +158,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// True when <paramref name="home"/> is a following frame whose anchor is <paramref name="entity"/>
-    /// (docs/plans/numeric-frames.md, "Following frames"): a hull whose frame hangs at its origin, or a plain body that is a
+    /// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"): a hull whose frame hangs at its origin, or a plain body that is a
     /// member of its system there. False for a stale or null frame and for every other frame.
     /// </summary>
     internal bool Anchors(FrameHandle home, Entity entity) =>
@@ -166,7 +166,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// The anchor of <paramref name="following"/>, a live following frame: a hull whose frame hangs at its origin, or a plain
-    /// body that is a member of its system there (docs/plans/numeric-frames.md, "Following frames").
+    /// body that is a member of its system there (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames").
     /// </summary>
     internal Entity AnchorOf(FrameHandle following)
     {
@@ -181,9 +181,9 @@ public sealed partial class FrameTree
     /// <summary>
     /// Creates the following frame of <paramref name="body"/>, a body that is kinematic in the step that the update plans
     /// and that follows (<see cref="NumericBody.Follows"/>), its anchor, which the numeric update moves into it
-    /// (docs/plans/numeric-frames.md, "Following frames"). The new frame lies in the anchor's semantic frame at the anchor's
+    /// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). The new frame lies in the anchor's semantic frame at the anchor's
     /// place, as the anchor's row holds it after the record of the step that ended. Its velocity is the chord that the
-    /// numeric frames expect of a frame at the start of a step (docs/plans/rails-components.md, "The first step of a new
+    /// numeric frames expect of a frame at the start of a step (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first step of a new
     /// following frame"): the chord of the anchor's motion over the step that ended, for a step as long as the next, of
     /// <paramref name="step"/> seconds. That is the anchor's instant velocity less half a step of its acceleration, as
     /// physics gives a body its chord and as a falling frame's instant velocity lies past its chord (see
@@ -306,7 +306,7 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// The following frame <paramref name="following"/> lost its anchor (docs/plans/numeric-frames.md, "Following frames"):
+    /// The following frame <paramref name="following"/> lost its anchor (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"):
     /// the update moved the anchor out, a hull's frame moved out or died, a hull got a motion other than kinematic for the
     /// next step (see <see cref="PlanHullMotion"/>), a plain anchor is no body of the frame at the update (see
     /// <see cref="DropLostAnchors"/>), or the frame itself goes. It turns into a falling frame that falls on from its
@@ -365,7 +365,7 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
+    /// Runs the membership and nesting rules of numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="ticks"/> ticks at <paramref name="tickRate"/> ticks per
     /// second, before a physics step of one tick, whose length a new following frame needs for its velocity (see
     /// <see cref="CreateFollowingFrame"/>). <paramref name="bodies"/> holds every
@@ -378,7 +378,7 @@ public sealed partial class FrameTree
     /// <see cref="NumericFrameRules.IsAnchor"/>)
     /// and a group that falls. It holds the members of each numeric frame that are not anchors together until
     /// <see cref="NumericFrameRules.SplitClock"/> lets them split. An anchor counts as infinitely heavy (see
-    /// <see cref="NumericFrameRules.Summarize"/>), so a group with one takes its home (docs/plans/numeric-frames.md,
+    /// <see cref="NumericFrameRules.Summarize"/>), so a group with one takes its home (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Anchors"). So does the ghost of a body of another semantic frame, which no body of the group can move either: the
     /// update links each body to the place of each ghost that physics can keep in a frame of its semantic frame before the
     /// next update, that the body meets as physics has it (see <see cref="NumericFrameRules.MeetsGhost"/>) and that it can
@@ -386,7 +386,7 @@ public sealed partial class FrameTree
     /// in the home of the child's hull, so the body joins the hull's group. Any other ghost is fixed in the semantic frame's
     /// own system, so the body's group stays there. A kinematic body, hull or plain, that its motion intents move fast or far
     /// lives in a following frame of its own (see <see cref="NumericMode.Following"/>), which the update makes for it, at
-    /// whose origin it rests, as the frame's anchor (docs/plans/numeric-frames.md, "Following frames"). First the update lets
+    /// whose origin it rests, as the frame's anchor (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). First the update lets
     /// go each following frame whose anchor is no body in it (see <see cref="DropLostAnchors"/>). A group that links such an
     /// anchor and no anchor at rest takes that following frame; a group that cannot take it, because it links an anchor at
     /// rest or an earlier such anchor, lives in that other home, and the anchor keeps its own frame and that home keeps a
@@ -469,7 +469,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Lets each following frame go whose anchor is no body of <paramref name="bodies"/> in it, before the rules of the
-    /// update read the frames (docs/plans/numeric-frames.md, "Following frames"): a plain anchor that died, lost its body or
+    /// update read the frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"): a plain anchor that died, lost its body or
     /// handed off into a bubble in the step since the last update, which the tree learns only here. The frame falls on, and
     /// the bodies in it keep it as any falling frame (see <see cref="LeaveFollowingFrame"/>). A hull's frame lets its
     /// following frame go when it moves out or dies, so a hull that anchors a frame is always a body there.
@@ -606,7 +606,7 @@ public sealed partial class FrameTree
         CollectGhostPlaces(start, end);
         // Every body links to every group that it may touch, also an anchor to a group that falls, so a static wall is a
         // real body of a fast crate's system, and so is the anchor of the following frame that its group takes
-        // (docs/plans/numeric-frames.md, "Anchors"). This comes before the hold, so that members that an anchor links count
+        // (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). This comes before the hold, so that members that an anchor links count
         // as together.
         for (int i = start; i < end; i++)
         for (int j = i + 1; j < end; j++)
@@ -694,7 +694,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// Gives the home of each group a ghost of each body of the group that follows and lives apart from it, in a following
     /// frame of its own (see <see cref="GroupBodies"/>): no home holds both the group's other anchors and that one at rest,
-    /// so its ghost stands for it there (docs/plans/numeric-frames.md, "Anchors"). Each body is in one group, so no pair is
+    /// so its ghost stands for it there (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). Each body is in one group, so no pair is
     /// named twice.
     /// </summary>
     private void KeepAnchorGhosts()
@@ -740,7 +740,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// Fills <see cref="ghostPlaces"/> with the places of the ghosts that physics can keep, before the next update, in the
     /// frames of the semantic frame whose bodies are <c>sortedBodies[start..end]</c>: the ghosts that no body of that frame
-    /// can move, so the merge test counts them as infinitely heavy (docs/plans/numeric-frames.md, "Bubbles and ghosts").
+    /// can move, so the merge test counts them as infinitely heavy (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Bubbles and ghosts").
     /// <list type="bullet">
     /// <item>A body of a semantic child that can stick out of the child's bubble (see
     /// <see cref="AddStickOutPlaces"/>), whose ghost lives in the child's tree parent, the home of the child's hull.</item>
@@ -1587,14 +1587,14 @@ public sealed partial class FrameTree
     /// that keeps its origin on the inertial line of a free body at its place: the field of its semantic frame at its origin
     /// minus the semantic frame's proper acceleration, in a turning frame turned by the semantic frame's turn of the step,
     /// plus the two-turn update of its semantic place and chord over the step, divided by the step, minus the acceleration of
-    /// the numeric frames above it, which the dense order, parents first, has fixed already (docs/plans/spin-gravity.md, "The
+    /// the numeric frames above it, which the dense order, parents first, has fixed already (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The
     /// origin of a falling frame"). The semantic frame's turns are fixed earlier in the same pass. Its members then feel
     /// only the difference between their own rotation terms and the origin's, so a falling group keeps small local
     /// velocities. In a semantic frame that does not turn (see
     /// <see cref="FrameTurns.Turns"/>), the update is left out, so the frame keeps the field's acceleration to the bit.
     /// <para>
     /// A following frame, which lies in its semantic frame, keeps the step record of its anchor in the step as its step plan
-    /// (see <see cref="AnchorPlanInStep"/>, and "The step plan of a following frame" in docs/plans/rails-components.md),
+    /// (see <see cref="AnchorPlanInStep"/>, and "The step plan of a following frame" in https://github.com/alexispurslane/tertius/wiki/rails-components),
     /// and the acceleration that lands it on the plan: the plan's chord minus the frame's velocity, divided by the step, so
     /// that the step of <see cref="AdvanceNumericFrames"/> turns the velocity into the chord and the place into the plan's,
     /// to its rounding. The plan is motion in the semantic frame's coordinates already, so the frame takes no turn term. It
@@ -1630,7 +1630,7 @@ public sealed partial class FrameTree
     /// <paramref name="step"/> seconds, of a free body at the origin of the numeric frame <paramref name="frame"/> that moves
     /// with the frame's velocity, in m/s²: the field of the semantic frame there minus the semantic frame's proper
     /// acceleration, and in a turning semantic frame that field turned by the step's turn plus the two-turn update of the
-    /// place and the velocity over the step, divided by the step (docs/plans/spin-gravity.md, "The origin of a falling
+    /// place and the velocity over the step, divided by the step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The origin of a falling
     /// frame"). A falling frame takes it, so its origin stays on that body's inertial line, and the push of a numeric frame
     /// is its own acceleration less it (see <see cref="PushInStep"/>). In a semantic frame that does not turn (see
     /// <see cref="FrameTurns.Turns"/>) it is the field, to the bit. Valid while the tree stands where the step starts, once
@@ -1644,7 +1644,7 @@ public sealed partial class FrameTree
         if (!semanticTurns.Turns)
             return field;
         // In a turning frame the field acts at the start of the step, in the axes then, and the turn of the step carries it
-        // into the axes at the end, as in the update of the members (docs/plans/spin-gravity.md, "The two-turn update").
+        // into the axes at the end, as in the update of the members (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update").
         return semanticTurns.Step.Turn.Rotate(field)
             + semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
     }
@@ -1654,7 +1654,7 @@ public sealed partial class FrameTree
     /// applies <paramref name="stepIntents"/>: the step record of its anchor there, in the frame's semantic parent, from where
     /// the anchor stands where the step starts, the frame's origin, by the rule of <see cref="StepPlanOfIntent"/>. That is the
     /// record of its motion intent, or in a step without one the record of a kinematic body that holds still where the step
-    /// starts (docs/plans/numeric-frames.md, "Following frames"). A hull stands there with its frame's rotation, so its plan
+    /// starts (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). A hull stands there with its frame's rotation, so its plan
     /// is the record that physics and the tree derive for its frame. The tree keeps no pose of a plain body, so a plain
     /// anchor stands there with the rotation of its motion intent's aim pose, or without one with no turn: the plan of an end
     /// pose then turns with no angular velocity, which no reader of a plan reads.
@@ -1690,7 +1690,7 @@ public sealed partial class FrameTree
     /// <paramref name="parent"/>, and which stands at <paramref name="standing"/> there where the step starts: the record of
     /// its motion intent (see <see cref="StepRecordOfIntent"/>), or in a step without one the record that physics gives a
     /// kinematic body without a motion intent, which holds still where the step starts, at the pose of a teleport in the step
-    /// or else at <paramref name="standing"/>, with no velocity, acceleration or turn (docs/plans/numeric-frames.md,
+    /// or else at <paramref name="standing"/>, with no velocity, acceleration or turn (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Following frames", ticket ter-zsku). A steer target, which a kinematic body refuses and physics ignores, gives the
     /// same record.
     /// </summary>

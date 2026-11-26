@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The diffusion profile of human skin and the kernel of taps made from it (docs/plans/skin-and-hair.md, "The profile
+/// The diffusion profile of human skin and the kernel of taps made from it (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The profile
 /// and the kernel"). Integrals use Simpson's rule on steps far below the narrowest Gaussian's width of
 /// <see cref="SkinProfile.WidthScale"/> · 0.08 mm.
 /// </summary>

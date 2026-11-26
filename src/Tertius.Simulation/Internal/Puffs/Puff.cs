@@ -25,7 +25,7 @@ internal struct Puff
     public int Look;
 
     /// <summary>
-    /// The puff after one more step by the rule of motion (docs/plans/particles.md, "The rule of motion"): a loose body in
+    /// The puff after one more step by the rule of motion (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion"): a loose body in
     /// its frame, lifted and slowed by the frame's medium. Where the medium fills the puff's place, the lift share is the
     /// puff's temperature ratio, which moves from the look's temperature ratio at its birth to 1 at the end of its life by
     /// its own share, and the drag is the medium's drag times the lift share. Elsewhere both are 0, so the puff moves as a

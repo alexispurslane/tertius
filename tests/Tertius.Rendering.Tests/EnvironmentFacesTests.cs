@@ -2,8 +2,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The faces that each drawn frame draws: the slots of all maps in turn by the frame number, or all six faces of a map on
-/// a refresh (docs/plans/environment-map.md, "Which faces a frame draws", and
-/// docs/plans/environment-maps-per-frame.md, decisions 10 and 11).
+/// a refresh (https://github.com/alexispurslane/tertius/wiki/environment-map, "Which faces a frame draws", and
+/// https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decisions 10 and 11).
 /// </summary>
 public sealed class EnvironmentFacesTests
 {

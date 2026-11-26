@@ -225,7 +225,7 @@ The faces' content (each map's six faces in layer order +X, −X, +Y, −Y, +Z, 
   space and the Earth with its grid lines, blocky at 32.
 
 The lamps: a lamp's panel shows dark in every variant, because a face adds no emission for an entity that holds a
-light (docs/plans/environment-map.md, decision 18). The lamp's light reaches the face's texels through the light pass
+light (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 18). The lamp's light reaches the face's texels through the light pass
 (`environment face light`), which lights every texel by every light at every size. The deck's ship map peaks at 0.26
 (128) and 0.19 (32) in its brightest texel, so no face holds a lamp's glow at either size. The cull removes no lamp: a
 light is not an instance.

@@ -8,7 +8,7 @@ public readonly record struct EveryLightPair;
 
 /// <summary>
 /// The direct pass gives each pixel the full response of its key lights only, and the fill response of every other light
-/// (docs/plans/light-pairs.md, "Key and fill"). The fill response of a light is its diffuse light as a point light gives
+/// (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"). The fill response of a light is its diffuse light as a point light gives
 /// it, with no shine. Every light keeps its shadow lookup at the pixel, so every shadow keeps its edge. The loss of a
 /// light at a screen corner is what the fill response loses of the full response there, behind the light's shadow. A
 /// corner is a point of a grid of <see cref="TileSize"/> render pixels. The key lights of a corner are the at most

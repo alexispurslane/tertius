@@ -159,7 +159,7 @@ public sealed class CharacterStandingTests
     /// <summary>
     /// A character stands on a walkable slab tilted 20 degrees about +Z, under gravity along −Y, and walks at 3 m/s along
     /// +X, uphill (<paramref name="direction"/> 1) or downhill (−1). Physics turns the part of the walk across up into the
-    /// ground plane at the same speed (docs/plans/spin-gravity.md, "Characters", fork F6), so the character walks along
+    /// ground plane at the same speed (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork F6), so the character walks along
     /// the face at 3 m/s, stays at its height above the face, and stands in every step: the test of standing measures the
     /// motion away from the ground along the ground's normal, not along up.
     /// </summary>
@@ -232,7 +232,7 @@ public sealed class CharacterStandingTests
     /// <summary>
     /// A character stands on a plate of 700 kg that slides without friction down a static slab tilted 40 degrees about +Z,
     /// under gravity along −Y. Jolt presses a standing character's weight onto a dynamic ground. For a standing character
-    /// the weight's part along up presses along the ground's normal (docs/plans/spin-gravity.md, "Characters"), and the
+    /// the weight's part along up presses along the ground's normal (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"), and the
     /// rest is dropped, because the ground holds it. So the press has no part along the slab, and the plate slides down it
     /// at g sin 40° = 6.31 m/s², as it would without the person. A press along the gravity instead, as Jolt makes it from
     /// the gravity itself, would push the plate down the slab with m g cos 40° sin 40° = 338 N more, 0.48 m/s².
@@ -350,7 +350,7 @@ public sealed class CharacterStandingTests
         MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(a), Vector3.Normalize(b)), -1f, 1f));
 
     /// <summary>
-    /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
+    /// Changed on purpose by ter-1b21 (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork F5): up follows the gravity in the
     /// air too, at a limited rate (the user's choice of 2026-10-20). Before, a character in the air kept its up until it
     /// touched something, so this test was UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands and
     /// expected the old up in the air. Then for one commit up turned at once in the air, and this test expected the new up
@@ -554,7 +554,7 @@ public sealed class CharacterStandingTests
     /// A character lands on a floor tilted by <paramref name="tiltDegrees"/> about +Z, as a person who tumbled in the air
     /// does. At 60 degrees it lands on its side, and Jolt finds steep ground under it. At 120 and 180 degrees it lands
     /// on its head, and Jolt finds a contact that does not support it at all. Under gravity its up turns against the
-    /// gravity, in the air too (fork F5 of docs/plans/spin-gravity.md), so it turns upright and stands.
+    /// gravity, in the air too (fork F5 of https://github.com/alexispurslane/tertius/wiki/spin-gravity), so it turns upright and stands.
     /// </summary>
     [Theory]
     [InlineData(60)]

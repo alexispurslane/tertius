@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The acceptance criteria of the PBR BRDF on the GPU (docs/plans/pbr-brdf.md, "GPU tests of the acceptance
+/// The acceptance criteria of the PBR BRDF on the GPU (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "GPU tests of the acceptance
 /// criteria"). The camera is at the origin with identity rotation, so it looks down −Z with +Y up. Each expected value
 /// comes from the C# BRDF, and an emissive square of that value shows it through the same tone curve.
 /// </summary>

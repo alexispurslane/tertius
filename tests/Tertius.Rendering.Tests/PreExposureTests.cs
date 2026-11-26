@@ -5,7 +5,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Pre-exposure (docs/plans/auto-exposure.md, "Pre-exposure"): every pass that writes the HDR image or the emissive
+/// Pre-exposure (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Pre-exposure"): every pass that writes the HDR image or the emissive
 /// target multiplies its light by 2^S, the impostor atlas keeps radiance, and the tone map multiplies by nothing. Each
 /// test fixes the exposure. The camera is at the render origin with identity rotation, so it looks down −Z.
 /// </summary>

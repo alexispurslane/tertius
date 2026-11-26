@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="LightUnits"/>: the intensity of a point and a spot light from its power, the cutoff irradiance from the
 /// highest exposure, the reach, the line between near and far, the angular radius, the irradiance by which lights rank
-/// for shadows and the interpolated axis (docs/plans/local-light-shadows.md, "The cutoff and the reach").
+/// for shadows and the interpolated axis (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The cutoff and the reach").
 /// </summary>
 public sealed class LightUnitsTests
 {

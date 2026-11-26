@@ -965,7 +965,7 @@ public sealed class UpscalingRenderTests
 
     /// <summary>
     /// The penumbra of a slab's edge that runs across the image, so each of its columns holds the same shadow
-    /// (docs/plans/temporal-renderer.md, decision 34).
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 34).
     /// </summary>
     [Fact]
     public void ASoftSunShadowEdgeShowsNoStripeThreeOutputColumnsWideUnderFsr()

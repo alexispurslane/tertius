@@ -30,7 +30,7 @@ public sealed class SpawnDesc
 
     /// <summary>
     /// The new entity's first motion intent: how it moves in the step after its spawn, relative to <see cref="Frame"/>, in
-    /// its axes (docs/plans/rails-components.md, "The first motion intent of a spawn"). It is the motion intent that the
+    /// its axes (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first motion intent of a spawn"). It is the motion intent that the
     /// entity would have written in the spawn's tick, had it run then, so that a frame on rails stands on its rails from its
     /// first step. A component that calls <see cref="Self.Spawn(SpawnDesc)"/> in tick k gives the motion of the step that
     /// ends at <c>self.TimeAt(self.Tick + 2)</c>, and a game that calls <see cref="World.Spawn(SpawnDesc)"/> outside a tick
@@ -49,7 +49,7 @@ public sealed class SpawnDesc
     public RenderData? Render { get; init; }
 
     /// <summary>
-    /// The rig pose at the spawn, or null for none (docs/plans/skinning-and-morphs.md, "The rig pose in the simulation").
+    /// The rig pose at the spawn, or null for none (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the simulation").
     /// It fixes the entity's counts of joint poses and weights, and needs a <see cref="Render"/> row. A spawn throws
     /// <see cref="ArgumentException"/> for a default array, a number that is not finite, more than
     /// <see cref="Rig.MaxJoints"/> joint poses, or a rotation whose squared length is not finite or is at most 10^-12, the
@@ -97,6 +97,6 @@ public sealed class SpawnDesc
 /// dynamic hull falls and coasts in the parent's physics system, a kinematic hull follows the motion samples of a rails
 /// component of its entity, such as <see cref="KeplerMotion"/> or <see cref="SpinMotion"/>, and a static hull holds
 /// still. The owner changes the motion later with <see cref="BodyHandle.SetMotion"/>. A frame without a body follows the
-/// samples of its rails component, or its owner's transform write, or holds still (docs/plans/rails-components.md).
+/// samples of its rails component, or its owner's transform write, or holds still (https://github.com/alexispurslane/tertius/wiki/rails-components).
 /// </remarks>
 public sealed record FrameSpec(FrameBounds Bounds, GravityField Gravity = default, MediumField Medium = default);

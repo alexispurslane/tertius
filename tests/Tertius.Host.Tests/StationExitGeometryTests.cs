@@ -7,7 +7,7 @@ using StationExit = Tertius.Demo.DemoScenes.StationExit;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The lift and the openings of the exit (docs/plans/blue-danube-demo.md, "The lift"), on the real station in the real
+/// The lift and the openings of the exit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The lift"), on the real station in the real
 /// Jolt backend: a platform in a hole in the deck at the top of the spoke at θ = 180 degrees, and an opening in the wheel's
 /// ceiling where the platform passes. Rays find what is solid and what is open. Every place is in the station's axes.
 /// </summary>

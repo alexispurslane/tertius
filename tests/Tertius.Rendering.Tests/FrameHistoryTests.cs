@@ -6,7 +6,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The record of the last drawn frame and the rules that relate each draw to it (docs/plans/temporal-renderer.md, "The
+/// The record of the last drawn frame and the rules that relate each draw to it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The
 /// frame history" and "Resets"): which draws reset every history, the draw index since the last reset, the parity of the
 /// images that alternate, the previous camera relative to this draw's eye, and the commit after the submission, so that a
 /// draw that throws changes nothing. No GPU needed.

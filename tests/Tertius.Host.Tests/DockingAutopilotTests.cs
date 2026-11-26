@@ -8,7 +8,7 @@ using SpinUp = Tertius.Demo.SpinUp;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The shuttle's <see cref="DockingAutopilot"/>, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md,
+/// The shuttle's <see cref="DockingAutopilot"/>, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// "The docking"). The demo's station flies its orbit in a root frame with Earth's point gravity, as in
 /// <see cref="RendezvousAutopilotTests"/>, and turns at 0.31321 rad/s. The shuttle starts at the hold point, 150 m out on
 /// the station's axis, at rest relative to the station, with the hold rotation: its nose toward the slot along minus the

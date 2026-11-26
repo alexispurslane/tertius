@@ -1,7 +1,7 @@
 namespace Tertius.Demo;
 
 /// <summary>
-/// The profile of the docking's spin-up, in the station's axes (docs/plans/blue-danube-demo.md, "The spin-up and the
+/// The profile of the docking's spin-up, in the station's axes (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The spin-up and the
 /// roll"): one turn about the station's axis, +Y, from still among the stars to rest in the station, with a constant
 /// angular acceleration of <paramref name="Rate"/> / <paramref name="Duration"/>. The attitude target trails
 /// <paramref name="Docked"/> by the lag λ(τ) = ω (T - τ)² / (2T), which falls to zero at the end, and turns relative to the

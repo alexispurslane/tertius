@@ -4,7 +4,7 @@ namespace Tertius.Assets;
 
 /// <summary>
 /// A reference to a model asset: <c>package:path</c> for every root piece of the file, or <c>package:path#piece</c> for
-/// one piece (docs/plans/asset-pipeline.md, "Ids and fragments"). The path is the source file's path in the package's
+/// one piece (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Ids and fragments"). The path is the source file's path in the package's
 /// <c>assets/</c> folder, with its extension, such as <c>ships/corvette.model</c>.
 /// </summary>
 /// <param name="Package">The package id: lower-case letters, digits, dots, dashes and underscores.</param>

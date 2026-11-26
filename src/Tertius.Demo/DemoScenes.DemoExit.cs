@@ -7,7 +7,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The exit of the Blue Danube demo on its own (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long
+    /// The exit of the Blue Danube demo on its own (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit", "Sections of the long
     /// script"): the scene <c>demo-exit</c> starts at the docking's end state, so the exit's sections run in a short script
     /// of their own until the docking and the exit merge into the long script.
     /// <list type="bullet">

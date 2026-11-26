@@ -12,7 +12,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The checked-in long script, scripts/blue-danube.json, through its film <see cref="LastFilm"/>, in one run on the real
-/// World and the real Jolt backend with no renderer (docs/plans/blue-danube-demo.md, "The station and the rendezvous", "The
+/// World and the real Jolt backend with no renderer (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station and the rendezvous", "The
 /// docking", "The exit" and "The demo in the Earth system"): from the terminal at the north pole, in the turning
 /// earth-surface, through the hand-off of the climb into earth, the rendezvous in earth and the docking to the person on
 /// the wheel's floor and the coda's throws. The run keeps a log of every tick from the first tick of the parking orbit, and at each frame it records
@@ -767,7 +767,7 @@ public sealed class BlueDanubeRendezvousTests(BlueDanubeRendezvousRun run)
     }
 
     /// <summary>
-    /// The transfer's burn falls in Earth's night (docs/plans/blue-danube-demo.md, "The station's plane"): in every tick of
+    /// The transfer's burn falls in Earth's night (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The station's plane"): in every tick of
     /// the burn, from the first push after the order to the first weightless tick after it, the shuttle is in Earth's
     /// shadow.
     /// </summary>

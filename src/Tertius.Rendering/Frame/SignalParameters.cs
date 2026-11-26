@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>Which light a signal holds: the diffuse light or the specular light. It chooses the environment's closed form
-/// that a pixel without a sample and without a history takes (docs/plans/temporal-renderer.md, section 8, "The model").
+/// that a pixel without a sample and without a history takes (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The model").
 /// </summary>
 internal enum SignalLight
 {
@@ -14,7 +14,7 @@ internal enum SignalLight
 }
 
 /// <summary>
-/// The parameter set of one signal's accumulator (docs/plans/temporal-renderer.md, section 8, "The parameter sets"). The
+/// The parameter set of one signal's accumulator (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The parameter sets"). The
 /// cap is the one store of how long a signal's history can grow (decision 38). It follows a pixel's roughness: from
 /// <see cref="SmoothCap"/> up to <see cref="SmoothRoughness"/>, linear to <see cref="Cap"/> at
 /// <see cref="RoughRoughness"/>.
@@ -50,7 +50,7 @@ internal readonly record struct SignalParameters(
 
     /// <summary>
     /// The diffuse signal's set: a cap of 128 frames at every roughness, and a box widened by two retained deviations
-    /// where its block has no motion evidence (docs/plans/bounce-light-confidence.md, section 7). The region's change gate
+    /// where its block has no motion evidence (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7). The region's change gate
     /// keeps a frozen view's false cuts rare, so a long history keeps its gain (t1-yi11, section 8.7).
     /// </summary>
     public static SignalParameters Diffuse =>
@@ -68,7 +68,7 @@ internal readonly record struct SignalParameters(
 
     /// <summary>The specular signal's set: a cap of 4 frames for a mirror and of 32 for a rough lobe, which reuses the
     /// diffuse rays, the reflected point's place below <paramref name="reflectedPlaceBelow"/>, and the narrow box, whose
-    /// rare bright samples would show as specks without a spatial filter (docs/plans/bounce-light-confidence.md, section
+    /// rare bright samples would show as specks without a spatial filter (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section
     /// 10).</summary>
     /// <param name="reflectedPlaceBelow">The start of the hand-over band, from which a sample's hit distance belongs to a
     /// diffuse ray.</param>

@@ -1,6 +1,6 @@
 # The acceptance takes of the back-face layer
 
-This is the record of ticket `t1-8b4w`, of 2026-11-21. It measures the finished branch `ter-kh4g-back-face-depth-layer` at `dd800356b` against main at `d8559eb58`, the main that the branch holds. Both sides hold the fix of the history store (`t8-69v7`) and the fix of the sun's shadow leak (`t8-rjno`). The method of each point comes from the design's section "The acceptance" and from [stage 1b](stage-1b/pictures.md). The terms are those of [the design](../../plans/back-face-depth-layer.md) and of [the record of stage 1](README.md).
+This is the record of ticket `t1-8b4w`, of 2026-11-21. It measures the finished branch `ter-kh4g-back-face-depth-layer` at `dd800356b` against main at `d8559eb58`, the main that the branch holds. Both sides hold the fix of the history store (`t8-69v7`) and the fix of the sun's shadow leak (`t8-rjno`). The method of each point comes from the design's section "The acceptance" and from [stage 1b](stage-1b/pictures.md). The terms are those of [the design](../https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer) and of [the record of stage 1](README.md).
 
 Each section keeps the measured facts and my reading apart. A sentence that starts with "Reading:" holds my interpretation. Every other sentence states a measurement, a count or what an image shows.
 

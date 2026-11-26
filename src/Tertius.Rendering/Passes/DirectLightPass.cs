@@ -3,12 +3,12 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// "Direct light" (docs/plans/temporal-renderer.md, section 7): one fullscreen pass over all depth ranges that takes every
+/// "Direct light" (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7): one fullscreen pass over all depth ranges that takes every
 /// light of the main view with its shadows at each lit pixel, and writes its two parts, the diffuse and the specular light,
 /// each divided by its material factor and pre-exposed, into <see cref="RenderTargets.DirectDiffuse"/> and
 /// <see cref="RenderTargets.DirectSpecular"/>. Sky and impostor pixels get 0. Under <see cref="KeyAndFill"/>, each lit
 /// pixel takes the key lights and the fill of its tile's record instead, which <see cref="KeyFillPass"/> wrote
-/// (docs/plans/light-pairs.md, "Key and fill").
+/// (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill").
 /// </summary>
 internal sealed unsafe class DirectLightPass : RenderPass
 {

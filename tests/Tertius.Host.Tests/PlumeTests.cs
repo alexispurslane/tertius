@@ -7,7 +7,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The demo's plumes, on the World and the real Jolt backend (docs/plans/blue-danube-demo.md, "The plumes"): the main
+/// The demo's plumes, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes"): the main
 /// engine, each of the shuttle's jets and the person's back jet set the emitter of their own part in the tick of their
 /// push, from their own throttle, so every force shows and no force shows none. The hot exhaust of the main engine glows,
 /// and the cold gas of the jets is lit. Each part's -Z, the way its puffs leave, points against its push.

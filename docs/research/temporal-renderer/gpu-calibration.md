@@ -324,7 +324,7 @@ Fast math:
 - With every flag, MoltenVK sets `MTLMathModeFast` and `MTLMathFloatingPointFunctionsFast`.
 - `spirv-dis` finds none of these modes and no `NoContraction` in any of the engine's 67 modules, FSR's eight passes among them. So every engine shader compiles with Metal's fast math.
 - Fast math off (`MVK_CONFIG_FAST_MATH_ENABLED=0`) made the rolled FMA probe 1.9 % slower and the cached texture probe 1.0 % slower. The other probes did not change. Nothing is left to gain.
-- Fast math lets Metal assume that no value is NaN or infinite. Code that works on MoltenVK can then differ on a Linux driver, which keeps NaN and infinity. CLAUDE.md already names one such case, a `clamp` that turns NaN into 0.
+- Fast math lets Metal assume that no value is NaN or infinite. Code that works on MoltenVK can then differ on a Linux driver, which keeps NaN and infinity. AGENTS.md already names one such case, a `clamp` that turns NaN into 0.
 
 Other defaults that can add work per access:
 

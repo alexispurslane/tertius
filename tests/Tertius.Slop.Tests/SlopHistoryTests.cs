@@ -4,7 +4,7 @@ using Tertius.Slop.History;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The history of the slop metrics (docs/plans/code-quality-tooling.md, decision 18): the commits whose notes hold them,
+/// The history of the slop metrics (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 18): the commits whose notes hold them,
 /// as CSV, and the tickets of each commit, which its message names.
 /// </summary>
 public sealed class SlopHistoryTests

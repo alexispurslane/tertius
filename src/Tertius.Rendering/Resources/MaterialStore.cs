@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// What the batcher needs of a material slot: how its alpha draws, and whether the passes that shade draw its back faces
-/// (docs/plans/skin-and-hair.md, "Both sides of a hair card").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Both sides of a hair card").
 /// </summary>
 internal readonly record struct MaterialInfo(AlphaMode Alpha, bool TwoSided);
 
@@ -91,7 +91,7 @@ internal sealed unsafe class MaterialStore : IDisposable
             AlphaCutoff = desc.Alpha.Cutoff ?? 0,
         };
 
-    /// <summary>The metallic of a standard model, and 0 for skin and hair, which have none (docs/plans/skin-and-hair.md, decision 6).</summary>
+    /// <summary>The metallic of a standard model, and 0 for skin and hair, which have none (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 6).</summary>
     private static float MetallicOf(ShadingModel model) =>
         model switch
         {
@@ -101,7 +101,7 @@ internal sealed unsafe class MaterialStore : IDisposable
 
     /// <summary>
     /// Whether the passes that shade draw both sides of a surface of <paramref name="model"/>: a hair card is a sheet of
-    /// strands with no back, and every other surface is solid, so its back faces are hidden (docs/plans/skin-and-hair.md,
+    /// strands with no back, and every other surface is solid, so its back faces are hidden (https://github.com/alexispurslane/tertius/wiki/skin-and-hair,
     /// "Both sides of a hair card").
     /// </summary>
     internal static bool DrawsBothSides(ShadingModel model) =>

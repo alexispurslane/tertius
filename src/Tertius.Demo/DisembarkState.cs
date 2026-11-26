@@ -34,7 +34,7 @@ public readonly record struct StationGone;
 /// What a <see cref="Disembark"/> does, in the order of the exit: <see cref="Aboard"/>, <see cref="Walking"/>,
 /// <see cref="Riding"/>, <see cref="Strolling"/> and <see cref="Arrived"/>, or <see cref="Halted"/> once the station's frame
 /// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>),
-/// and <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
+/// and <see cref="Next"/> is the whole table of its changes (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit component").
 /// </summary>
 [GeneratedUnion(
     typeof(Aboard),

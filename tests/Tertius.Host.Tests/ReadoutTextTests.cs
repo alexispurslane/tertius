@@ -5,7 +5,7 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The text that the demo edit draws on each frame from the readout log (docs/plans/blue-danube-demo.md, "The readouts on
+/// The text that the demo edit draws on each frame from the readout log (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The readouts on
 /// the frame" and "The textbook checks"): the numbers, the sim clock, the rate of a film and the check panel.
 /// </summary>
 public sealed class ReadoutTextTests

@@ -11,7 +11,7 @@ internal static class FrameHistoryTesting
 }
 
 /// <summary>
-/// The still rule of <see cref="FrameHistory"/> (docs/plans/temporal-renderer.md, decision 32 and section 10, "The still
+/// The still rule of <see cref="FrameHistory"/> (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 32 and section 10, "The still
 /// rule"): which headless draws are stills, how many draws a still takes, which of them resets, how far each adapts the
 /// exposure and which refreshes every face of the map, and the warm-up count that the exposure gives. No GPU needed.
 /// </summary>

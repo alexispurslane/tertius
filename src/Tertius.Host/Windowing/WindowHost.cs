@@ -12,7 +12,7 @@ using Tertius.Simulation;
 namespace Tertius.Host.Windowing;
 
 /// <summary>
-/// The window: plays a script, or runs a scene live until it closes. See docs/plans/host-and-scripted-runs.md, "The
+/// The window: plays a script, or runs a scene live until it closes. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "The
 /// window". Three threads share the work, as ARCHITECTURE.md says: the main thread runs the window and its input, the
 /// simulation thread runs the ticks and the script, and the render thread draws the latest render snapshot.
 /// </summary>

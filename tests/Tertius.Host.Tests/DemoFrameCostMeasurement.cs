@@ -13,7 +13,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The measurement that docs/plans/blue-danube-demo.md asks of the demo ticket ter-2n31, under "Cost to measure" of change
+/// The measurement that https://github.com/alexispurslane/tertius/wiki/blue-danube-demo asks of the demo ticket ter-2n31, under "Cost to measure" of change
 /// 1: the headless frame time of the demo scene itself. It runs the checked-in scripts/blue-danube.json from its start
 /// through the film <see cref="LastFilm"/>, the walk on the surface and the person at its seat in the cabin, into a video at
 /// 1280x720 and 60 frames per second, as the command does. It reports, for each film, the means per frame of the ticks,

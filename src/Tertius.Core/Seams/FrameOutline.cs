@@ -49,7 +49,7 @@ public readonly record struct FollowingOutline(Vector3 Center, float Radius);
 /// The outline sphere of a frame is the smallest sphere centred on its origin that holds its outline: the largest radius of
 /// the bubble for a semantic frame, and the contents sphere for a numeric frame.
 /// <para>
-/// The union generator writes its union members (docs/plans/union-tooling.md), as it does for <see cref="RenderLight"/>.
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling), as it does for <see cref="RenderLight"/>.
 /// An outline reads only the values of its own case. The cases share their slots by type, so every case keeps its center
 /// in the same slot, and the four sphere cases keep their radius in the same slot. It takes 48 bytes. Equality needs the
 /// same case and the same values, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.

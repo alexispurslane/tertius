@@ -6,8 +6,8 @@ namespace Tertius.Rendering;
 /// <summary>
 /// Derives each map's mips, specular levels and irradiance cube from level 0 of its six faces, and its distance cube's
 /// levels from the faces' inverse distances, for each map that this frame drew a face of (stage
-/// <see cref="FrameGraph.Stage.EnvironmentPrefilter"/>, docs/plans/environment-map.md, "The prefilter",
-/// docs/plans/environment-maps-per-frame.md, "The prefilter of each map", and docs/plans/environment-map-distances.md,
+/// <see cref="FrameGraph.Stage.EnvironmentPrefilter"/>, https://github.com/alexispurslane/tertius/wiki/environment-map, "The prefilter",
+/// https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "The prefilter of each map", and https://github.com/alexispurslane/tertius/wiki/environment-map-distances,
 /// "How the capture writes it"), then copies the last level of the served maps' irradiance cubes into the frame slot's
 /// readback buffer. Compute dispatches on the graphics queue.
 /// </summary>

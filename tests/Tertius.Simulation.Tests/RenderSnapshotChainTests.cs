@@ -5,7 +5,7 @@ using static Tertius.Simulation.Tests.RenderSnapshotSupport;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The camera's chain in a render snapshot, and the chain depth of each object (docs/plans/environment-maps-per-frame.md,
+/// The camera's chain in a render snapshot, and the chain depth of each object (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame,
 /// "The snapshot: the chain and the chain depths"). The chain runs from the camera's frame through its semantic parents to
 /// the root. An object's chain depth is the depth of the nearest chain frame at or above the frame that holds it.
 /// </summary>

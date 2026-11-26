@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The gravity that a body feels in a frame (docs/plans/spin-gravity.md, "V5, the effective gravity"):
+/// The gravity that a body feels in a frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the effective gravity"):
 /// <see cref="FrameTree.LinearGravity"/>, the field minus the proper acceleration and the home's acceleration, and
 /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="FrameTree.SemanticGravity"/>, which add the centrifugal and the
 /// Euler term of a turning frame at the body's semantic place, from the turns that <see cref="FrameTree.BeginStep"/>

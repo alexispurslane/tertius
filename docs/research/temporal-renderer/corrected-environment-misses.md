@@ -9,7 +9,7 @@ The parent owns coverage, mutation testing, integration and ticket closure.
 
 ## Scope and source situation
 
-This is Design A of [the temporal renderer](../../plans/temporal-renderer.md), decision 35 and section 14, item 8.
+This is Design A of [the temporal renderer](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer), decision 35 and section 14, item 8.
 Every specular reader searches the distance cube from its receiving surface point.
 A distance cube stores the inverse distance to the nearest surface along each direction from the eye.
 The receiving surface point is relative to the eye, in meters and world axes.

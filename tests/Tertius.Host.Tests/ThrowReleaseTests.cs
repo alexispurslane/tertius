@@ -3,7 +3,7 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The predictions of a throw in the spinning wheel (docs/plans/blue-danube-demo.md, "The coda"): the straight line of the
+/// The predictions of a throw in the spinning wheel (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): the straight line of the
 /// release in inertial space, seen in the station's turning axes, and the parabola of the same release over a flat floor
 /// in a field of the floor's gravity. The expected values come from the same line worked out by hand in python, on a
 /// floor of so many facets that it is the circle of 100 m. Pure, with no World.

@@ -160,7 +160,7 @@ internal static class DeepYardExpectations
     /// <summary>The grid of a nesting frame, in meters: 2^20 m.</summary>
     public const double Grid = 1 << 20;
 
-    /// <summary>How far ahead in time the merge test of numeric frames looks, in seconds (docs/plans/numeric-frames.md, "Starting values").</summary>
+    /// <summary>How far ahead in time the merge test of numeric frames looks, in seconds (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Starting values").</summary>
     public const double LookaheadTime = 2;
 
     /// <summary>The radius of the sphere around a crate's center that bounds it, in meters: half its diagonal.</summary>
@@ -986,7 +986,7 @@ internal static class DeepYardReport
         );
         Line(
             report,
-            $"- The dumps of the headless run list only the semantic frame `space`, because no dump can tell that a numeric frame exists (docs/plans/numeric-frames.md, \"What gameplay sees\"). The numeric frames above come from the test's own reads. In the dumps, each body's position in space advances by about {DeepYard.DriftSpeed * 2:F0} m along -Z every 2 s, rounded to the 2 m step of a double, and its velocity in space holds the drift of {DeepYard.Drift.Z} m/s along Z."
+            $"- The dumps of the headless run list only the semantic frame `space`, because no dump can tell that a numeric frame exists (https://github.com/alexispurslane/tertius/wiki/numeric-frames, \"What gameplay sees\"). The numeric frames above come from the test's own reads. In the dumps, each body's position in space advances by about {DeepYard.DriftSpeed * 2:F0} m along -Z every 2 s, rounded to the 2 m step of a double, and its velocity in space holds the drift of {DeepYard.Drift.Z} m/s along Z."
         );
         Line(
             report,

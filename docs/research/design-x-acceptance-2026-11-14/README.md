@@ -1,7 +1,7 @@
 # Acceptance takes of Design X, 2026-11-14
 
 This folder holds the pictures and the scratch probe of the acceptance takes of Design X.
-Design X is the design of `docs/plans/bounce-light-confidence.md`.
+Design X is the design of `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`.
 The numbers of the takes are in the notes of the tickets `t0-5tyj`, `t0-f8oc`, `t0-89zi` and `t0-acxm`.
 
 ## Pictures
@@ -16,7 +16,7 @@ The numbers of the takes are in the notes of the tickets `t0-5tyj`, `t0-f8oc`, `
 | `pics/cabin-switch-full-image.png` | The cabin's lamp switch: the light over the draws, for main, the branch before the fix and the branch with the fix. |
 | `pics/cabin-8-draws-after-lamps-on.png` | The cabin 8 draws after the lamps return, main beside the branch, and the branch's settled frame. |
 | `pics/rect-bay-film.png` | The film `rect-bay`: frames of the film beside stills of the same states, main above the branch. |
-| `pics/orbit-far-sill-row-563.png` | The far window's sill in the scene `orbit` at world tick 300, direct light alone, from the takes of `docs/plans/sub-pixel-strips.md`: output rows 533 to 593 and columns 870 to 1049 of 1920 x 1080, six times enlarged. One lit row, row 563, from column 892 to 1030. Added on 2026-11-15 for the diagnosis of the sun's shadow leak. |
+| `pics/orbit-far-sill-row-563.png` | The far window's sill in the scene `orbit` at world tick 300, direct light alone, from the takes of `https://github.com/alexispurslane/tertius/wiki/sub-pixel-strips`: output rows 533 to 593 and columns 870 to 1049 of 1920 x 1080, six times enlarged. One lit row, row 563, from column 892 to 1030. Added on 2026-11-15 for the diagnosis of the sun's shadow leak. |
 
 The reference is the branch with both history clamps off (`TERTIUS_A_NO_CLAMP=1`), as a mean of its last captures.
 

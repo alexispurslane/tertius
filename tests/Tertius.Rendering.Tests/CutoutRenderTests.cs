@@ -6,7 +6,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The cutout draws of every opaque pass on the GPU (docs/plans/skin-and-hair.md, "The cutout test"): a texel of a
+/// The cutout draws of every opaque pass on the GPU (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The cutout test"): a texel of a
 /// cutout material below its cutoff is not there in the G-buffer, the shadow maps, the environment faces and the
 /// impostor captures, and a texel at or above it is. The card is the plane mesh, 2 m square, whose image has three
 /// stripes across u of alpha 0, 0.4 and 1, with a cutoff of 0.5. The exposure is fixed at 0 stops.

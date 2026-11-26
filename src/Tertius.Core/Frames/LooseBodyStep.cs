@@ -1,7 +1,7 @@
 namespace Tertius;
 
 /// <summary>
-/// What the last finished step of a frame does to a loose body in it (docs/plans/particles.md, "The rule of motion"): the
+/// What the last finished step of a frame does to a loose body in it (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion"): the
 /// frame's field, its proper acceleration as the step found it, its turns, the length of the step of the turns, and its
 /// medium. <see cref="FrameTree.LastLooseBodyStep"/> fills one per frame, and the step of the puffs reads it once per range
 /// of rows. The rule of a loose body in a frame belongs to the frame's step, so it lives here: a body that the medium does

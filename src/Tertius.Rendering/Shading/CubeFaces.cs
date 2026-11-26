@@ -28,7 +28,7 @@ internal enum FaceMask : byte
 }
 
 /// <summary>
-/// The axes of one face in camera-relative world axes (docs/plans/environment-map.md, "The faces and their axes"):
+/// The axes of one face in camera-relative world axes (https://github.com/alexispurslane/tertius/wiki/environment-map, "The faces and their axes"):
 /// <paramref name="Right"/> is the way the texel column s grows, <paramref name="Up"/> the way the row t falls.
 /// </summary>
 internal readonly record struct FaceBasis(Vector3 Forward, Vector3 Right, Vector3 Up);
@@ -55,7 +55,7 @@ internal static class CubeFaces
 
     /// <summary>
     /// The axes of <paramref name="face"/> of a map that lies in the axes <paramref name="axes"/>, in world axes: the
-    /// table's forward, right and up turned by <paramref name="axes"/> (docs/plans/environment-maps-per-frame.md, decision
+    /// table's forward, right and up turned by <paramref name="axes"/> (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision
     /// 9). The identity gives the table's bits.
     /// </summary>
     /// <param name="axes">The map's frame's axes in world axes, a unit quaternion.</param>

@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// A pyramid of the screen tracer and its sets: the finest level, one value of the pyramid's format per pixel, and levels
 /// 1 to L, each cell from the up to four cells under it. The depth pyramid holds slabs
-/// (docs/plans/back-face-depth-layer.md), the light pyramid sums (ARCHITECTURE.md, "Guided rays"). The images
+/// (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer), the light pyramid sums (ARCHITECTURE.md, "Guided rays"). The images
 /// stay in General.
 /// </summary>
 /// <remarks>
@@ -75,7 +75,7 @@ internal sealed unsafe class PyramidImages : IDisposable
 
     /// <summary>
     /// The finest level, in the pyramid's format at the screen's size. The depth pyramid's holds each pixel's slab, its
-    /// center w and its back w, (0, 0) for sky (docs/plans/back-face-depth-layer.md, "The model"). The light pyramid's
+    /// center w and its back w, (0, 0) for sky (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, "The model"). The light pyramid's
     /// holds each pixel's guide light.
     /// </summary>
     public GpuImage Finest { get; private set; }

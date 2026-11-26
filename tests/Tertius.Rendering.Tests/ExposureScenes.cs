@@ -9,7 +9,7 @@ namespace Tertius.Rendering.Tests;
 internal readonly record struct FilmFrame(float Stops, float Luma);
 
 /// <summary>
-/// The scenes and the film of the automatic exposure's tests (docs/plans/auto-exposure.md, "Tests"). The camera is at the
+/// The scenes and the film of the automatic exposure's tests (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Tests"). The camera is at the
 /// render origin with identity rotation, so it looks down −Z. The sun shines from behind the camera, under the ambient
 /// light of <see cref="Gpu.Snapshot"/>. No instance casts shadows.
 /// </summary>

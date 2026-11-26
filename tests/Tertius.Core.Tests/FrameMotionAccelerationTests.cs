@@ -4,7 +4,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The accelerations of a point and of a body between a frame and its parent, with the frame's own acceleration, its
-/// angular acceleration and its rotation terms (docs/plans/spin-gravity.md, "V7, the relative motion of two frames").
+/// angular acceleration and its rotation terms (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames").
 /// The tests with literal results use a frame at (10, 0, 0) that stands a quarter turn about +Z from its parent, so that
 /// the frame's +X is the parent's +Y and its +Y is the parent's -X.
 /// </summary>

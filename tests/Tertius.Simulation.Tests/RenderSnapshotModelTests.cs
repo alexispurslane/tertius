@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// An entity that draws a model (docs/plans/asset-pipeline.md, "Models: nodes and pieces"): its render row names a model
+/// An entity that draws a model (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Models: nodes and pieces"): its render row names a model
 /// and no mesh, and the snapshot hands the renderer one instance with the model and the entity's transform. The renderer
 /// expands the parts.
 /// </summary>

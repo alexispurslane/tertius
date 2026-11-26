@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The strand's octahedral code of two bytes in the shading target's R and G, the C# twin of strandCode and strandOfCode
-/// in the shaders (docs/plans/skin-and-hair.md, "The shading target").
+/// in the shaders (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 /// </summary>
 internal static class StrandCode
 {

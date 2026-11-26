@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Following frames (ter-dhkf, docs/plans/numeric-frames.md, "Anchors", rule 3), on the World and the real backend. The hull of
+/// Following frames (ter-dhkf, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3), on the World and the real backend. The hull of
 /// a frame whose Kepler orbit moves it fast or far in its semantic frame lives in a numeric frame K of its own that
 /// follows the orbit, and the frame hangs at K's origin, as a ship's frame hangs under its hull's numeric frame. So the
 /// hull rests in K, and the bodies near it join K, where they are slow, and where the hull is a real body that Jolt
@@ -343,7 +343,7 @@ public sealed class NumericFrameOrbitTests
     /// same batch on a circular orbit of its own, 3.5 m inside the hull's, within the reach of the merge test: a character or
     /// <see cref="Rock"/>. The body joins the hull's new following frame K before K's first step, and physics converts the
     /// velocity of its spawn into K's system as into the system of any following frame, because K starts with the chord velocity
-    /// that the numeric frames expect (see "The first step of a new following frame" in docs/plans/rails-components.md).
+    /// that the numeric frames expect (see "The first step of a new following frame" in https://github.com/alexispurslane/tertius/wiki/rails-components).
     /// With a first motion intent of the hull, K's first step lands on the orbit's sample, and the body stays on its own orbit
     /// after a second, in which it moves 7.66 km, within the bound that a body spawned beside an older following frame keeps:
     /// 1.35e-6 m there, 1.13e-6 m here. Those are the orbit's jerk times the square of a step, from the scheme that Jolt uses
@@ -591,7 +591,7 @@ public sealed class NumericFrameOrbitTests
     /// A root frame with a point gravity of <see cref="FarOrbitMu"/>, and in it a frame on a circular orbit of
     /// <see cref="FarOrbitRadius"/> at phase 0, with a bubble of 1 cm, whose hull is a box of 4 m, which starts at
     /// (10,000 km, 0, 0) and passes along -Z at 63 m/s. It lies beyond the resting distance, so it lives in a following frame of
-    /// its own (docs/plans/numeric-frames.md, "Anchors", rule 3). 100 m ahead on its path a cargo pod (see
+    /// its own (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3). 100 m ahead on its path a cargo pod (see
     /// <see cref="PodFrame"/>) floats, and 8 m to its outer side a static rock of radius 1 m, which the hull misses, and
     /// which rests in a resting frame of its own.
     /// </summary>
@@ -723,7 +723,7 @@ public sealed class NumericFrameOrbitTests
     /// <summary>
     /// A station in low orbit, with a crate beside its hull in the following frame, stops and then goes back on its orbit. Each
     /// change of motion is a swap of components plus a change of the hull's motion, which the station's own components
-    /// write in one tick (docs/plans/rails-components.md, "Changes of motion"). To stop, the station removes its
+    /// write in one tick (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). To stop, the station removes its
     /// <see cref="KeplerMotion"/> and makes its hull static. At the sync point of that tick, the numeric update moves the
     /// static hull, with its frame, into earth's own system, a fixed hull that the crate's group joins, and the frame stops
     /// at the next sync point, where its hull held still. A second crate, at rest at its spawn 20 m below the stopped hull,
@@ -952,7 +952,7 @@ public sealed class NumericFrameOrbitTests
     /// A new <see cref="KeplerMotion"/> teleports the station's hull to its place on the new orbit, and the crate beside the
     /// hull moves on in the step of the jump as it does without numeric frames, where the crate lies in earth's own system.
     /// So the station's following frame jumps with the hull, and the crate and the pod's frame, which it held, lose that jump
-    /// (docs/plans/rails-components.md, "Numeric frames"). The crate falls on in a frame of its own, far from the hull.
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Numeric frames"). The crate falls on in a frame of its own, far from the hull.
     /// </summary>
     [Fact]
     public void ANewOrbitMovesTheStationAndLeavesTheCrateInItsFollowingFrameWhereItWasAsWithoutNumericFrames()

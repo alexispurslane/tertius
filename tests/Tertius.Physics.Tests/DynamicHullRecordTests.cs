@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The step record of a frame with a dynamic hull (docs/plans/rails-components.md, "One motion record per frame"), on the
+/// The step record of a frame with a dynamic hull (https://github.com/alexispurslane/tertius/wiki/rails-components, "One motion record per frame"), on the
 /// World and the real backend. The record holds the frame's instant velocity at the end of the step, relative to the
 /// frame's tree parent. Under a numeric parent the tree keeps a velocity relative to the parent's chord, the velocity of
 /// the numeric frame over the step (see FrameTree.TakeStepRecords), so a read in the semantic parent gives the instant velocity, and

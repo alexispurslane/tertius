@@ -2,7 +2,7 @@
 
 The original implementation record below describes reviewed commit `46a0f4f244bc3b820e1921c97f654ffc06d63ea5`. The final boundary correction and refreshed evidence are in "Boundary review fix" and [review-fix.json](automatic-box-projection/review-fix.json).
 
-Ticket `ter-7tnv`, November 5, 2026. The settled design is [semantic-frame-box-projection.md](../../plans/semantic-frame-box-projection.md). This replaces the distance-cube search, not its receiving-position ownership fix. The [search report](corrected-environment-misses.md) and its images remain historical evidence. In particular, its +2.762 ms deck and +2.175 ms floor differences are not measurements of this replacement.
+Ticket `ter-7tnv`, November 5, 2026. The settled design is [semantic-frame-box-projection.md](../https://github.com/alexispurslane/tertius/wiki/semantic-frame-box-projection). This replaces the distance-cube search, not its receiving-position ownership fix. The [search report](corrected-environment-misses.md) and its images remain historical evidence. In particular, its +2.762 ms deck and +2.175 ms floor differences are not measurements of this replacement.
 
 ## Source and prerequisite
 

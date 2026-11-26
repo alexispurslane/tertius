@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # The windowed clock: the clock of a game in a window whose GPU limits its frame rate (gpu-calibration.md, "The clock of
-# a window run"). The budgets of docs/plans/temporal-renderer.md, section 11, hold at it.
+# a window run"). The budgets of https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 11, hold at it.
 WINDOWED_MHZ = 1296.0
 
 # Two spans compare when the higher clock exceeds the lower one by at most this share. A pass whose time follows the

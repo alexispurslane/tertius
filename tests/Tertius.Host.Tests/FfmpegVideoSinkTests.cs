@@ -8,7 +8,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The video sink on the real ffmpeg of the dev shell: what the video holds, and what happens when ffmpeg fails. A video
 /// whose path is a folder makes the real ffmpeg fail as a full disk does: it reads the first frame, cannot open its output,
-/// and exits with an error. See docs/plans/blue-danube-demo.md, change 1, "Failure handling".
+/// and exits with an error. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 1, "Failure handling".
 /// </summary>
 public sealed class FfmpegVideoSinkTests : IDisposable
 {

@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The model's code in bits 0 and 1 of the shading word, which the shading target's alpha channel holds
-/// (docs/plans/skin-and-hair.md, "The shading target").
+/// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target").
 /// </summary>
 public sealed class ShadingCodeTests
 {

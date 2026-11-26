@@ -7,13 +7,13 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// A Mars-like planet with a painted atmosphere (docs/plans/atmosphere.md), for the screenshots of its look.
+    /// A Mars-like planet with a painted atmosphere (https://github.com/alexispurslane/tertius/wiki/atmosphere), for the screenshots of its look.
     /// <list type="bullet">
     /// <item>The Sun of <see cref="SunRoot"/>, and <c>mars</c>, a frame 1.524 AU from it along +X whose origin is the
     /// planet's center. Its air is <see cref="Air"/>: a butterscotch sky, an ochre haze and a warm tint on the sunlight. The
     /// frame's bubble reaches 300 km above the ground, 27 scale heights, so a view above the air keeps the planet's
     /// record. Past that edge the camera's chain holds no planet medium, so the snapshot takes the air that is densest at
-    /// the eye, which is still this one (docs/plans/atmosphere.md, rule 5).</item>
+    /// the eye, which is still this one (https://github.com/alexispurslane/tertius/wiki/atmosphere, rule 5).</item>
     /// <item>Two sites on the ground, each a flat plate 30 km wide with pillars along its +Z at 15 m to 12 km, which grow
     /// with their distance and stand side by side in the view: <c>day</c>, 50° from the point under the Sun, where the Sun stands 40° up, and <c>dusk</c>,
     /// 89° from it, where the Sun stands 1° up.</item>

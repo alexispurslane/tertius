@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// <summary>
 /// What a front intent keeps in a World without a physics backend (<see cref="PhysicsIntent.KeepOnlyMotion"/>): nothing applies
 /// its forces, impulses, velocities, teleport, walk or collision groups, so only its frame, its motion intent and its change
-/// of a hull's motion stay, which the sync point applies itself (docs/plans/rails-components.md, "Where the motion intent
+/// of a hull's motion stay, which the sync point applies itself (https://github.com/alexispurslane/tertius/wiki/rails-components, "Where the motion intent
 /// lives").
 /// </summary>
 public sealed class PhysicsIntentTests

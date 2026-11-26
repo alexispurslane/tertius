@@ -22,7 +22,7 @@ namespace Tertius.Benchmarks;
 /// 10,000 km out, so that each cluster rests in a numeric frame: 1,000 frames and 20,000 bodies, each one visible. On
 /// Jolt.</item>
 /// <item><c>posed</c>: 1,000 visible entities without bodies, each with a rig pose of 53 joints, the joint count of an MPFB
-/// human, and no morphs (docs/plans/skinning-and-morphs.md, "Part 2"). Every build follows the build before, so each rig pose
+/// human, and no morphs (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Part 2"). Every build follows the build before, so each rig pose
 /// takes its previous pose from its placed copy. No physics.</item>
 /// </list>
 /// The cleanup prints the frames, the outlines and the bytes of the outlines in one snapshot.

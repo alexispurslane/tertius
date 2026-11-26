@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The kept deformed positions (docs/plans/temporal-renderer.md, "Kept deformed positions"): two device buffers that hold
+/// The kept deformed positions (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Kept deformed positions"): two device buffers that hold
 /// three floats per vertex of the deform region. The deform pass writes the buffer of the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), and the G-buffer reads the other one, which the last drawn frame
 /// wrote. A frame that throws does not advance the count, so the next frame writes the same buffer again and reads the last
@@ -17,7 +17,7 @@ namespace Tertius.Rendering;
 /// A growth replaces both buffers, and the frame that grows them copies the old ones into the new ones. The copy runs only
 /// when that frame is submitted, so the old buffers stay the source of the copy until <see cref="Drew"/>: each frame
 /// before it records the copy again. A frame that throws after a growth then leaves the next frame the last drawn frame's
-/// positions, as a frame that throws must leave every stock (docs/plans/temporal-renderer.md, decision 20).
+/// positions, as a frame that throws must leave every stock (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 20).
 /// </para>
 /// </remarks>
 internal sealed class KeptPositions(VulkanDevice device, DeviceAllocator allocator) : IDisposable

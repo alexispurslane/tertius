@@ -7,7 +7,7 @@ internal readonly record struct WallClock(double LastSeconds);
 internal readonly record struct FilmClock(double LastSeconds);
 
 /// <summary>
-/// The clock that steps the exposure's approach: the time between two drawn frames (docs/plans/auto-exposure.md,
+/// The clock that steps the exposure's approach: the time between two drawn frames (https://github.com/alexispurslane/tertius/wiki/auto-exposure,
 /// "The clock"). A window reads the wall clock, and a headless run reads the snapshot's time.
 /// </summary>
 [GeneratedUnion(typeof(WallClock), typeof(FilmClock))]

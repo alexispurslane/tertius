@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The back-face pass on the GPU (docs/plans/back-face-depth-layer.md, decision 4): the back share of each pixel, its
+/// The back-face pass on the GPU (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4): the back share of each pixel, its
 /// front distance over the distance of the nearest counted fragment of the pass, read back after one frame. Every box face
 /// that a test reads lies across the view axis, so a pixel's share is the ratio of two view depths, whatever its ray.
 /// </summary>

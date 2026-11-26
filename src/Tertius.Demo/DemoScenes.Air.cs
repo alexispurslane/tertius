@@ -3,7 +3,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The air of the demo's scenes, which only puffs feel (docs/plans/blue-danube-demo.md, "The plumes"): Earth's air in
+    /// The air of the demo's scenes, which only puffs feel (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The plumes"): Earth's air in
     /// earth-surface, which thins with height, and the air of the shuttle's cabin and of the station's bay, at the density
     /// of the air at the surface. Every air has one drag, <see cref="Drag"/>, so a puff of one look slows the same in all
     /// of them.

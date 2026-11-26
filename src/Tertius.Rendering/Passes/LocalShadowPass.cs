@@ -84,7 +84,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
 
     /// <summary>
     /// Appends the casters of <paramref name="draw"/>, already in mesh order: the solid run, then the cutout run, as every
-    /// opaque pass draws them (docs/plans/skin-and-hair.md, decision 25), with one indirect command per stretch of one mesh.
+    /// opaque pass draws them (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 25), with one indirect command per stretch of one mesh.
     /// </summary>
     private OpaqueRuns Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, TileDraw draw) =>
         new(

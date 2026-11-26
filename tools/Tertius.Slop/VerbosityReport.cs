@@ -4,7 +4,7 @@ using Tertius.Slop.Rules;
 namespace Tertius.Slop;
 
 /// <summary>
-/// The verbosity of a codebase (docs/plans/code-quality-tooling.md, decision 17), after
+/// The verbosity of a codebase (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17), after
 /// https://earendil.com/posts/measuring-code-sloppiness/: the share of its lines of code that a rule flags or that
 /// jscpd finds in a clone. A line counts once, however many findings and clones cover it. A blank line never counts. A
 /// comment line counts when a finding covers it, although the lines of code leave comments out.

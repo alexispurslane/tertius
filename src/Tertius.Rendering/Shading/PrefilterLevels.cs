@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The levels of the specular map (docs/plans/environment-map.md, "The specular levels"). environment_prefilter.comp
+/// The levels of the specular map (https://github.com/alexispurslane/tertius/wiki/environment-map, "The specular levels"). environment_prefilter.comp
 /// and environment.glsl are the GLSL copies.
 /// </summary>
 internal static class PrefilterLevels

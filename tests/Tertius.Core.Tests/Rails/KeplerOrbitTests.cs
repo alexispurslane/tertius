@@ -296,7 +296,7 @@ public sealed class KeplerOrbitTests
     public void The_angular_acceleration_of_a_sample_is_the_mean_over_its_step(string attitude)
     {
         // Every step record means the same by its angular acceleration: the change of the angular velocity over the step,
-        // divided by the step (docs/plans/spin-gravity.md, "V3"). The mean is the value at the middle of the step, to the
+        // divided by the step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V3"). The mean is the value at the middle of the step, to the
         // third derivative of the angular velocity times the step squared over 24, far under 1e-15 rad/s².
         KeplerOrbit orbit = InclinedOval with
         {

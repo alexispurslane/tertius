@@ -73,7 +73,7 @@ public static partial class DemoScenes
     /// <summary>The numbers of stars of the star scenes that the cost measures. A property for the reason of <see cref="HallLampCounts"/>.</summary>
     private static int[] StarCounts => [1, 2, 4];
 
-    /// <summary>The scenes of the shadows of every light (docs/plans/local-light-shadows.md, "Part 7").</summary>
+    /// <summary>The scenes of the shadows of every light (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Part 7").</summary>
     private static IEnumerable<Scene> ShadowScenes =>
         [
             new("spot-box", SpotBox),
@@ -225,7 +225,7 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The lamp hall that measures the cost of the local shadows (docs/plans/local-light-shadows.md, "Cost"): in the root
+    /// The lamp hall that measures the cost of the local shadows (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Cost"): in the root
     /// frame <c>hall</c>, with no sun and no sky.
     /// <list type="bullet">
     /// <item>The <c>floor</c>, a gray slab with its top at y = 0, 1 m wider on each side than the grid of lamps.</item>
@@ -319,7 +319,7 @@ public static partial class DemoScenes
 
     /// <summary>
     /// A star scene of <paramref name="stars"/> stars over a plane, which measures the cost of the shadows of far lights
-    /// (docs/plans/local-light-shadows.md, "Cost"): in the root frame <c>plane</c>, with the dim light of space.
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Cost"): in the root frame <c>plane</c>, with the dim light of space.
     /// <list type="bullet">
     /// <item>The <c>floor</c>, a gray slab 30 m square with its top at y = 0.</item>
     /// <item>Three light gray pillars, <c>pillar-0</c> to <c>pillar-2</c>, 0.6 m square and 3 m tall, an orange cube 1 m

@@ -5,7 +5,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The images and the lists of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The resolve"): the ray
+/// The images and the lists of the screen tracer (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The resolve"): the ray
 /// plan's bits at each pixel, the records of each 2 × 2 block's ray and of each pixel's own ray of each kind, and the
 /// own-ray list of each kind. Its two sets, one per parity of the drawn frames, also bind what the tracer reads: the depth
 /// pyramid's finest level and its bounds, the direct light's two images, the surface test image, the motion target and the
@@ -133,7 +133,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// The hit light, one layer per kind (ticket ter-67y3): at each pixel that a walk can hit, the light that leaves it
     /// toward a ray of the kind, which the plan writes and a ray's hit reads. With a precise specular history, alpha holds
     /// the pixel's moved mark, 1 where its surface moved since the last draw, which a hit carries into its ray's record
-    /// (docs/plans/bounce-light-confidence.md, section 8.4). Otherwise alpha is 0.
+    /// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4). Otherwise alpha is 0.
     /// </summary>
     public GpuImage HitLight { get; private set; }
 

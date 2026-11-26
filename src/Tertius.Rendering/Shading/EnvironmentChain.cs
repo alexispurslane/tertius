@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The rules of the served chain, an object's map, the draw rule and kept maps, as pure functions
-/// (docs/plans/environment-maps-per-frame.md, "The served chain and the map of an object"). Maps are indexed root first.
+/// (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "The served chain and the map of an object"). Maps are indexed root first.
 /// </summary>
 internal static class EnvironmentChain
 {

@@ -11,7 +11,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The measurement of task 6 of docs/plans/particles.md: the wall time of the checked-in scripts/puff-yard.json, headless
+/// The measurement of task 6 of https://github.com/alexispurslane/tertius/wiki/particles: the wall time of the checked-in scripts/puff-yard.json, headless
 /// at 1280x720 with its four captures into PNG files, as the command runs it, with the default puff capacity of 4,096 and
 /// with a capacity of 0, which turns puffs off. The two capacities alternate over <see cref="Rounds"/> rounds after one
 /// round of warm-up, and the report gives the median of each and their difference per tick. It is an explicit test, so a

@@ -9,7 +9,7 @@ The ter-9wwx acceptance run rendered the Blue Danube film at about 13 frames per
 - **Tick time**: the wall time of one `World.Tick` call on the ticking thread.
 - **Draw time**: the wall time of `playback.Capture` minus the video sink write. It holds the render snapshot, the renderer's CPU work and the wait for the GPU.
 - **Sink write**: the wall time of `FfmpegVideoSink.Take`, the write of one frame's pixels into ffmpeg's input. It blocks while the encoder is behind.
-- **Still**: a headless draw after a clock step of at least `FrameHistory.MeteringStepSeconds`, 0.09 s (5.4 ticks). A still resets every history and draws `RendererOptions.WarmUpFrames` warm-up draws, 32 by default, before its shown draw (`FrameHistory.DrawsOf`, decision 32 of docs/plans/temporal-renderer.md). A window never draws a still.
+- **Still**: a headless draw after a clock step of at least `FrameHistory.MeteringStepSeconds`, 0.09 s (5.4 ticks). A still resets every history and draws `RendererOptions.WarmUpFrames` warm-up draws, 32 by default, before its shown draw (`FrameHistory.DrawsOf`, decision 32 of https://github.com/alexispurslane/tertius/wiki/temporal-renderer). A window never draws a still.
 
 ## Method
 

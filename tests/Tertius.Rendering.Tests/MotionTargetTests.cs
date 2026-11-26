@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// What the motion target asks of a device and of the motion rows (docs/plans/temporal-renderer.md, "Portable Vulkan"):
+/// What the motion target asks of a device and of the motion rows (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Portable Vulkan"):
 /// the renderer refuses a device with fewer than 8 color attachments or fragment outputs, and a motion row is the 64 bytes
 /// that the shaders read. No GPU needed.
 /// </summary>

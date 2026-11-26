@@ -345,7 +345,7 @@ internal static class GlbReader
 
         /// <summary>
         /// The mesh with a back copy of each triangle: reversed winding, the normal turned and the tangent's sign turned,
-        /// so that the bitangent keeps its direction (docs/plans/asset-pipeline.md, "Meshes", step 6).
+        /// so that the bitangent keeps its direction (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Meshes", step 6).
         /// </summary>
         private static MeshData WithBackFaces(Vertex[] vertices, uint[] indices)
         {

@@ -162,7 +162,7 @@ public class KeplerFrameTickBenchmarks
 
 /// <summary>
 /// The cost of one tick of <see cref="Entities"/> entities without body or frame on Kepler orbits around one root, with no
-/// other gameplay (ter-xdt8, docs/plans/rails-components.md, "Rails motion for every entity"). The
+/// other gameplay (ter-xdt8, https://github.com/alexispurslane/tertius/wiki/rails-components, "Rails motion for every entity"). The
 /// <see cref="KeplerMotion"/>
 /// of each entity solves its orbit in its tick, in the parallel chunks, and writes the sample as the entity's motion intent.
 /// The sync point swaps the intents at step 4 and puts each entity on the record of its intent at step 2

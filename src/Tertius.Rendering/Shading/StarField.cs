@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 internal readonly record struct Star(Vector3 Direction, Vector3 Peak);
 
 /// <summary>
-/// The C# copy of the star code in sky.glsl (docs/plans/environment-map.md, "The reflected stars"). Directions are in
+/// The C# copy of the star code in sky.glsl (https://github.com/alexispurslane/tertius/wiki/environment-map, "The reflected stars"). Directions are in
 /// root axes. The hash runs in float, in the shader's order, so the CPU and the GPU agree on almost every star.
 /// </summary>
 internal static class StarField
@@ -16,7 +16,7 @@ internal static class StarField
     public const float StarShare = 0.02f;
 
     /// <summary>
-    /// The peak radiance, in W/(m²·sr), of a star of brightness 1 (docs/plans/local-light-shadows.md, settled fork 1,
+    /// The peak radiance, in W/(m²·sr), of a star of brightness 1 (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, settled fork 1,
     /// physical stars). At 1080p and a 60° view, the brightest stars then send about 10⁻⁸ W/m².
     /// </summary>
     public const float UnitRadiance = 1f / 1024;

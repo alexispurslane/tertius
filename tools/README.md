@@ -1,12 +1,12 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and mutation testing (Stryker.NET and listed mutants) on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, survey every scene of the renderer, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and mutation testing (Stryker.NET and listed mutants) on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, survey every scene of the renderer, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of AGENTS.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
 ## Every test project in one command
 
-For local feedback, `tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. GitHub Actions runs the full suite when a pull request becomes ready and after every later push. The required `Tests and metrics` check blocks merging until it passes on the current head. The script works from any folder in the repository:
+For local feedback, `tools/test-all.sh` builds the solution once per build configuration. Then it runs every test project in every configuration with `--no-build`, all at the same time, one process each. Each process also runs its own test classes in parallel. GitHub Actions runs every CPU-only .NET test in Checked and every Python tools test when a pull request becomes ready and after every later push. The CPU Release suite runs on `main` after merges. The required `Tests and metrics` check blocks merging until it passes on the current head. The script works from any folder in the repository:
 
 ```bash
 nix develop --command bash -c 'bash tools/test-all.sh'
@@ -177,7 +177,7 @@ To stop the mirror, remove the knot's push URL. Then pushes go to GitHub only:
 git remote set-url --delete --push origin git@knot.xenolandscapes.com:did:plc:6mfsw4jthsacfcdbfmfetvin
 ```
 
-The knot has no Git LFS. As long as the mirror stays, decision 21 of `docs/plans/asset-pipeline.md` keeps binary build output out of git.
+The knot has no Git LFS. As long as the mirror stays, decision 21 of `https://github.com/alexispurslane/tertius/wiki/asset-pipeline` keeps binary build output out of git.
 
 Before the first push to GitHub on 2026-11-12, gitleaks 8.30.1 scanned every commit of every ref. It found three matches, and all three were the words "key generation" in `docs/research/temporal-renderer/walk-hill-climb.md`. A search for each stored secret and for key prefixes found nothing.
 
@@ -293,7 +293,7 @@ By default, run this one official run in the cloud. Run the command from the bra
 python3 -I tools/stryker/cloud.py main /tmp/<ticket>-stryker --agent <your name>
 ```
 
-`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook and optional local test runs stay on the Mac. The required Checked and Release suites run in GitHub Actions on ready pull requests. To run the official run on the Mac, run it in the dev shell on the branch:
+`cloud.py` runs `changed.py` on each module on its own CPU worker, all at once, and prints the merged table ("A run on another machine" below). Only the official Stryker run goes to the cloud by default. The `tools/mutate.py` list, the pre-commit hook and optional local test runs stay on the Mac. The required CPU Checked suite runs in GitHub Actions on ready pull requests, and the CPU Release suite runs on `main` after merges. To run the official run on the Mac, run it in the dev shell on the branch:
 
 ```bash
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
@@ -461,7 +461,7 @@ The script prints each clone with its two places, then a table with the share of
 
 ## Slop metrics
 
-`tools/Tertius.Slop` is a console program that measures how sloppy the code in `src/` is, after the post [Measuring code sloppiness](https://earendil.com/posts/measuring-code-sloppiness/). Erosion and verbosity read syntax. Type coherence uses a Roslyn source compilation for symbol binding, without building or emitting the engine. `docs/plans/code-quality-tooling.md` has the rules and their reasons: decision 16 for the erosion and decision 17 for the verbosity.
+`tools/Tertius.Slop` is a console program that measures how sloppy the code in `src/` is, after the post [Measuring code sloppiness](https://earendil.com/posts/measuring-code-sloppiness/). Erosion and verbosity read syntax. Type coherence uses a Roslyn source compilation for symbol binding, without building or emitting the engine. `https://github.com/alexispurslane/tertius/wiki/code-quality-tooling` has the rules and their reasons: decision 16 for the erosion and decision 17 for the verbosity.
 
 ```bash
 nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- erosion
@@ -527,10 +527,10 @@ To read the notes of another clone, fetch them first: `git fetch origin refs/not
 
 ### Pull-request metrics
 
-`tools/pr_metrics.py` turns the JSON of `measure` into the metrics comment of a pull request. GitHub Actions runs it after the full test suite passes. The table reports erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance. A later CI run updates the same comment. The marker `<!-- tertius-metrics -->` identifies it.
+`tools/pr_metrics.py` turns the JSON of `all` into the metrics comment of a pull request. GitHub Actions runs it after the CPU tests pass. The table reports erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance. A later CI run updates the same comment. The marker `<!-- tertius-metrics -->` identifies it.
 
 ```powershell
-nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- measure HEAD --branch <branch> --source pre-push | Set-Content metrics.json
+nix develop --command bash -c 'dotnet build tools/Tertius.Slop -c Release -v quiet -nologo && dotnet tools/Tertius.Slop/bin/Release/net11.0/Tertius.Slop.dll all .' | Set-Content metrics.json
 nix develop --command python3 -I tools/pr_metrics.py metrics.json --head <commit> --run-url <ci-url>
 ```
 
@@ -550,7 +550,7 @@ The built program reads all of `src/` (268 files), and the names of the tests, t
 nix develop --command bash -c 'bash tools/docs.sh -s'
 ```
 
-The script builds the solution in Release, because DocFX reads the compiled assemblies and the XML documentation files beside them. Thus DocFX never parses C# 15 syntax itself. Then it writes the site to `artifacts/docs/`. The site holds the API reference of every module, private members included, and README.md, ARCHITECTURE.md, GUIDE.md, this file and the design docs. The source files are in the site too, so the links in GUIDE.md open them. `docfx.json` at the repository root holds the configuration, and `docs/site/` holds the navigation. The options:
+The script builds the solution in Release, because DocFX reads the compiled assemblies and the XML documentation files beside them. Thus DocFX never parses C# 15 syntax itself. Then it writes the site to `artifacts/docs/`. The site holds the API reference of every module, private members included, and README.md, ARCHITECTURE.md, GUIDE.md and this file. The design docs live in the GitHub wiki, which the site's navigation links. The source files are in the site too, so the links in GUIDE.md open them. `docfx.json` at the repository root holds the configuration, and `docs/site/` holds the navigation. The options:
 
 - `-s` serves the site at `http://localhost:8080` after the build. Stop it with Ctrl-C.
 - `-p <port>` gives another port for `-s`.
@@ -848,7 +848,7 @@ A comparison at different clocks prints `INVALID` with both clocks and their dif
 time at the windowed clock = measured time × the span's clock / 1296 MHz
 ```
 
-The rule is an estimate within about 15 %. It holds best for a pass bound by its ALU work or its cached reads, and a pass bound by DRAM bandwidth gains less (gpu-calibration.md, "The rule that converts a headless time to the windowed clock"). Use an estimate to hold a time against a budget, such as those of docs/plans/temporal-renderer.md, section 11. Near a budget's limit, measure at the windowed clock.
+The rule is an estimate within about 15 %. It holds best for a pass bound by its ALU work or its cached reads, and a pass bound by DRAM bandwidth gains less (gpu-calibration.md, "The rule that converts a headless time to the windowed clock"). Use an estimate to hold a time against a budget, such as those of https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 11. Near a budget's limit, measure at the windowed clock.
 
 Do not compare two builds by their estimates. The estimates of one build spread by about 8 % between runs at different clocks:
 
@@ -1030,7 +1030,7 @@ nix develop --command bash -c 'bash tools/gpu-trace.sh --start 399 --frames 120 
 The script builds the demo in Release, and traces the built binary, so the trace holds no build. The recording takes the GPU lock (see "The GPU lock") and runs beside `gpu-clock` (see "The GPU clock of a timed run"). The first lines of `passes.md` give the clock over the run's timed span. xctrace launches the demo itself, because a process between them leaves the trace's list of encoders empty. So `gpu-clock` samples outside xctrace, and xctrace passes the demo's output on to `run.log`. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-trace off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
 
 - `run.trace`: the trace. Open it in Instruments to see the timeline and the counters.
-- `run/`: the run's `gpu-timings.json`, with the clock over the run's timed span as `gpuClock`, and `exposure.json`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature") and writes no image.
+- `run/`: the run's `gpu-timings.json`, with the clock over the run's timed span as `gpuClock`, and `exposure.json`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (https://github.com/alexispurslane/tertius/wiki/rendering-upgrade, "Measuring the cost of a feature") and writes no image.
 - `run.log`: the uptime at the start and the end of the recording, xctrace's messages, `gpu-clock`'s samples and the demo's printed lines.
 - `passes.md`: the table, which the script also prints. `passes.json` holds every counter of every pass, and the summary of each pass's shared time.
 
@@ -1252,9 +1252,9 @@ So a probe's timing take has two rules:
 
 ## The renderer survey
 
-`tools/renderer-survey.py` measures every scene of `scripts/*.json` against the goal of epic `ter-8hyd`: frame time, specks and blotches in stills, flicker in motion, and the draws until the light settles after a change. Ticket `ter-6k3k` wrote it, and `docs/plans/renderer-finish.md` holds its first results, the reasons for its thresholds and the ranked failures. Each later ticket of the epic runs it again and compares its table with that baseline.
+`tools/renderer-survey.py` measures every scene of `scripts/*.json` against the goal of epic `ter-8hyd`: frame time, specks and blotches in stills, flicker in motion, and the draws until the light settles after a change. Ticket `ter-6k3k` wrote it, and `https://github.com/alexispurslane/tertius/wiki/renderer-finish` holds its first results, the reasons for its thresholds and the ranked failures. Each later ticket of the epic runs it again and compares its table with that baseline.
 
-Every render runs at the budget's configuration: the Release demo, headless, with `--size 1920x1080`. A headless renderer draws at its fixed render scale of 2/3, so FSR 3.1 upscales 1280 × 720 to 1920 × 1080 (docs/plans/rendering-performance.md, decision 1).
+Every render runs at the budget's configuration: the Release demo, headless, with `--size 1920x1080`. A headless renderer draws at its fixed render scale of 2/3, so FSR 3.1 upscales 1280 × 720 to 1920 × 1080 (https://github.com/alexispurslane/tertius/wiki/rendering-performance, decision 1).
 
 ### The cases
 
@@ -1326,7 +1326,7 @@ The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 sto
 - A lag case renders a film of moving lights, and stills of 132 draws of the same states at its sample frames. The lag is the film's difference from the still divided by the film's change per draw, so it is in draws. It counts only regions whose light changes by more than 10 % in 60 draws.
 - A walk case stands for `stand` frames, walks the person forward for `walk` frames, stops, and then films `after` frames. A control run walks right after the case's head ticks without drawing, so the person stands where the walk ends, to about 1e-14 m. The control then draws through the same world ticks. The settle is the draws after the stop until every region stays within 5 % of the control's frame at the same tick. So a change of the world's light in the window counts in neither run. In the orbit cabin, the sunlit sill strips change the bounce light at world tick 303 (ticket ter-g3tk), inside the old window. The stand of 180 frames lets the control's own start after the load settle before the window. It also moves the window to ticks 361 to 560, after the tick-303 change. The control still counts, because a slow tail of that change, or a later change of the world's light, shows in both runs.
 
-- A stand case (part `stand`) is the stand film of ticket `ter-g3tk`: the cabin walk's view without the walk, as in `/private/tmp/g3tk/run_dgate.sh`. It shows one light signal alone, `signal`, with the probe's `TERTIUS_PROBE_SIGNAL`. It renders a still, then `film` frames one tick apart, then `end` stills right after the last frame, which continue the film's history. Film frame k shows world tick `ticks` + k + 1. A region's end level is the mean of the last half of the end stills. The result gives each region's excess over its end level for each window of 40 film draws: the window's mean light over the end level, less 1. It gives each region's settle against its end level, 5 %, from the film's first frame (`settleDraws`) and from the frame that shows world tick `settleTick` (`settleDrawsAfterTick`). It also keeps the region means of every frame (`film`). The verdict reads only the settle of the case's `region` after `settleTick`. `cabin-stand` films 600 frames of the bounce light from tick 61, and its verdict is acceptance 7 of `docs/plans/bounce-light-confidence.md`: r11, the centre cell, settles within 60 draws after tick 306. In the orbit cabin, the sun turns against the ship at ticks 300 to 306. Its sunlit sill strips are thinner than a render pixel, and the bounce light that they give falls by 35 to 40 %. Regions r10 and r12 wander by about 5 % with that sampling fault, so they do not decide the verdict.
+- A stand case (part `stand`) is the stand film of ticket `ter-g3tk`: the cabin walk's view without the walk, as in `/private/tmp/g3tk/run_dgate.sh`. It shows one light signal alone, `signal`, with the probe's `TERTIUS_PROBE_SIGNAL`. It renders a still, then `film` frames one tick apart, then `end` stills right after the last frame, which continue the film's history. Film frame k shows world tick `ticks` + k + 1. A region's end level is the mean of the last half of the end stills. The result gives each region's excess over its end level for each window of 40 film draws: the window's mean light over the end level, less 1. It gives each region's settle against its end level, 5 %, from the film's first frame (`settleDraws`) and from the frame that shows world tick `settleTick` (`settleDrawsAfterTick`). It also keeps the region means of every frame (`film`). The verdict reads only the settle of the case's `region` after `settleTick`. `cabin-stand` films 600 frames of the bounce light from tick 61, and its verdict is acceptance 7 of `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence`: r11, the centre cell, settles within 60 draws after tick 306. In the orbit cabin, the sun turns against the ship at ticks 300 to 306. Its sunlit sill strips are thinner than a render pixel, and the bounce light that they give falls by 35 to 40 %. Regions r10 and r12 wander by about 5 % with that sampling fault, so they do not decide the verdict.
 - A climb case (part `climb`) is the climb test of ticket `ter-g3tk`, the script `/private/tmp/g3tk/look/seeds.json`. For each world tick of `states`, it renders `stills` continued stills of 33 draws, `t<tick>-s00` and on, of one light signal alone. Each state's first still comes 6 or more ticks after the last drawn frame, so it starts a new history. The case renders twice, one run after the other: with the renderer's diffuse filter, and with `TERTIUS_DIFFUSE_FILTER=off` ("The diffuse filter's switch"). A region's plateau is the mean of its unfiltered stills from still 5 on, draw 198 to 396; the light without the filter reached its plateau by about draw 132 in take T2a of `t0-f7zv`. A region's peak share is its largest light over the filtered stills of a state, over its plateau, and its last share takes the last filtered still. The result keeps the region means of every still of both runs. A case can fix its own exposure with `exposure`, in place of `--exposure`. `cabin-climb` uses 3.15 stops, as the takes of `ter-g3tk` and T2a did, so its light compares with their notes. Its verdict is the target of acceptance 11: the band, r11, peaks at most 10 % above its plateau, at both ticks 300 and 306. The required check of acceptance 11 compares two builds: the candidate's peak share must not exceed the control's. Main's clamp loses part of the band's light, so a share and not the band's light compares two builds. The filter-off run also changes the light that the rays read at their hits. So the plateau is not the single-bounce reference of take T2b, which needs another probe patch.
 
 A light that is still outside the tolerance at the last frame of its window has no settle count. The result file then holds `null`, and the report prints "not settled within N draws", with N the window's length. Such a case fails. Before 2026-11-09, the tool gave the window's length as the count. So a value of 100 in the first survey means "not settled within 100 draws".
@@ -1361,7 +1361,7 @@ The stand and the climb write a series file and no PNG, so their runs take littl
 
 ### The evidence census
 
-The census parts and the command `census` measure the evidence of Design X in `docs/plans/bounce-light-confidence.md` (section 8). They are take T12 of its section 21. The spatial dispatch takes the evidence level of each block of 8 × 8 pixels from the sample ages that the screen tracer's resolve writes: light evidence where a sample brings a recent light code, motion evidence where it brings a motion bit, else none. The census counts the levels in every draw, and the causes behind them. In a still, nothing changes, so every block-draw with evidence is false evidence. A light code in a still comes only from a false light change of the record. An example is the record of a sun strip that the jitter keeps young (ticket t0-qwx8).
+The census parts and the command `census` measure the evidence of Design X in `https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence` (section 8). They are take T12 of its section 21. The spatial dispatch takes the evidence level of each block of 8 × 8 pixels from the sample ages that the screen tracer's resolve writes: light evidence where a sample brings a recent light code, motion evidence where it brings a motion bit, else none. The census counts the levels in every draw, and the causes behind them. In a still, nothing changes, so every block-draw with evidence is false evidence. A light code in a still comes only from a false light change of the record. An example is the record of a sun strip that the jitter keeps young (ticket t0-qwx8).
 
 The probe patch adds these settings. Each one is read once from the environment. A setting that is not set keeps the build's value.
 
@@ -1469,7 +1469,7 @@ As with the filter's switch, compare the light of two runs at one fixed exposure
 
 ## Scripted models in Blender
 
-A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". The project skill `.claude/skills/procedural-modeling/` teaches the way of work, with the Nostromo, `content/tertius.demo/assets/ships/nostromo.model/`, as its worked example. `tools/blender/` holds the tools:
+A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `https://github.com/alexispurslane/tertius/wiki/asset-pipeline`, "Scripted models". The project skill `.claude/skills/procedural-modeling/` teaches the way of work, with the Nostromo, `content/tertius.demo/assets/ships/nostromo.model/`, as its worked example. `tools/blender/` holds the tools:
 
 | Path | What it is |
 |---|---|
@@ -1547,7 +1547,7 @@ The render tools need a camera, and only the stage adds one. The other tools of 
 
 ### Humans from MPFB
 
-A model of a person makes the person with MPFB's own code, through `tertius_blender.mpfb`. The design and the rules are in `docs/plans/asset-pipeline.md`, "Humans from MPFB". The astronaut (`content/tertius.demo/assets/characters/astronaut.model/`) and the crew member (`crew.model/` next to it) are the examples, and the skill `procedural-modeling` teaches the way of work.
+A model of a person makes the person with MPFB's own code, through `tertius_blender.mpfb`. The design and the rules are in `https://github.com/alexispurslane/tertius/wiki/asset-pipeline`, "Humans from MPFB". The astronaut (`content/tertius.demo/assets/characters/astronaut.model/`) and the crew member (`crew.model/` next to it) are the examples, and the skill `procedural-modeling` teaches the way of work.
 
 ```python
 from tertius_blender import mpfb
@@ -1793,7 +1793,7 @@ Four more rules of the style analyzer have code fixes that `dotnet format` appli
 
 ## Type coherence and source evidence (ter-dyss)
 
-For interpretation, numerical anchors and reviewed examples, see [Interpreting code quality metrics](../CLAUDE.md#interpreting-code-quality-metrics).
+For interpretation, numerical anchors and reviewed examples, see [Interpreting code quality metrics](../AGENTS.md#interpreting-code-quality-metrics).
 
 The project reports TCC (tight class cohesion, measured through instance storage) and depth (function complexity per API entry). Counting version `type-metrics-v3` follows properties and helpers on the same instance. It also records when a measure does not apply or its evidence is incomplete. There is no dependency score, role classifier, threshold or retired score. Depth and erosion stay separate. Neither a higher depth nor a higher WMC proves better design.
 

@@ -9,7 +9,7 @@ namespace Tertius.Rendering;
 /// So the dear catch-up draws after a reset never move the ordinary request, and the draw after them returns to it at
 /// once (ter-bcwr). A kind without a fitted model asks for the scale of the kind before it: a catch-up draw asks for the
 /// ordinary scale, as at the first reset of a run, and an ordinary draw for the target's largest scale. Missing timings
-/// leave the scales unchanged (docs/plans/temporal-renderer.md, section 4).
+/// leave the scales unchanged (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 4).
 ///
 /// A measurement is the cost of the scene at the drawn area with the GPU at its working speed. The first draw that Drew
 /// recorded in the controller's life is no such measurement, so Measure fits no model from it and moves no request, in

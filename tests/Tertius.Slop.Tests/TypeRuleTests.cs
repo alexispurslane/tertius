@@ -4,7 +4,7 @@ using Tertius.Slop.Rules;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The verbosity rules of the user's about types and about code that nothing uses (docs/plans/code-quality-tooling.md,
+/// The verbosity rules of the user's about types and about code that nothing uses (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 17): for each rule, code that it flags and a near miss. A test names the file outside <c>src</c> that the
 /// rules read for the uses of a name.
 /// </summary>

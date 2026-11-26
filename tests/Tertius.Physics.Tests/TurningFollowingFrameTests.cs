@@ -5,7 +5,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A following frame inside a turning frame, with numeric frames on and off, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "Numeric frames inside turning frames", and docs/plans/numeric-frames.md, "Following
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Numeric frames inside turning frames", and https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following
 /// frames"). A kinematic hull, the owner of a frame with a bubble of 16 m, moves fast or far in a frame that turns in place
 /// in a root frame without a field, so with numeric frames it anchors a following frame below the turning frame, and
 /// without them it lives in the turning frame's own system. The hull stops, starts or skips one step while a body crosses

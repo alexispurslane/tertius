@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// How a frame followed its owner at a sync point: what moved the frame in the step that ended there (see
-/// <see cref="FrameTree.Followed"/>, and "State dumps and saved state" in docs/plans/rails-components.md).
+/// <see cref="FrameTree.Followed"/>, and "State dumps and saved state" in https://github.com/alexispurslane/tertius/wiki/rails-components).
 /// </summary>
 public enum FollowKind : byte
 {

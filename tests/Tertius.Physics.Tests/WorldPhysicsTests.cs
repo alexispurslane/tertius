@@ -145,7 +145,7 @@ public sealed class WorldPhysicsTests
     /// <summary>
     /// A parked station rests 10 km from the point of its orbit where it belongs now. The game puts it into orbit: in one
     /// tick its owner adds a <see cref="KeplerMotion"/> and changes the hull's motion to kinematic
-    /// (docs/plans/rails-components.md, "Changes of motion": into orbit). The hull is kinematic from the next step on, and
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion": into orbit). The hull is kinematic from the next step on, and
     /// holds still for that step, in which the component first runs, as a kinematic hull without a sample does. Then the
     /// component's first run teleports it onto its orbit, so physics never drives it across the gap: at the second sync
     /// point after the change, the station stands on its orbit, and the hull moves along it at the orbital speed of 10 m/s.

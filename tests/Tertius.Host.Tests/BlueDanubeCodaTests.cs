@@ -4,7 +4,7 @@ using WheelCoda = Tertius.Demo.DemoScenes.WheelCoda;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The coda in the checked-in long script, scripts/blue-danube.json (docs/plans/blue-danube-demo.md, "The coda"): the run
+/// The coda in the checked-in long script, scripts/blue-danube.json (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): the run
 /// of <see cref="BlueDanubeRendezvousRun"/> goes on after the exit's film <c>floor</c> through the coda's films to the end
 /// of the script. So one run goes from the terminal on the ground to the two throws in the wheel. The coda's own run of
 /// the scene <c>demo-exit</c>, in <see cref="WheelCodaTests"/>, checks the coda in detail. These tests check that the long

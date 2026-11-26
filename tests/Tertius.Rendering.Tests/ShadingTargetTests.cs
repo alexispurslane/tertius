@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The shading target of the G-buffer on the GPU (docs/plans/skin-and-hair.md, "The shading target"): each lit pixel
+/// The shading target of the G-buffer on the GPU (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target"): each lit pixel
 /// names its shading model by <see cref="ShadingCode"/> in A, and a hair pixel its strand by <see cref="StrandCode"/> in R
 /// and G and its card by <see cref="CardCode"/> in the spare bits of B and A. The cards are the plane mesh, 3 m ahead.
 /// </summary>

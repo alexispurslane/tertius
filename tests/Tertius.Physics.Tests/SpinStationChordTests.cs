@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The chord rule and the conversion of chords in a turning frame, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "The chord rule and the two conversion rules"). A velocity that gameplay gives a body in a
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The chord rule and the two conversion rules"). A velocity that gameplay gives a body in a
 /// turning frame, by a spawn, a <c>SetVelocity</c>, a <c>SetAngularVelocity</c> or the rest after a teleport, is an instant
 /// velocity relative to the frame, and Jolt gets the chord of the inertial line through the body's state at that instant.
 /// A hand-off carries the body's instant velocity at the end of the step, which the chord of that step gives by the exact
@@ -424,7 +424,7 @@ public sealed class SpinStationChordTests
         // line of a free body at its place. The crate drifts out of the ship's bubble at 2 m/s and hands off into that
         // falling frame, with the turn's part of its chord on its semantic place and instant velocity there, which holds the
         // home's instant velocity past its chord: half a step of the frame's step acceleration, the rotation terms at the
-        // origin, 5.9 m/s² there (docs/plans/spin-gravity.md, "The origin of a falling frame"). Without that term the turn's
+        // origin, 5.9 m/s² there (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The origin of a falling frame"). Without that term the turn's
         // part misses by ω dt times it, 2.6e-4 m/s. Without damping, the crate's path is a straight line in inertial space.
         using World world = NewWorld(
             backend: out _,
@@ -530,7 +530,7 @@ public sealed class SpinStationChordTests
     public void AKinematicCrateTeleportedInTheStationRestsWhereItWasPutInTheStationsAxes()
     {
         // A kinematic body moves in the frame's coordinates, by its motion intents and teleports alone, so the chord rule of
-        // a turning frame does not act on it (docs/plans/spin-gravity.md, "The flow per kind of entity"). The chord of a point
+        // a turning frame does not act on it (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The flow per kind of entity"). The chord of a point
         // at rest in the station's axes would carry it off at ω × r, 18.8 m/s here.
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world, SpikeRate);
@@ -896,7 +896,7 @@ public sealed class SpinStationChordTests
         // moves on a circle at ω × r, 31.3 m/s, and its instant velocity relative to the station at every moment is -ω × r
         // at its place then. The step record of its frame holds the instant velocity at the end of each step, which a
         // hand-off out of the ship carries. By the chord rule, that is the exact inverse of the rule on Jolt's chord, as for
-        // every other body (docs/plans/spin-gravity.md, "The chord rule"). Jolt's chord plus half a step of the change of
+        // every other body (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The chord rule"). Jolt's chord plus half a step of the change of
         // Jolt's velocity misses it by the jerk of the circle times dt² / 3, ω³ r dt² / 3 = 2.9e-4 m/s. A float velocity at
         // 31 m/s has steps of 1.9e-6 m/s.
         using World world = NewWorld(backend: out _, debugChecks: false);
@@ -1101,7 +1101,7 @@ public sealed class SpinStationChordTests
     /// <summary>
     /// The owner of a station that turns at 0.05 rad/s teleports it ahead by 0.5 rad, in the tick after which the step
     /// applies it, while a ball at rest in the station sticks out of its bubble. The ghost of the ball in space follows the
-    /// ball's chord, converted by the station's poses at both ends of the step (docs/plans/spin-gravity.md, "The two
+    /// ball's chord, converted by the station's poses at both ends of the step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two
     /// conversion rules"), and the start of the step is the teleport's pose, where the station's level starts the step
     /// (<c>JoltPhysicsBackend.StartPoseOf</c>). So the ghost moves at the speed of the ball, about 7.5 m/s, and not by the
     /// jump of the station's axes, 75 m in a step. The station has a kinematic hull, which physics teleports. A frame without
@@ -1225,7 +1225,7 @@ public sealed class SpinStationChordTests
     /// ball in the room that sticks out of the room's bubble into the station's bubble and drifts at 1 m/s along +Y. The
     /// ball stays in the room, and has a ghost in the station, its room's sibling. That ghost moves by the chord of the
     /// ball's motion in the station's axes over the step that ended, which converts by the station's poses at both ends of
-    /// the step (docs/plans/spin-gravity.md, "The two conversion rules"). The instant rule at the end of the step gave a
+    /// the step (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two conversion rules"). The instant rule at the end of the step gave a
     /// velocity about 0.12 m/s off.
     /// </summary>
     [Fact]

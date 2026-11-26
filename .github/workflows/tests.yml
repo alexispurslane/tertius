@@ -1,0 +1,168 @@
+# Ready pull requests run every CPU-only .NET test in Checked and every Python tools test. Main runs the CPU Release
+# suite after each merge. The aggregate check reports the branch metrics and blocks merging until every required leg passes.
+name: tests
+
+on:
+  pull_request:
+    types: [ready_for_review, synchronize, reopened]
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-and-metrics-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checked:
+    name: CPU tests (Checked)
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run the CPU Checked suite
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'bash tools/test-all.sh -c Checked -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: checked-test-logs
+          path: ${{ runner.temp }}/logs
+
+  python:
+    name: Python tools tests
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run every Python tools test
+        run: |
+          set -euo pipefail
+          nix develop --command python3 -I -m unittest discover -s tools -p 'test_*.py'
+
+  release:
+    name: CPU tests (Release)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run the CPU Release suite
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'bash tools/test-all.sh -c Release -m Core,Simulation,Physics,Assets,Unions,Style,Slop -o "$RUNNER_TEMP/logs" -- --minimum-expected-tests 1'
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-test-logs
+          path: ${{ runner.temp }}/logs
+
+  metrics:
+    name: Tests and metrics
+    needs: [checked, python]
+    if: ${{ always() && github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Require every test leg
+        if: ${{ needs.checked.result != 'success' || needs.python.result != 'success' }}
+        run: |
+          echo "Checked tests: ${{ needs.checked.result }}. Python tests: ${{ needs.python.result }}."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache
+          df -h /
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Measure the branch
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          nix develop --command bash -c 'dotnet build tools/Tertius.Slop -c Release -v quiet -nologo && dotnet tools/Tertius.Slop/bin/Release/net11.0/Tertius.Slop.dll all .' > metrics.json
+          nix develop --command python3 -I tools/pr_metrics.py metrics.json --head "$HEAD_SHA" --run-url "$RUN_URL" --output metrics.md
+          cat metrics.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create or update the metrics comment
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BODY: metrics.md
+        run: |
+          set -euo pipefail
+          now=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+          if [ "$now" != "$HEAD" ]; then
+            echo "The pull request moved to $now. This run is stale."
+            exit 1
+          fi
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- tertius-metrics -->")))] | last | .id // empty')
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$BODY"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@"$BODY"
+          fi

@@ -14,10 +14,10 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The scene demo-shuttle shows the shuttle's hull of <see cref="Shuttle.Loft"/>, in a root frame <c>ground</c> with 1 g
-    /// along -Y (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy").
+    /// along -Y (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The shuttle's tram shape and glass canopy").
     /// <list type="bullet">
     /// <item>A <c>floor</c> of 100 m by 100 m, whose top is at y = 0, and on it a static <c>pad</c>, as the live world's
-    /// landing pad (docs/plans/live-world.md, part 3).</item>
+    /// landing pad (https://github.com/alexispurslane/tertius/wiki/live-world, part 3).</item>
     /// <item><c>standing</c>, a dynamic shuttle, stands on its tail on the pad, 1 cm above it at the start. It is turned a
     /// quarter turn about +X, so its nose points up and its roof faces +Z.</item>
     /// <item><c>lying</c>, a parked shuttle, rests on its belly on the floor beside the pad, unturned.</item>

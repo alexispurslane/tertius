@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Tertius.Slop.Rules;
 
 // The verbosity rules about single statements and expressions, ported from the scb-check slop rules
-// (docs/plans/code-quality-tooling.md, decision 17).
+// (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17).
 
 /// <summary>A lambda that only passes its parameters to a method.</summary>
 public sealed class UnnecessaryLambda : IRule

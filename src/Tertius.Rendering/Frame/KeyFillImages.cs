@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The images and the tile records of key and fill (docs/plans/light-pairs.md, "Key and fill"), under
+/// The images and the tile records of key and fill (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"), under
 /// <see cref="KeyAndFill"/>: the candidate images that the corner pass draws, one texel per corner of the tile grid and
 /// group of lights, and the buffer of one record per tile that the tile pass writes and the direct pass reads, at
 /// <see cref="TilesBinding"/> of the G-buffer set. All have the size of the targets' largest render size. A frame of a

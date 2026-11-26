@@ -12,7 +12,7 @@ namespace Tertius.Rendering;
 /// </summary>
 /// <remarks>
 /// The vertex buffer holds the static capacity, then the deform region, which the deform pass writes in every frame
-/// (docs/plans/skinning-and-morphs.md, "Buffers and the region"). A growth of either part makes a new buffer and copies
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Buffers and the region"). A growth of either part makes a new buffer and copies
 /// only the static vertices.
 /// </remarks>
 internal sealed unsafe class GeometryStore : IDisposable

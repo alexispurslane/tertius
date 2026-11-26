@@ -1,6 +1,6 @@
 # Procedural modeling: reference
 
-The detail behind [SKILL.md](SKILL.md). The design in `docs/plans/asset-pipeline.md`, "Scripted models", is binding. This file repeats only what an author needs at hand.
+The detail behind [SKILL.md](SKILL.md). The design in `https://github.com/alexispurslane/tertius/wiki/asset-pipeline`, "Scripted models", is binding. This file repeats only what an author needs at hand.
 
 ## model.json
 

@@ -1,7 +1,7 @@
 namespace Tertius;
 
 /// <summary>
-/// The two turns of a frame that a reader in the step in flight needs (docs/plans/spin-gravity.md, "The two-turn update"):
+/// The two turns of a frame that a reader in the step in flight needs (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"):
 /// the turn of the step in flight and the turn of the step that ended. A free body moves on a straight line in inertial
 /// space, and in the frame's axes the same line is x_(n+1) = 2 R_n x_n − R_n R_(n−1) x_(n−1), with R_n the turn of
 /// <see cref="Step"/> and R_(n−1) the turn of <see cref="Last"/>. That map from one chord to the next holds the Coriolis, the
@@ -47,7 +47,7 @@ internal readonly record struct FrameTurns(FrameTurn Step, FrameTurn Last)
 
     /// <summary>
     /// The angular form of the two-turn update: Jolt's angular velocity for the step in flight of a body that keeps its
-    /// inertial angular velocity, exp(Ω_J,n dt) = R_n · exp(Ω_n dt) (docs/plans/spin-gravity.md, "The angular form").
+    /// inertial angular velocity, exp(Ω_J,n dt) = R_n · exp(Ω_n dt) (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The angular form").
     /// </summary>
     /// <param name="chord">Jolt's angular velocity of the body over the step that ended, in the frame's axes, in rad/s.</param>
     /// <param name="change">

@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 public readonly record struct FixedExposure(float Stops);
 
 /// <summary>
-/// An exposure that follows the brightness of the surfaces in view over time (docs/plans/auto-exposure.md). The meter
+/// An exposure that follows the brightness of the surfaces in view over time (https://github.com/alexispurslane/tertius/wiki/auto-exposure). The meter
 /// maps the surface pixels' trimmed mean to middle gray, or their bright edge to 1 when that is lower, and the exposure
 /// approaches that target with a time constant per direction.
 /// </summary>
@@ -29,7 +29,7 @@ public readonly record struct AutoExposure(
     /// <summary>
     /// The renderer's default: −14 to +10 stops, no compensation, a tenth dropped at each end, 3 s into the dark and 1 s
     /// into the light. The clamp keeps 3 stops beyond a sunlit hull at 1 AU and beyond a lamp-lit cabin
-    /// (docs/plans/local-light-shadows.md, decision 42).
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 42).
     /// </summary>
     public static AutoExposure Default =>
         new(

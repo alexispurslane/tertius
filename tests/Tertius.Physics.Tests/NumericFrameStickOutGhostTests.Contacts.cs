@@ -219,7 +219,7 @@ public partial class NumericFrameStickOutGhostTests
             .RockMode.Should()
             .Be(
                 NumericMode.Following,
-                "the kinematic crate is 9,000 km out, so it anchors a following frame, which the rock shares (docs/plans/numeric-frames.md, \"Following frames\")"
+                "the kinematic crate is 9,000 km out, so it anchors a following frame, which the rock shares (https://github.com/alexispurslane/tertius/wiki/numeric-frames, \"Following frames\")"
             );
         withNumericFrames
             .RockNews.Should()

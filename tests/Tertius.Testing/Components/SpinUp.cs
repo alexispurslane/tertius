@@ -5,7 +5,7 @@ namespace Tertius.Testing;
 
 /// <summary>
 /// Turns its entity in place about its parent's +Y with a constant angular acceleration, from rest at
-/// <see cref="StartTime"/>: a frame that spins up (docs/plans/spin-gravity.md, "Acceptance tests"). The engine needs no rails
+/// <see cref="StartTime"/>: a frame that spins up (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Acceptance tests"). The engine needs no rails
 /// type for a spin-up, so a test component writes its full samples. At a time t after the start the entity has turned by
 /// half the rate times t², and turns at the rate times t. In each tick it writes the sample of the step in which the tick's
 /// intents act, at the place where the entity starts that step, as <see cref="SpinMotion"/> does. Before the start it holds

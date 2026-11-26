@@ -5,7 +5,7 @@ using Tertius.Slop.History;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The note that records the slop metrics of a commit under refs/notes/slop (docs/plans/code-quality-tooling.md,
+/// The note that records the slop metrics of a commit under refs/notes/slop (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling,
 /// decision 18): one JSON line with the measures of the commit's tree and where they came from.
 /// </summary>
 public sealed class SlopNoteTests

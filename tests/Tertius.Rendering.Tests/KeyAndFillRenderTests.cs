@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Key and fill on the GPU (docs/plans/light-pairs.md, "Key and fill"): a scene with no more lamps than key lights
+/// Key and fill on the GPU (https://github.com/alexispurslane/tertius/wiki/light-pairs, "Key and fill"): a scene with no more lamps than key lights
 /// renders as with every light pair but for negligible losses, a lamp that is not key keeps its diffuse light and its
 /// shadow, and no step shows at the edges of the screen tiles. The key lights of a corner are its lamps of the greatest
 /// loss, wherever they stand in the light list, and a surface that no corner lies on takes every lamp in full. At a

@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The puff store, through emitters in a World on the real Jolt backend (docs/plans/particles.md, "The puff store"): each
+/// The puff store, through emitters in a World on the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/particles, "The puff store"): each
 /// frame holds its puffs in one range, the ranges keep a fixed order, and the look table shares equal looks, keeps each
 /// puff's look of its birth and reuses a freed index. The emitters of the tests have no body, so they hold still in their
 /// frames.

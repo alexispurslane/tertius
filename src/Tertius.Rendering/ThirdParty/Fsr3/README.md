@@ -1,6 +1,6 @@
 # AMD FidelityFX Super Resolution 3.1.4: the pinned GLSL
 
-This folder holds the GLSL source of AMD's FSR 3.1 upscaler that the engine compiles, `Fsr3Upscaler` dispatches and `docs/plans/temporal-renderer.md`, section 5, specifies. The files are AMD's, from the FidelityFX SDK v1.1.4, with two changed declarations and one line of AMD's 3.1.6 fix. `LICENSE.txt` is AMD's MIT license, and every file keeps AMD's notice. `THIRD-PARTY-NOTICES.md` at the root carries the notice too.
+This folder holds the GLSL source of AMD's FSR 3.1 upscaler that the engine compiles, `Fsr3Upscaler` dispatches and `https://github.com/alexispurslane/tertius/wiki/temporal-renderer`, section 5, specifies. The files are AMD's, from the FidelityFX SDK v1.1.4, with two changed declarations and one line of AMD's 3.1.6 fix. `LICENSE.txt` is AMD's MIT license, and every file keeps AMD's notice. `THIRD-PARTY-NOTICES.md` at the root carries the notice too.
 
 ## The pin
 

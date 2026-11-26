@@ -91,7 +91,7 @@ public sealed class WorldFrameFieldTests
     /// <summary>
     /// A station follows a valid orbit. The game replaces its <see cref="KeplerMotion"/> with one on a larger orbit. The new
     /// component's first run teleports the hull onto the new orbit, so the hull moves on at the orbital speed of the new
-    /// orbit, √(μ / r), instead of crossing 1 km in one step (docs/plans/rails-components.md, "Changes of motion"). In the
+    /// orbit, √(μ / r), instead of crossing 1 km in one step (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). In the
     /// tick of the swap the old component's last sample moves the frame, so the swap has no gap, and from the second sync
     /// point after it the frame stands on the new orbit.
     /// </summary>

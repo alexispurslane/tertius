@@ -2,7 +2,7 @@ namespace Tertius;
 
 /// <summary>
 /// The turn of a frame's axes over one physics step, and the frame's inertial angular velocity at that step's end
-/// (docs/plans/spin-gravity.md, "The two-turn update"). The frame tree keeps two of them per frame in one
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"). The frame tree keeps two of them per frame in one
 /// <see cref="FrameTurns"/>: the turn of the step in flight and the turn of the step that ended (V1 and V2 of the design).
 /// </summary>
 /// <remarks>
@@ -58,7 +58,7 @@ internal readonly record struct FrameTurn(DQuaternion Turn, Double3 AngularVeloc
     /// <summary>
     /// The linear part of <see cref="ChordBehind"/>: the change of this step's chord that has the same effect as a velocity
     /// change at this step's end, such as an impulse at the start of the next step, in the frame's axes at that moment. The
-    /// next step's two-turn update then carries the change by the next turn alone (docs/plans/spin-gravity.md, "Impulses").
+    /// next step's two-turn update then carries the change by the next turn alone (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Impulses").
     /// </summary>
     public Double3 ChangeBehind(Double3 change) => Turn.Conjugate().Rotate(change);
 

@@ -2,7 +2,7 @@
 
 ## Selected H13 research baseline
 
-The user selected H13, local affine guided reconstruction, as the common basis for two new experiments. This changes the opt-in research implementation, not a production default. H13 has the smallest measured persistent mean-error RMS among first-wave candidates; its visible speckles remain. `docs/plans/reflection-reconstruction-campaign.md` records the source and reports.
+The user selected H13, local affine guided reconstruction, as the common basis for two new experiments. This changes the opt-in research implementation, not a production default. H13 has the smallest measured persistent mean-error RMS among first-wave candidates; its visible speckles remain. `https://github.com/alexispurslane/tertius/wiki/reflection-reconstruction-campaign` records the source and reports.
 
 Design A changes reflection sample distribution at the same configured ray budget. Design B adds measured temporal fluctuation statistics to the existing temporal owner and uses them to guide reconstruction. B is not the first temporal accumulation: fast and slow radiance histories already exist. Both experiments start from one committed H13 basis and remain separate.
 

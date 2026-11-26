@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The reads of a render snapshot that derive from its chain (docs/plans/environment-maps-per-frame.md, decision 15): the
+/// The reads of a render snapshot that derive from its chain (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, decision 15): the
 /// camera's frame's id is the first chain frame's, and the root's rotations are the last chain frame's.
 /// </summary>
 public sealed class RenderSnapshotChainReadTests

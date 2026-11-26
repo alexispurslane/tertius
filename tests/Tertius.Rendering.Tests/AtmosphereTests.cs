@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// What the batcher makes of a snapshot's atmosphere record (docs/plans/atmosphere.md, "The model"): the sky, the haze's
+/// What the batcher makes of a snapshot's atmosphere record (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The model"): the sky, the haze's
 /// light, the sun's tint, the sun's place and the eye's air in the frame constants, at the interpolated eye. The sky is the
 /// painted sky times the day factor and the density share at the eye. The haze's light is the painted haze, which the
 /// shaders dim by the day factor at each hazed point. Only the sun's GPU light takes the tint. The camera is at the render

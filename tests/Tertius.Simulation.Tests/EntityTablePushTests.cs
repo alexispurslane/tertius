@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The entity table's share of the flow of the parts' pushes (docs/plans/parts.md, "The state that the change adds"). A
+/// The entity table's share of the flow of the parts' pushes (https://github.com/alexispurslane/tertius/wiki/parts, "The state that the change adds"). A
 /// part writes its push into its own back intent (<see cref="EntityTable.WritablePush"/>), and its first push of the tick
 /// lists it among its chunk's pushers, not among the intent writers. The swap hands the pushers on as the front pushers,
 /// in chunk order, and keeps them out of the intent list. The flow then writes each root's sum into its front intent

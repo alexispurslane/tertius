@@ -80,7 +80,7 @@ internal sealed record GraphicsPipelineDesc
 
     /// <summary>
     /// The winding of a front face on screen. Counterclockwise for every view whose axes are right-handed; an environment
-    /// face is a mirror image, so it is clockwise (docs/plans/environment-map.md, "The faces and their axes").
+    /// face is a mirror image, so it is clockwise (https://github.com/alexispurslane/tertius/wiki/environment-map, "The faces and their axes").
     /// </summary>
     public FrontFace FrontFace { get; init; } = FrontFace.CounterClockwise;
 

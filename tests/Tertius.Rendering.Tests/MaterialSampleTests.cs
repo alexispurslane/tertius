@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# BRDF of one material: its F0, its Fresnel term, its reciprocity, its energy and the ambient light's formula
-/// (docs/plans/pbr-brdf.md, "The BRDF"). Integrals use <see cref="HalfVectorQuadrature"/>.
+/// (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The BRDF"). Integrals use <see cref="HalfVectorQuadrature"/>.
 /// </summary>
 public sealed class MaterialSampleTests
 {

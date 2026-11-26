@@ -220,7 +220,7 @@ public sealed class RevolvedSolid
     /// This solid with <paramref name="segment"/> left out, as well as every segment that this solid leaves out: the shape
     /// has no hull for it, and the mesh draws none of its faces. The mesh caps each cut end, where a segment that is drawn
     /// meets one that is left out, with the profile, so it stays closed. A ring of the station's ceiling leaves out the
-    /// segment under a spoke this way (docs/plans/blue-danube-demo.md, "The exit"). Throws
+    /// segment under a spoke this way (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The exit"). Throws
     /// <see cref="ArgumentOutOfRangeException"/> for a segment that the solid does not have, and
     /// <see cref="InvalidOperationException"/> for a cylinder, which is one convex hull with no segments of its own.
     /// </summary>

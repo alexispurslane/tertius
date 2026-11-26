@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// A hair pixel's card code in the shading target, and the layout of the target's B and A that holds it: the C# twin of
-/// cardCode and of the word helpers of Shaders/frame.glsl (docs/plans/skin-and-hair.md, "The shading target"). The code
+/// cardCode and of the word helpers of Shaders/frame.glsl (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The shading target"). The code
 /// is the card number mixed with the instance into the 13 spare bits, 7 above B's light mark and 6 above A's model code.
 /// A pixel of another model writes 0 there and has no card. A C# reader of B or A decodes it only here.
 /// </summary>

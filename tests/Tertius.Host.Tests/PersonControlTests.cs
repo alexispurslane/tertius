@@ -496,7 +496,7 @@ public sealed class PersonControlTests : IDisposable
     }
 
     /// <summary>
-    /// The person's thrusters are one back jet, a part of the person (docs/plans/parts.md, "The demo's use"): in its first
+    /// The person's thrusters are one back jet, a part of the person (https://github.com/alexispurslane/tertius/wiki/parts, "The demo's use"): in its first
     /// tick the person spawns an attached entity with a <see cref="BackJet"/> at <see cref="BackJet.Place"/> on its back,
     /// which keeps the person's rotation.
     /// </summary>

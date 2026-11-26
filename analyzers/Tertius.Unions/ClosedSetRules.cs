@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace Tertius.Unions;
 
 /// <summary>
-/// The rules of <see cref="UnionAnalyzer"/>, which steer each closed set to its form (docs/plans/union-tooling.md, "The
+/// The rules of <see cref="UnionAnalyzer"/>, which steer each closed set to its form (https://github.com/alexispurslane/tertius/wiki/union-tooling, "The
 /// analyzer"). Each is a warning, an error through TreatWarningsAsErrors. A class case of a generated union has no rule
 /// here: the generator refuses it with <see cref="UnionDiagnostics.ClassCase"/>, which is its one report.
 /// </summary>
@@ -15,7 +15,7 @@ internal static class ClosedSetRules
         id: "TU0001",
         title: "A union struct is generated",
         messageFormat: "The struct '{0}' is a hand-written [Union]. Mark it [GeneratedUnion], so that the generator writes its members "
-            + "(docs/plans/union-tooling.md).",
+            + "(https://github.com/alexispurslane/tertius/wiki/union-tooling).",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true
@@ -25,7 +25,7 @@ internal static class ClosedSetRules
         id: "TU0002",
         title: "A built-in union takes class cases only",
         messageFormat: "The built-in union '{0}' boxes its struct case '{1}'. A closed set of structs is a [GeneratedUnion] "
-            + "(docs/plans/union-tooling.md, decision 1).",
+            + "(https://github.com/alexispurslane/tertius/wiki/union-tooling, decision 1).",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true

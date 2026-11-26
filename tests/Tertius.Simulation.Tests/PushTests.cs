@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// <see cref="Push"/>, the pure part of the flow of the parts' pushes (docs/plans/parts.md, "How a part's push converts
+/// <see cref="Push"/>, the pure part of the flow of the parts' pushes (https://github.com/alexispurslane/tertius/wiki/parts, "How a part's push converts
 /// into the root's push"). A part's force acts at the part's place, so it gives the root's body the same force and the
 /// torque of its lever about the center of mass. The lever is the place in the body less the center of mass, turned by
 /// the root's rotation. The sum of a root runs in doubles and narrows to floats once. No World runs here.

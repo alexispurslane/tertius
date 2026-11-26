@@ -6,14 +6,14 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Free bodies in a turning frame, on the World and the real Jolt backend (docs/plans/spin-gravity.md, "The two-turn
+/// Free bodies in a turning frame, on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn
 /// update", "The angular form", "Impulses" and "The flow per kind of entity"): physics keeps every awake dynamic body on its
 /// inertial line, and its spin at its inertial angular velocity, as the frame's axes see them. The station of the tests is
 /// a frame without a body and without a field, which turns in place in a root frame without a field about its +Y at
 /// 0.31321 rad/s, the rate that gives 9.81 m/s² at 100 m. The root frame's axes are inertial space.
 /// <para>
 /// Most stations here spawn without a first motion intent, together with their bodies, so that every body's first chord
-/// comes from a step in which the station held still (docs/plans/spin-gravity.md, "Frames without a last turn"): there a
+/// comes from a step in which the station held still (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Frames without a last turn"): there a
 /// body's spawn velocity is its inertial velocity, and its chord holds no turn, so its inertial line is known exactly. From
 /// its second step on the station turns at its full rate, and the bodies keep that line. The expected path of each body is
 /// worked out from inertial space and the station's rotations at the ends of the steps, never from the turns that the engine
@@ -97,12 +97,12 @@ public sealed class SpinStationBodyTests
 
     /// <summary>
     /// The expected path of a free body in the station without a field: its inertial line, with Jolt's linear damping
-    /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"). In each step the chord of
+    /// relative to the station's axes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Jolt's damping in the shadow"). In each step the chord of
     /// the body in the station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor
     /// max(0, 1 − c dt), which Jolt computes in floats with its float step. Without damping it is the inertial line. A force adds its
     /// acceleration times the step to the chord before the damping. The force is fixed in the station's axes, and it acts
     /// at the start of the step, in the axes then, so in the axes at the end of the step it has turned by the station's turn
-    /// of the step, as the field does (docs/plans/spin-gravity.md, "The two-turn update"). The path starts
+    /// of the step, as the field does (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"). The path starts
     /// at <paramref name="place"/>, which the body reached by the move <paramref name="lastMove"/> over the step before, both
     /// in inertial space, or from rest there.
     /// </summary>
@@ -131,7 +131,7 @@ public sealed class SpinStationBodyTests
 
     /// <summary>
     /// The expected rotation of a free body in the station: it keeps its inertial angular velocity, with Jolt's angular
-    /// damping relative to the station's axes (docs/plans/spin-gravity.md, "The angular form" and "Jolt's damping in the
+    /// damping relative to the station's axes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The angular form" and "Jolt's damping in the
     /// shadow"). Jolt turns a body in the station's axes by the rotation of its angular velocity times the step. In each
     /// step that turn is the one that keeps the body's turn in inertial space over the step that ended, Q_end⁻¹ E Q_start,
     /// with Q the station's rotation and E the body's inertial turn of the step before, and Jolt shrinks its angle by its
@@ -164,7 +164,7 @@ public sealed class SpinStationBodyTests
     {
         // Over 10 minutes, as the design asks. Without the velocity shadow, the float rounding of Jolt's velocity moved the
         // crate 0.8 mm in a minute and 24 mm in 10 minutes, in a run of this test before the shadow came. The shadow keeps
-        // the update's chord and place in doubles and takes Jolt's rounding back in every step (docs/plans/spin-gravity.md,
+        // the update's chord and place in doubles and takes Jolt's rounding back in every step (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
         // "V6, the velocity shadow").
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world: world, firstMove: false);
@@ -206,7 +206,7 @@ public sealed class SpinStationBodyTests
         // Under these rules every group falls in a numeric frame, so the crate lives in a falling frame below the station.
         // The frame's origin moves on the inertial line of a free body at its place, and the crate's update acts on its
         // semantic place and chord, its home's offset and frame velocity included, so it feels only the difference
-        // (docs/plans/spin-gravity.md, "The origin of a falling frame").
+        // (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The origin of a falling frame").
         using World world = NewWorld(
             backend: out _,
             debugChecks: false,
@@ -316,7 +316,7 @@ public sealed class SpinStationBodyTests
         public void ACrateWithTheDefaultDampingInFreeMotionKeepsItsShadowForTenMinutesAndFollowsItsExpectedPath()
         {
             // Jolt's damping changes the velocity by 8.3e-4 of its value in each step at 60 Hz, far beyond the rounding
-            // that the shadow allows, so the shadow expects the damped velocity (docs/plans/spin-gravity.md, fork O3).
+            // that the shadow allows, so the shadow expects the damped velocity (https://github.com/alexispurslane/tertius/wiki/spin-gravity, fork O3).
             // Then every update after the first starts from the shadow, which the chain of its places shows: each place
             // is the one before plus the new chord times the step, exactly, where an update that started from Jolt's
             // place would break the chain. The damping draws a crate without a floor into the station's turn, and the
@@ -582,7 +582,7 @@ public sealed class SpinStationBodyTests
         // station's +X acts on it in every step. The torque acts at the start of its step, in the station's axes then, so in
         // inertial space each step adds τ / I · dt along the station's +X at the start of that step, and the ball's inertial
         // angular velocity follows the station round. Jolt adds the torque's change in the station's axes, unturned, so the
-        // update turns it by the step's turn, as it turns a force (docs/plans/spin-gravity.md, "The two-turn update"). Left
+        // update turns it by the step's turn, as it turns a force (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"). Left
         // unturned, each step's change would act along +X at the end of its step, half a step's turn late on average, and the
         // ball's spin axis would lean off its path by ω |α| dt per second. The ball's moment of inertia is 1 kg m², which
         // Jolt holds to float rounding.
@@ -776,7 +776,7 @@ public sealed class SpinStationBodyTests
     /// The rigid form of a character cannot turn: its rotation is locked, so it keeps its rotation in the station's axes and
     /// stays upright there while the station turns under it, with no angular velocity relative to the station. Physics gives
     /// it no angular form of the two-turn update, no angular chord of a turning frame and no instant angular velocity of one
-    /// (docs/plans/spin-gravity.md, "Characters").
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters").
     /// </summary>
     [Fact]
     public void AWeightlessPersonNearTheHubKeepsItsRotationInTheStationsAxes()

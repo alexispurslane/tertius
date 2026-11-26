@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The constants that the shading pipelines are made with, fixed for the renderer's life: Vulkan specialization
-/// constants (docs/plans/environment-map.md, decision 29). <see cref="GraphicsPipelineDesc.Constants"/> sets them on
+/// constants (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 29). <see cref="GraphicsPipelineDesc.Constants"/> sets them on
 /// both stages of a pipeline, and <see cref="ComputePipelineDesc.Constants"/> on its one stage.
 /// </summary>
 /// <param name="EnvironmentMap">True while the setting is <see cref="SceneEnvironmentMap"/>: the map is the ambient light.</param>
@@ -57,13 +57,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
-    /// (docs/plans/skin-and-hair.md, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
+    /// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
     /// </summary>
     public bool CutoutAlpha { get; init; }
 
     /// <summary>
     /// True when the pipeline's shaders drop the code that shades a fiber: the hair branch of the material sample and the
-    /// fiber's light loop (docs/plans/skin-and-hair.md, "Cost"). A pipeline that sets it must never draw a hair material,
+    /// fiber's light loop (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Cost"). A pipeline that sets it must never draw a hair material,
     /// which would then shade as a surface. Only the one-sided variant of a <see cref="SidedPipeline"/> sets it: only a
     /// hair material draws both sides (<see cref="MaterialStore.DrawsBothSides"/>), so no hair material reaches that
     /// variant.
@@ -72,13 +72,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 
     /// <summary>
     /// True in the G-buffer's pipelines, whose vertex shader reads the motion rows and the kept positions and passes the
-    /// motion target's two places on (docs/plans/temporal-renderer.md, "Jitter"). The other passes that draw with mesh.vert
+    /// motion target's two places on (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter"). The other passes that draw with mesh.vert
     /// write no motion.
     /// </summary>
     public bool WritesMotion { get; init; }
 
     /// <summary>
-    /// The skin scatter's taps per side (docs/plans/skin-and-hair.md, "The two passes"), which only
+    /// The skin scatter's taps per side (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"), which only
     /// <see cref="SkinScatterPass"/> sets, from <see cref="ScatterImages.Setting"/>. Every other pipeline keeps
     /// <see cref="NoSubsurface"/>: the direct pass chooses its shader by the diffuse image
     /// (<see cref="RenderTargets.Diffuse"/>) instead, and the ambient pass by the scatter images.

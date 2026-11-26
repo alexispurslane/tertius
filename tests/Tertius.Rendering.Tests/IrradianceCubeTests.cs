@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the irradiance cube's convolution (docs/plans/environment-map.md, "The irradiance"): D(n) from the
+/// The C# copy of the irradiance cube's convolution (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance"): D(n) from the
 /// radiance map's level of 32 texels, against the exact cosine-weighted sum over level 0 of a map of 128 texels, which is
 /// what the brute-force D of many cosine-weighted reads converges to.
 /// </summary>
@@ -11,7 +11,7 @@ public sealed class IrradianceCubeTests
 {
     /// <summary>
     /// The tolerance on D, as a share of the largest D of the map: the diffuse light toward its one small bright light
-    /// (docs/plans/environment-map.md, "The irradiance").
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance").
     /// </summary>
     private const double Tolerance = 0.03;
 
@@ -269,7 +269,7 @@ public sealed class IrradianceCubeTests
     /// <summary>
     /// A map of 16 texels a side, the smallest setting, has no level of 32, so the cube convolves its level 0 of 16, whose
     /// texels span about 5.6°. Under a light of 2° that misses the tolerance: Known limit 2 of
-    /// docs/plans/screen-space-illumination.md states the measured 3.53 %, and this test keeps it within 4 %.
+    /// https://github.com/alexispurslane/tertius/wiki/screen-space-illumination states the measured 3.53 %, and this test keeps it within 4 %.
     /// </summary>
     [Fact]
     public void OnAMapOf16TexelsASmallBrightLightStaysWithinTheKnownLimit() =>

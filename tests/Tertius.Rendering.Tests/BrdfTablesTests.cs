@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The DFG and lobe-sky tables: their values against <see cref="HalfVectorQuadrature"/> and closed forms, their shape
-/// over the axes, the sampling that the GPU copies, and their determinism (docs/plans/pbr-brdf.md, "The tables").
+/// over the axes, the sampling that the GPU copies, and their determinism (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The tables").
 /// </summary>
 public sealed class BrdfTablesTests
 {
@@ -108,7 +108,7 @@ public sealed class BrdfTablesTests
     [Fact]
     public void ARougherLobeLosesMoreLightToSingleScattering()
     {
-        // Head on, E₁ falls from about 1 at the floor to 1 − ln 2 at r = 1 (docs/plans/pbr-brdf.md, "The energy
+        // Head on, E₁ falls from about 1 at the floor to 1 − ln 2 at r = 1 (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The energy
         // compensation").
         int headOn = BrdfTables.DfgSize - 1;
 

@@ -138,7 +138,7 @@ public sealed class CodaRun : IDisposable
 }
 
 /// <summary>
-/// The coda on the real World (docs/plans/blue-danube-demo.md, "The coda"): after the exit, the person puts the pen away,
+/// The coda on the real World (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The coda"): after the exit, the person puts the pen away,
 /// walks into a stack of loose boxes and knocks it over, and throws two loose boxes the same way, one spinward and one
 /// antispinward. Each lands where the straight line of its release in inertial space says, short of a flat field's point
 /// spinward and long of it antispinward. Every place is in the station's axes.

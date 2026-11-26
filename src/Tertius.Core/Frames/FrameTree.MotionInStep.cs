@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius;
 
 /// <summary>
-/// The motion of one frame relative to another over the step in flight (docs/plans/spin-gravity.md, "V7, the relative
+/// The motion of one frame relative to another over the step in flight (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative
 /// motion of two frames"), by which the World converts an intent at steps 5 and 7b of the sync point (see
 /// <see cref="MotionRelativeInStep"/>).
 /// </summary>
@@ -22,7 +22,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The motion of <paramref name="of"/> relative to <paramref name="to"/>, in <paramref name="to"/> axes, over a step of
     /// <paramref name="step"/> seconds that applies <paramref name="stepIntents"/>: <c>Start</c>, the relation where the step
-    /// starts, and <c>End</c>, the relation where it ends, with both accelerations (docs/plans/spin-gravity.md, "V7, the
+    /// starts, and <c>End</c>, the relation where it ends, with both accelerations (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the
     /// relative motion of two frames"). It composes the motion of every level of the path through the two frames' lowest
     /// common ancestor, from the inner end of each half, by the rules of <see cref="FrameMotion"/>, which hold the rotation
     /// terms of every level that turns. Each level's motion relative to its tree parent:
@@ -186,7 +186,7 @@ public sealed partial class FrameTree
     /// The motion at the end of the step, relative to the semantic parent <paramref name="parent"/>, of the frame with
     /// stable index <paramref name="id"/>, whose dynamic hull starts the step at <paramref name="start"/> in its tree parent
     /// <paramref name="treeParent"/>: physics' motion of the hull, predicted from its row as the turns of its frame are (see
-    /// <see cref="BeginTurn"/>, fork F3 of docs/plans/spin-gravity.md). Its rate is the row's angular velocity plus the
+    /// <see cref="BeginTurn"/>, fork F3 of https://github.com/alexispurslane/tertius/wiki/spin-gravity). Its rate is the row's angular velocity plus the
     /// angular acceleration of its last record times the step (see <see cref="AngularAcceleration"/>), and its rotation the
     /// start turned about the parent's axes by that rate times the step. Its acceleration is the accelerometer rule read
     /// backward (see <see cref="ProperAccelerationFrom"/>): its proper acceleration of the last step turned out of its axes,

@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.BrdfTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The skin scatter on the GPU (docs/plans/skin-and-hair.md, "Skin"): the lighting passes write D into the scatter image,
+/// The skin scatter on the GPU (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Skin"): the lighting passes write D into the scatter image,
 /// and the two scatter passes add S − D to the HDR image at skin pixels only, by the kernel of <see cref="SkinScatter"/>.
 /// The exposure is fixed at 0 stops, so the images hold radiance. A frame "without the scatter" skips its two passes in
 /// the same renderer, so that every other value of the frame keeps its bits.
@@ -176,7 +176,7 @@ public sealed class SkinScatterRenderTests
 
             // D = the Lambert term of the sun plus the diffuse term of the even ambient light, with the diffuse color in
             // both: the normal faces the camera, and the occlusion is 1 under no screen-space light. The composite writes
-            // D at skin alone: the bounce source reads the direct light (docs/plans/temporal-renderer.md, section 9).
+            // D at skin alone: the bounce source reads the direct light (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9).
             Double3 sun = Of(Gpu.StarIrradianceRgb(snapshot)) * Vector3.Dot(toSun, Vector3.UnitZ);
             Double3 expected = SkinColor * sun / Math.PI + SkinColor * 0.4;
             int skin = Height / 2 * Width + 80;

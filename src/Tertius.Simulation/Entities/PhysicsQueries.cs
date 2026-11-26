@@ -4,7 +4,7 @@ namespace Tertius.Simulation;
 /// The physics queries of the running entity, which <see cref="Self.Physics"/> gives. A component cannot ask Jolt anything
 /// during its run, because the physics step of the same tick runs beside gameplay. So each query is a request: the sync
 /// point of this tick runs it against Jolt and the snapshot of the end of the tick, and its answer arrives as an event in
-/// this entity's inbox in the next tick. See docs/plans/queries-and-sensors.md, "Physics queries".
+/// this entity's inbox in the next tick. See https://github.com/alexispurslane/tertius/wiki/queries-and-sensors, "Physics queries".
 /// </summary>
 /// <remarks>
 /// <para>

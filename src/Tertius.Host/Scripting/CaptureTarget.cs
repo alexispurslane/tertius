@@ -4,7 +4,7 @@ namespace Tertius.Host.Scripting;
 /// Where the captures of a run go, for the whole run: a <see cref="PngFolder"/>, which writes one PNG file for each capture,
 /// a <see cref="VideoFile"/>, which makes each capture the next frame of one video, or <see cref="Discard"/>, which drops
 /// each drawn capture. A run names its outputs by the names of its steps, so the playback gets the name of each capture and
-/// its target makes the output. See docs/plans/blue-danube-demo.md, change 1.
+/// its target makes the output. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 1.
 /// This is a built-in C# 15 union, like <see cref="ScriptStep"/>: its cases are classes, so it is a struct around one
 /// reference and allocates nothing beyond its case. The default value holds no case and matches the <c>null</c> pattern.
 /// A null case makes the default value too, and <see cref="HeadlessPlayback"/> refuses it.

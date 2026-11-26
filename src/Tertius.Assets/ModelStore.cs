@@ -5,7 +5,7 @@ using System.Numerics;
 namespace Tertius.Assets;
 
 /// <summary>
-/// The renderer models of one render-resource owner, loaded from cooked model files (docs/plans/asset-pipeline.md,
+/// The renderer models of one render-resource owner, loaded from cooked model files (https://github.com/alexispurslane/tertius/wiki/asset-pipeline,
 /// "Models: nodes and pieces"). <see cref="Load"/> makes each reference into one <see cref="ModelId"/> once and gives the
 /// same <see cref="StoredModel"/> on every later call, so every placement of a model shares its meshes, materials and
 /// textures. A store's handles belong to its <see cref="IRenderResources"/>: a second owner needs a store of its own.

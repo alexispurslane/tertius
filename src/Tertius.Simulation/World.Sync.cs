@@ -11,7 +11,7 @@ public sealed partial class World
 
     // The step record of each frame whose hull physics moved in the step, which the check did not skip, in the order of the
     // output. Step 2 fills it from the output and FollowOwners puts each frame on its record (see "One motion record per
-    // frame" in docs/plans/rails-components.md), with the proper acceleration that physics measured for a dynamic hull. It
+    // frame" in https://github.com/alexispurslane/tertius/wiki/rails-components), with the proper acceleration that physics measured for a dynamic hull. It
     // is empty without a physics backend and after a step that failed.
     private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = [];
 
@@ -367,7 +367,7 @@ public sealed partial class World
     /// Step 2, before the rows of the bodies take the end of the step, so that the rows of the members of each following
     /// frame are relative to its exact place: each following frame whose anchor ended the step at its origin, where physics
     /// aims it, takes its anchor's step plan (see <see cref="FrameTree.PlaceFollowingFrame"/>, and
-    /// docs/plans/numeric-frames.md, "Following frames"). Physics aims an anchor there unless it teleported in the step, and
+    /// https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). Physics aims an anchor there unless it teleported in the step, and
     /// each kind of anchor says which it did in its own way: the record of a hull's frame lies at the origin, and for a
     /// plain body the front intent of the step that ended says whether it teleported. Jolt's place of a plain body need not
     /// be zero to the last bit at the origin, when its centre of mass lies off its own origin. An anchor that teleported
@@ -403,7 +403,7 @@ public sealed partial class World
     /// <summary>
     /// Step 2, after the physics output: every frame takes its step record and its proper acceleration in one pass of the
     /// frame tree (see <see cref="FrameTree.TakeStepRecords"/>, and "The step record of the last finished step" in
-    /// docs/plans/rails-components.md), which asks the World about each frame's owner (see <see cref="OwnerFacts"/>). The
+    /// https://github.com/alexispurslane/tertius/wiki/rails-components), which asks the World about each frame's owner (see <see cref="OwnerFacts"/>). The
     /// owner's kind decides where the record comes from: a hull takes the record that physics released for it, and an
     /// owner without a hull the record of its motion intent in the front intents, the intents of the step that ended, which
     /// step 4 swaps out after this, and then a write of its transform in the tick, which wins for one tick. A frame without
@@ -493,7 +493,7 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2, after <see cref="FollowOwners"/>: each entity without body or frame whose motion intent the step that ended
-    /// applied takes the step record of that intent on its transform row (docs/plans/rails-components.md, "The transform row
+    /// applied takes the step record of that intent on its transform row (https://github.com/alexispurslane/tertius/wiki/rails-components, "The transform row
     /// of an entity without body or frame"). Nothing moves such an entity but the sync point, so the record starts where the
     /// row stood when the step started (see <see cref="PhysicsIntent.StepRecord"/>), and the row takes the record's pose and
     /// its instant velocities narrowed to floats. A write of the entity's transform in the tick wins for one tick, as for a
@@ -811,7 +811,7 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 4, before the intents swap (docs/plans/rails-components.md, "Changes of motion"). First each hull whose change of
+    /// Step 4, before the intents swap (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). First each hull whose change of
     /// motion the step that ended applied, from the front intents, stores that motion (see <see cref="FrameTree.HullMotion"/>
     /// ),
     /// as the collision rows take their groups from the same intents: the stored motion describes the last finished step.
@@ -859,7 +859,7 @@ public sealed partial class World
     /// <paramref name="position"/> in <paramref name="to"/>, and makes it name <paramref name="to"/>. <paramref name="start"/>
     /// and <paramref name="end"/> are the motion of the old frame in the new one where the step that applies the intent
     /// starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>), and each part of the intent converts by
-    /// the moment that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"). The motion intent
+    /// the moment that it describes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames"). The motion intent
     /// converts by its case (see <see cref="MotionIntent.Converted"/>): an end pose and a steer target by the pose where the
     /// step ends, a full sample by the relation where the step ends, and its chord by the poses at both ends. The velocities
     /// of SetVelocity and SetAngularVelocity are instant velocities where the step starts, so they convert by the instant rule

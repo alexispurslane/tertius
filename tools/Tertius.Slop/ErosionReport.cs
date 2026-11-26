@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Tertius.Slop;
 
 /// <summary>
-/// The erosion of a codebase (docs/plans/code-quality-tooling.md, decision 16), after
+/// The erosion of a codebase (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16), after
 /// https://earendil.com/posts/measuring-code-sloppiness/: the share of the mass of all functions that sits in functions
 /// with a cyclomatic complexity above <see cref="ComplexityLimit"/>. The mass of a function is its complexity times the
 /// square root of its lines of code (<see cref="FunctionMeasure.Mass"/>).

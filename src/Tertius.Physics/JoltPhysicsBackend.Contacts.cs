@@ -216,7 +216,7 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// The check after a change of motion (case 3b of docs/plans/complete-ghosts.md): ends each started pair of
+    /// The check after a change of motion (case 3b of https://github.com/alexispurslane/tertius/wiki/complete-ghosts): ends each started pair of
     /// <paramref name="body"/> in <paramref name="world"/> that the pair test refuses now (see
     /// <see cref="FrameWorld.CanTouch"/>). The body is a hull or an interior whose motion changed, which keeps its body
     /// through the change. Jolt drops a pair that it can no longer make only when it simulates one of the two bodies, so

@@ -28,7 +28,7 @@ internal interface IFrameOwnerFacts
 }
 
 /// <summary>
-/// Step 2 of the sync point: every frame takes its step record of the step that ended (docs/plans/rails-components.md, "The
+/// Step 2 of the sync point: every frame takes its step record of the step that ended (https://github.com/alexispurslane/tertius/wiki/rails-components, "The
 /// step record of the last finished step"), and its proper acceleration ("The proper acceleration of a frame").
 /// </summary>
 public sealed partial class FrameTree
@@ -83,7 +83,7 @@ public sealed partial class FrameTree
     /// <see cref="ProperAccelerationFrom"/>, or, for a dynamic hull, the one that physics measured beside its record. The rule
     /// reads the parent's value as the step found it, so the tree keeps a copy of every row's value before the pass writes
     /// them (see <see cref="FieldTheStepFound"/>), and the order of the visits does not matter (see "Which proper acceleration
-    /// of the parent" in docs/plans/rails-components.md). A frame that takes two records takes the value of the last.
+    /// of the parent" in https://github.com/alexispurslane/tertius/wiki/rails-components). A frame that takes two records takes the value of the last.
     /// </para>
     /// The pass walks the tree's own storage, so it checks no handle, and it allocates nothing. <paramref name="owners"/> must
     /// not add, remove or move a frame, which would replace the arrays that the walk reads: a contract checks it after each
@@ -257,7 +257,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The proper acceleration that <paramref name="record"/> gives the frame by the rule of
     /// <see cref="ProperAccelerationFrom"/>,
-    /// after the record moves into the frame's semantic parent (docs/plans/rails-components.md, "The proper acceleration of a
+    /// after the record moves into the frame's semantic parent (https://github.com/alexispurslane/tertius/wiki/rails-components, "The proper acceleration of a
     /// frame"). A record relative to the semantic parent is there already. The anchor of a following frame that has a step
     /// plan moved on the plan, which is its record in the semantic parent (see <see cref="BeginStep"/>). Any other
     /// record relative to a numeric tree parent converts as <see cref="InSemanticParent"/> says.
@@ -279,7 +279,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The proper acceleration of a frame whose semantic parent is <paramref name="parent"/> after a step of
     /// <paramref name="step"/> seconds, from its step record in that parent, <paramref name="record"/>
-    /// (docs/plans/rails-components.md, "The proper acceleration of a frame", and docs/plans/spin-gravity.md, "The proper
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "The proper acceleration of a frame", and https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The proper
     /// acceleration of a frame"): the frame's acceleration over the step minus the gravity that acts at its place where the
     /// step started, turned into the frame's own axes by its rotation at the end of the step, and narrowed once to a float.
     /// The gravity at its place is the semantic parent's field there minus the parent's own proper acceleration as the step
@@ -335,7 +335,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// What made the record that <paramref name="frame"/> takes of the step that applies <paramref name="stepIntents"/>, when
-    /// the frame takes the record of its hull or of its owner's motion intent (docs/plans/rails-components.md, "The follow
+    /// the frame takes the record of its hull or of its owner's motion intent (https://github.com/alexispurslane/tertius/wiki/rails-components, "The follow
     /// kind"): physics, when the hull was dynamic in the step, with or without a steer target; rails for a full sample and
     /// kinematic for an end pose, which a kinematic hull or a frame without a hull follows; and static otherwise, for a
     /// teleport, a static hull, which physics moves only by a teleport, and a frame without a motion intent. A write of the

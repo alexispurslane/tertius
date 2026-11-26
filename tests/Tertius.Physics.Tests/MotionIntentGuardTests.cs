@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// One guard judges every motion intent that an entity writes, whatever its kind (docs/plans/rails-components.md, "The flow
+/// One guard judges every motion intent that an entity writes, whatever its kind (https://github.com/alexispurslane/tertius/wiki/rails-components, "The flow
 /// per kind of entity"): an end pose and a full sample are the result itself, for a kinematic body or an entity without a
 /// body, and a steer target is an input that physics integrates for a dynamic body. A static body, a character and an
 /// attached entity refuse every case. A refused write throws an <see cref="InvalidOperationException"/> with the reason that

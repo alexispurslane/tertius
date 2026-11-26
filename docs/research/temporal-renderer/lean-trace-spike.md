@@ -9,7 +9,7 @@ V1, the lean walk with the design's thickness and step counts, takes 5.7 to 5.8 
 ## Terms
 
 - Today's trace: `traceRay` of `reflection.glsl`, the trace that ter-toaw timed ([trace-timing-spike.md](trace-timing-spike.md)). It is variant V0.
-- Block ray: the one ray of a kind that each 2 x 2 block of pixels traces, from the block's chosen pixel ([temporal-renderer.md](../../plans/temporal-renderer.md), "The ray budget").
+- Block ray: the one ray of a kind that each 2 x 2 block of pixels traces, from the block's chosen pixel ([temporal-renderer.md](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer), "The ray budget").
 - Own ray: a ray that a pixel traces for itself.
 - Ray kind: diffuse or reflection.
 - Walk: the steps of one ray through the pyramid. A step reads one texel.
@@ -143,7 +143,7 @@ Diffuse level 2 caps fewer walks than level 1 and gives a lower FLIP, at the sam
 
 ### Which variant fits the budget
 
-The budget gives the whole screen tracer 0.8 to 1.7 ms ([temporal-renderer.md](../../plans/temporal-renderer.md), section 11). The tracer runs the ray plan, the two trace dispatches and the resolve. The misses' plain map reads are part of the trace. The corrected read of ticket 8 has its own row in the budget.
+The budget gives the whole screen tracer 0.8 to 1.7 ms ([temporal-renderer.md](../https://github.com/alexispurslane/tertius/wiki/temporal-renderer), section 11). The tracer runs the ray plan, the two trace dispatches and the resolve. The misses' plain map reads are part of the trace. The corrected read of ticket 8 has its own row in the budget.
 
 - The plan's stand-in takes 0.19 to 0.26 ms alone, in the counter runs ("The counters").
 - The resolve is not built. It is one invocation per pixel with a few reads, like the plan, so this report takes 0.3 ms for it.

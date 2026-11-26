@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The standard response of one light in two parts, the diffuse part and the specular part, as the scatter of skin needs
-/// them apart (docs/plans/skin-and-hair.md, "The light of each model").
+/// them apart (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The light of each model").
 /// </summary>
 public sealed class DirectTermsTests
 {

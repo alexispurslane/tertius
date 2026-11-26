@@ -7,7 +7,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The shuttle's flight program as a stack of layers (docs/plans/blue-danube-demo.md, "Layers"), on the World and the
+/// The shuttle's flight program as a stack of layers (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "Layers"), on the World and the
 /// real Jolt backend. A layer is a component that adds a <see cref="Throttle"/> and an <see cref="AttitudeTarget"/> to
 /// its entity's events in its tick. The layers run in the order of the flight, by their priorities: the ascent
 /// autopilot at 0, the rendezvous autopilot at 1 and the docking autopilot at 2. The actuators of

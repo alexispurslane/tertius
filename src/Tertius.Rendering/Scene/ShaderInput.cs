@@ -55,7 +55,7 @@ internal static class ShaderInput
 
     /// <summary>
     /// The largest size of a morph weight that the deform pass reads, 1,024. With deltas at most 2 long for a normal or a
-    /// tangent, every sum of the morphs stays finite (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
+    /// tangent, every sum of the morphs stays finite (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Portable Vulkan").
     /// </summary>
     public const float LargestMorphWeight = 1024;
 
@@ -75,7 +75,7 @@ internal static class ShaderInput
     /// <summary>
     /// The light that a surface pass writes: <paramref name="radiance"/> exposed, plus <paramref name="preExposedLight"/>,
     /// at most <see cref="MaxRadiance"/> per channel. The C# copy of the cap of `lobesRadiance` in Shaders/lighting.glsl,
-    /// and of the direct and the ambient passes (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+    /// and of the direct and the ambient passes (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
     /// </summary>
     /// <param name="preExposedLight">Finite light that the caller has already exposed and capped: emission, or the direct image.</param>
     public static Vector3 SurfaceLight(Vector3 radiance, Vector3 preExposedLight, float exposure) =>
@@ -104,7 +104,7 @@ internal static class ShaderInput
     /// <summary>
     /// A light's radiant intensity from the CPU, color × intensity in W/sr, as the shaders read it, per channel: its nearest
     /// value from 0 to <see cref="LightUnits.MaxIntensity"/>, and 0 for a NaN. An intensity is not a radiance, so it has its
-    /// own limit: a star keeps its real intensity (docs/plans/local-light-shadows.md, "Main's limits and decision 17").
+    /// own limit: a star keeps its real intensity (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "Main's limits and decision 17").
     /// </summary>
     public static Vector3 Intensity(Vector3 intensity) =>
         new(Intensity(intensity.X), Intensity(intensity.Y), Intensity(intensity.Z));

@@ -150,7 +150,7 @@ internal static class ReferenceImages
 
     /// <summary>
     /// Removes the actual image and the heat map of an earlier failure, and reports the largest FLIP value, which every
-    /// change to the renderer reports for each reference image (CLAUDE.md, "Testing").
+    /// change to the renderer reports for each reference image (AGENTS.md, "Testing").
     /// </summary>
     private static void Pass(string referencePath, string actualPath, string heatMapPath, FlipMap map)
     {

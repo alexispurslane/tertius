@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius;
 
 /// <summary>
-/// The turns of every frame for the step in flight (docs/plans/spin-gravity.md, "Values"): V1, the turn of the step in
+/// The turns of every frame for the step in flight (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Values"): V1, the turn of the step in
 /// flight, V2, the turn of the step that ended, which the frame tree keeps together in one <see cref="FrameTurns"/> per
 /// frame, and V3, the angular acceleration of the frame's last step record. Physics and the numeric update read the same
 /// numbers, which <see cref="BeginStep"/> fixes once per step, in one pass, from double poses and step records.
@@ -38,7 +38,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The turns of <paramref name="frame"/> that a reader in the step in flight needs: the turn of the step that
     /// <see cref="BeginStep"/> last prepared, V1, and the turn of the step before, V2, each with the frame's inertial angular
-    /// velocity at that step's end, in the frame's axes then (docs/plans/spin-gravity.md, "V1, the turn of the step in
+    /// velocity at that step's end, in the frame's axes then (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in
     /// flight"). From <see cref="BeginStep"/> until the end of the step they describe the step in flight. From step 2 of the
     /// sync point after it until the next <see cref="BeginStep"/>, they describe the last finished step. A numeric frame
     /// reads its semantic frame's turns. A frame that has had no <see cref="BeginStep"/> yet reads no turn
@@ -57,7 +57,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The angular acceleration of the frame's step record relative to its tree parent, in the parent's axes, in rad/s²: the
     /// mean over the last finished step, the change of the frame's angular velocity over the step divided by the step
-    /// (docs/plans/spin-gravity.md, "V3, the angular acceleration of a frame's last record"). Step 2 of every sync point
+    /// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V3, the angular acceleration of a frame's last record"). Step 2 of every sync point
     /// writes it with the frame's step record (see <see cref="TakeStepRecords"/>), and zero for a frame that holds still. A
     /// move to another parent converts it (see <see cref="Reparent"/>). A new frame reads zero. Like the row's angular
     /// velocity (see <see cref="AngularVelocity"/>), it describes the last finished step. <see cref="BeginStep"/> predicts
@@ -67,7 +67,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Prepares every frame for the step that starts now, a step of <paramref name="step"/> seconds that applies
-    /// <paramref name="stepIntents"/>, in one pass in dense order, parents first (docs/plans/spin-gravity.md, "V1, the turn of
+    /// <paramref name="stepIntents"/>, in one pass in dense order, parents first (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of
     /// the step in flight"). Each semantic frame copies its V1 into its V2 and composes its new V1 from its tree parent's V1
     /// and its own level (see <see cref="BeginTurn"/>). Each numeric frame fixes its acceleration for the step, and a
     /// following frame its step plan (see <see cref="BeginNumericFrame"/>), after its semantic frame fixed its turns.
@@ -228,7 +228,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// <paramref name="linear"/>, the linear gravity on a body at <paramref name="place"/> in the semantic frame with stable
-    /// index <paramref name="semantic"/>, plus the frame's centrifugal and Euler term there (docs/plans/spin-gravity.md, "V5,
+    /// index <paramref name="semantic"/>, plus the frame's centrifugal and Euler term there (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5,
     /// the effective gravity"): the centrifugal term at the inertial angular velocity of V1, the end of the step in flight,
     /// and the Euler term at the mean angular acceleration over that step, from V2's angular velocity to V1's. A frame that
     /// does not turn (see <see cref="FrameTurns.Turns"/>) adds nothing, so its readers keep the linear gravity to the bit, and

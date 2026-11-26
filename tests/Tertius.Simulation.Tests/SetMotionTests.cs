@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The owner of a frame changes its hull's motion in a tick with <see cref="BodyHandle.SetMotion"/>, for example to park a
-/// ship (docs/plans/rails-components.md, "Changes of motion"). Step k is the physics step that runs beside tick k. A change
+/// ship (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). Step k is the physics step that runs beside tick k. A change
 /// written in tick 1 is in the intents that step 2 applies, and physics gives the Jolt body the new motion at the start of
 /// step 2. The stored motion, which the frame tree keeps (<see cref="FrameTree.HullMotion"/>), describes the last finished
 /// step, like the collision rows: it changes at step 4 of the sync point after step 2. The motion of a step that has not

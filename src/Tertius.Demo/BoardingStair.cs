@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Demo;
 
 /// <summary>
-/// A boarding stair beside a parked shuttle (docs/plans/blue-danube-demo.md, "The fit to the art"): a landing a gap away
+/// A boarding stair beside a parked shuttle (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The fit to the art"): a landing a gap away
 /// from the hull's face, whose top lies <see cref="LipDrop"/> under the shuttle's porch, so that the porch's lip rests over
 /// it, and a way from the landing down to the floor. In a full gravity the way is steps. In the station's weak gravity it
 /// is a ramp: a person who walks off a step there falls slowly, about a meter forward for each step, and so flies down a

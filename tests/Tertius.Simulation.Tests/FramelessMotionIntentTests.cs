@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// Motion intents of entities without body or frame (docs/plans/rails-components.md, "Rails motion for every entity"). Such
+/// Motion intents of entities without body or frame (https://github.com/alexispurslane/tertius/wiki/rails-components, "Rails motion for every entity"). Such
 /// an entity takes an end pose and a full sample. The step after the tick that wrote it applies it, and the sync point after
 /// that step puts the entity's step record on its transform row at step 2: the record's pose, and its instant velocities
 /// narrowed to floats. The entity holds still in a step without a motion intent, and a write of its transform in a tick wins

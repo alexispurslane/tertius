@@ -9,7 +9,7 @@ namespace Tertius.Rendering;
 public readonly record struct NoEnvironmentMap;
 
 /// <summary>
-/// A cube map of the scene around the camera (docs/plans/environment-map.md): the three depth ranges lit by every light,
+/// A cube map of the scene around the camera (https://github.com/alexispurslane/tertius/wiki/environment-map): the three depth ranges lit by every light,
 /// and the share of each texel through which the sky is open. It gives every surface its ambient light, diffuse and
 /// specular, the stars in its reflections, and SSR its fallback.
 /// </summary>

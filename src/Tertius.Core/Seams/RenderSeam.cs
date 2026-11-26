@@ -62,7 +62,7 @@ public readonly record struct TextureId
 }
 
 /// <summary>
-/// A renderer model handle: mesh and material parts drawn with one entity transform (docs/plans/asset-pipeline.md,
+/// A renderer model handle: mesh and material parts drawn with one entity transform (https://github.com/alexispurslane/tertius/wiki/asset-pipeline,
 /// "Models: nodes and pieces"). <c>default</c> is <see cref="None"/>.
 /// </summary>
 public readonly record struct ModelId
@@ -99,7 +99,7 @@ public readonly record struct ModelPart(
 
 /// <summary>
 /// The parts of one rigid model piece, in their order: the index of a part is its <see cref="RenderInstance.Part"/>. Model
-/// lights, LODs and model-wide bounds are later work (docs/plans/asset-pipeline.md, "Engine changes").
+/// lights, LODs and model-wide bounds are later work (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Engine changes").
 /// </summary>
 public sealed record ModelDesc(ImmutableArray<ModelPart> Parts);
 
@@ -120,7 +120,7 @@ public enum RenderFlags : uint
     /// </summary>
     CastsShadow = 1 << 1,
 
-    // 1 << 2 was Transparent. A material's alpha mode says that now (docs/plans/skin-and-hair.md, decision 8).
+    // 1 << 2 was Transparent. A material's alpha mode says that now (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 8).
 
     /// <summary>
     /// Never replace this object with an impostor. Use it for objects that must receive shadow-map shadows or that
@@ -146,7 +146,7 @@ public struct RenderInstance
 
     /// <summary>
     /// The generation of the entity in <see cref="EntityIndex"/>, so that a new entity in a reused slot is a new object to
-    /// the renderer, with no history of the old one (docs/plans/temporal-renderer.md, "The key of an object").
+    /// the renderer, with no history of the old one (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The key of an object").
     /// </summary>
     public uint EntityGeneration;
 
@@ -161,7 +161,7 @@ public struct RenderInstance
 
     /// <summary>
     /// The depth of the object's chain frame: the nearest frame of <see cref="RenderSnapshot.Chain"/> at or above the frame
-    /// that holds it, 0 for the camera's frame (docs/plans/environment-maps-per-frame.md).
+    /// that holds it, 0 for the camera's frame (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame).
     /// </summary>
     public ushort ChainDepth;
 
@@ -233,7 +233,7 @@ public struct RenderInstance
 }
 
 /// <summary>
-/// A frame of the camera's chain (docs/plans/environment-maps-per-frame.md): its id, and its axes in the axes of the
+/// A frame of the camera's chain (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame): its id, and its axes in the axes of the
 /// camera's frame.
 /// </summary>
 /// <param name="FrameId">The frame's generation in the high 32 bits and its index in the low 32 bits.</param>
@@ -242,7 +242,7 @@ public struct RenderInstance
 public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation, Quaternion PreviousRotation);
 
 /// <summary>
-/// The air that the camera looks through (docs/plans/atmosphere.md): the planet medium of the nearest frame of
+/// The air that the camera looks through (https://github.com/alexispurslane/tertius/wiki/atmosphere): the planet medium of the nearest frame of
 /// <see cref="RenderSnapshot.Chain"/> that has one, or, when no chain frame has one, of the planet frame that is densest at
 /// the eye; where the frame's origin is; and which light is the planet's sun.
 /// </summary>
@@ -299,7 +299,7 @@ public sealed class RenderSnapshot
     /// <summary>
     /// How many builds so far did not interpolate the camera: a first build, another camera, or another frame of the
     /// camera. A count, not a flag, so that a renderer that skips the snapshot of a cut still sees it
-    /// (docs/plans/temporal-renderer.md, "Resets"). A build without a camera keeps the count.
+    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Resets"). A build without a camera keeps the count.
     /// </summary>
     public long CameraCuts;
 
@@ -344,7 +344,7 @@ public sealed class RenderSnapshot
     public float PuffAgeStep;
 
     /// <summary>
-    /// The rig poses of the posed instances, sorted by instance (docs/plans/skinning-and-morphs.md, "The rig pose in the
+    /// The rig poses of the posed instances, sorted by instance (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The rig pose in the
     /// snapshot"). <see cref="AddRigPose"/> is the one writer of this list and of the two below.
     /// </summary>
     public readonly List<RenderRigPose> RigPoses = [];
@@ -461,7 +461,7 @@ public struct Vertex
 
 public sealed record MeshData(Vertex[] Vertices, uint[] Indices)
 {
-    /// <summary>The mesh's rig, skin and morph targets, or null for a rigid mesh (docs/plans/skinning-and-morphs.md).</summary>
+    /// <summary>The mesh's rig, skin and morph targets, or null for a rigid mesh (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs).</summary>
     public MeshRigging? Rigging { get; init; }
 }
 
@@ -487,7 +487,7 @@ public readonly record struct RenderRigPose(
 public sealed record TextureData(int Width, int Height, byte[] Rgba, bool Srgb = true);
 
 /// <summary>
-/// A metallic-roughness material (docs/plans/pbr-brdf.md). Colors are linear RGB. A map left at its default is no map.
+/// A metallic-roughness material (https://github.com/alexispurslane/tertius/wiki/pbr-brdf). Colors are linear RGB. A map left at its default is no map.
 /// The metallic-roughness map has glTF's layout: roughness in G, metallic in B, which only the standard model reads. Each
 /// map channel multiplies its factor.
 /// </summary>

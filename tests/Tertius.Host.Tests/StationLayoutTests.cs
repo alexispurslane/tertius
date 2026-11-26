@@ -5,7 +5,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The layout of the Blue Danube station, <see cref="StationLayout"/> (docs/plans/blue-danube-demo.md, "The kilometre
+/// The layout of the Blue Danube station, <see cref="StationLayout"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The kilometre
 /// wheel" and "The fit to the art"), as pure geometry in the station's axes: +Y is the axis, the slot faces +Y, and the
 /// deck is the bay's -X wall, a pier on the core's face of the art. The demo's layout puts the floor 2,000 m out at one
 /// standard gravity. The same invariants also hold for a layout with the bay moved 300 m out along the axis.

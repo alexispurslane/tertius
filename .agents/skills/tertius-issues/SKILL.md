@@ -196,9 +196,9 @@ The builder owns the response. Read every inline comment, fix the code and tests
 
 ## Use CI as the merge gate
 
-A draft pull request is a progress stream. It does not run the required suite. When the builder marks the pull request ready, GitHub Actions runs every test in Checked and Release on the exact branch head. Every later push to that ready pull request runs the suite again. Local runs help development, but they do not replace the required check.
+A draft pull request is a progress stream. It does not run the required suite. When the builder marks the pull request ready, GitHub Actions runs every CPU-only .NET test in Checked and every Python tools test on the exact branch head. Checked uses Release's optimizations and keeps the contracts. Every later push to that ready pull request runs those tests again. The CPU Release suite runs on `main` after merges to catch configuration-specific failures. GPU tests remain optional local feedback. Local runs help development, but they do not replace the required check.
 
-After the tests pass, the workflow comments on the pull request with the branch's measured metrics. The table includes erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance reported by the metrics tool. Read the table as described in `CLAUDE.md`, "Interpreting code quality metrics". A number alone does not prove an improvement.
+After the tests pass, the workflow comments on the pull request with the branch's measured metrics. The table includes erosion, verbosity, high CC mass, high CC function count, verbose lines, SLOC, TCC, depth and the supporting counts and provenance reported by the metrics tool. Read the table as described in `AGENTS.md`, "Interpreting code quality metrics". A number alone does not prove an improvement.
 
 The `Tests and metrics` check is required on `main`. A merge is allowed only when the current head has a passing check, every review thread is resolved and the metrics comment belongs to that head. If any later push changes the head, wait for the new check and the new comment.
 
@@ -215,9 +215,9 @@ The `Tests and metrics` check is required on `main`. A merge is allowed only whe
 
 ## Keep design documents in the wiki
 
-The wiki is canonical. Each page in `docs/plans/<name>.md` has a corresponding wiki page at `https://github.com/alexispurslane/tertius/wiki/<name>`. The repository path contains only a short link to that page. Link issues and epics to a section with `#<github-slug>`.
+The wiki is canonical. Each design document lives only at `https://github.com/alexispurslane/tertius/wiki/<name>`. The repository has no `docs/plans` directory. Link issues and epics to a section with `#<github-slug>`.
 
-Do not edit a full design document in the repository and a wiki copy separately. Move links between wiki pages to their wiki names. Leave research reports and binding architecture in the repository.
+Do not recreate design documents in the repository. Link between wiki pages by their wiki names. Leave research reports and binding architecture in the repository.
 
 ## Read back uncertain writes
 

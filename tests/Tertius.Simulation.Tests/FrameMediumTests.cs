@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The medium of a frame on the World (docs/plans/particles.md, "Where it lives, who sets it, and who reads it"). It matches
+/// The medium of a frame on the World (https://github.com/alexispurslane/tertius/wiki/particles, "Where it lives, who sets it, and who reads it"). It matches
 /// the gravity field point by point: the spawn gives it from <see cref="FrameSpec.Medium"/>, the game changes it between
 /// ticks with <see cref="World.SetFrameMedium"/>, and the World refuses a medium that is not valid, or a frame that is
 /// gone, and keeps the old medium. A frame keeps its medium when it hands off or is reparented, so the air of a cabin goes

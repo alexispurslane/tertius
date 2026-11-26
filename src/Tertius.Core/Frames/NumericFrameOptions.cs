@@ -1,7 +1,7 @@
 namespace Tertius;
 
 /// <summary>
-/// The thresholds of the membership rules of numeric frames (docs/plans/numeric-frames.md, "Membership"). Each threshold to
+/// The thresholds of the membership rules of numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Membership"). Each threshold to
 /// leave is below the one to join, so that a body near a threshold does not go in and out. Speeds are in m/s relative to
 /// the semantic frame, distances in meters, accelerations in m/s² and times in seconds.
 /// <para>
@@ -83,7 +83,7 @@ internal sealed record NumericFrameOptions
 
     /// <summary>
     /// The distance of a numeric frame from its tree parent's origin at which it moves under a nesting frame near it
-    /// (docs/plans/numeric-frames.md, "Nesting for vast distances"). It joins a nesting frame within half this distance.
+    /// (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Nesting for vast distances"). It joins a nesting frame within half this distance.
     /// </summary>
     public double NestDistance { get; init; } = 1e9;
 

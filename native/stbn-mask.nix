@@ -1,5 +1,5 @@
 # The reflection rays' spatiotemporal blue-noise mask: the output of native/stbn.c, which writes the same 2 MiB on
-# every machine. A build output stays out of git (docs/plans/asset-pipeline.md, decision 21), and the store keeps it
+# every machine. A build output stays out of git (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, decision 21), and the store keeps it
 # once per machine and per image of the GPU workbench. The dev shell names it in TERTIUS_STBN_MASK, and
 # Tertius.Rendering embeds it.
 { lib, stdenv }:

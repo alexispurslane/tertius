@@ -371,7 +371,7 @@ public sealed class ShuttleTests : IDisposable
 
     /// <summary>
     /// The engine keeps the center of mass that Jolt computes for the hull's shape, and publishes it in the body facts
-    /// (docs/plans/parts.md, "Settled forks"). The hull's shape is the box round the Lunar Shuttle's model, so the center
+    /// (https://github.com/alexispurslane/tertius/wiki/parts, "Settled forks"). The hull's shape is the box round the Lunar Shuttle's model, so the center
     /// of mass is the box's middle, within 1 mm: 0.27 m below the cabin's middle and 0.48 m forward of it, since the
     /// model's wheels reach lower than its roof reaches up, and its nose farther than its tail.
     /// </summary>
@@ -488,7 +488,7 @@ public sealed class ShuttleTests : IDisposable
     }
 
     /// <summary>
-    /// The live world lands the shuttle on its tail (docs/plans/live-world.md, part 3). A dynamic hull stands nose up, its
+    /// The live world lands the shuttle on its tail (https://github.com/alexispurslane/tertius/wiki/live-world, part 3). A dynamic hull stands nose up, its
     /// roof toward +Z, 1 cm above a static pad, in a root frame with 1 g. It settles on its tail face and stays upright,
     /// its nose within 1 degree of straight up, in every tick for 60 s.
     /// </summary>

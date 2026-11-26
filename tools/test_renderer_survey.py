@@ -788,7 +788,7 @@ class TheGpuLock(unittest.TestCase):
                     self.assertEqual(chunks.called, chunked)
 
 
-# The evidence census (docs/plans/bounce-light-confidence.md, section 21, take T12). A synthetic census is a grid of
+# The evidence census (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 21, take T12). A synthetic census is a grid of
 # 10 x 6 blocks of 8 x 8 pixels, 80 x 48 pixels, for each signal of the line's light.
 CENSUS_HEADER = {"width": 80, "height": 48, "block": 8, "blocksWide": 10, "blocksHigh": 6, "every": 0, "causes": 7,
                  "movedCuts": False, "motionCuts": False, "acts": True, "recentLightAge": 7, "leastMotion": 0.03125}

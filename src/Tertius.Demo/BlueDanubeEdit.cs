@@ -1,7 +1,7 @@
 namespace Tertius.Demo;
 
 /// <summary>
-/// The cut list of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The cut list"): the parts of the sequence, its
+/// The cut list of the Blue Danube demo (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The cut list"): the parts of the sequence, its
 /// trims, the check panels of the parking orbit, of the wheel's spin gravity and of the coda's throws, and the two title cards. It names films of
 /// <see cref="BlueDanube.Sections"/>, never frame numbers, so it follows the script when the sections change.
 /// </summary>
@@ -29,7 +29,7 @@ public static class BlueDanubeEdit
                 ),
             ],
             // No trims: the user keeps every frame where any part of the shuttle or the station shows, however dark
-            // (2026-10-20), and a measure of the master found one of them in every frame (docs/plans/blue-danube-demo.md,
+            // (2026-10-20), and a measure of the master found one of them in every frame (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
             // "The dark frames").
             Trims: [],
             Panels:

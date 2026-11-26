@@ -5,9 +5,9 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// Following frames (<see cref="NumericMode.Following"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
+/// Following frames (<see cref="NumericMode.Following"/>, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors", rule 3) on a tree built in
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
-/// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
+/// of its own, K, that follows the frame's motion samples (https://github.com/alexispurslane/tertius/wiki/rails-components, "Numeric frames"), and the hull's
 /// frame hangs at K's origin. The tests hand the tree the intents of each step, with the samples as the owners' motion
 /// intents, and do before each step and at each sync point what the World and physics do with them (see <see cref="Sync"/>
 /// ). The tests run
@@ -393,7 +393,7 @@ public sealed class FrameTreeFollowingFrameTests
     }
 
     /// <summary>
-    /// The landing rule of "The step plan of a following frame" (docs/plans/rails-components.md): an end pose has no
+    /// The landing rule of "The step plan of a following frame" (https://github.com/alexispurslane/tertius/wiki/rails-components): an end pose has no
     /// acceleration that lands the frame on it, because its velocity changes at the start of the step, so the following frame
     /// takes the acceleration that turns its velocity into the plan's chord.
     /// </summary>
@@ -539,7 +539,7 @@ public sealed class FrameTreeFollowingFrameTests
     }
 
     /// <summary>
-    /// The start of a new following frame (docs/plans/rails-components.md, "The first step of a new following frame"): it
+    /// The start of a new following frame (https://github.com/alexispurslane/tertius/wiki/rails-components, "The first step of a new following frame"): it
     /// lies at its anchor's place, and its velocity is the chord that the numeric frames expect of a frame at the start of a
     /// step, the chord of its anchor's motion over the step that ended, from what the anchor's row keeps of that step: the
     /// instant velocity less half a step of the acceleration, which is the gravity at the anchor's place plus the anchor's
@@ -664,7 +664,7 @@ public sealed class FrameTreeFollowingFrameTests
     /// <summary>
     /// The acceleration of the anchor, read backward from its row, takes the gravity at its place with its parent's proper
     /// acceleration as the step that ended found it: the value that the rule of the anchor's own proper acceleration read
-    /// (docs/plans/rails-components.md, "Which proper acceleration of the parent"). Here the anchor's parent, a ship without
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Which proper acceleration of the parent"). Here the anchor's parent, a ship without
     /// a hull in empty space, starts to accelerate at 10 m/s² in the step that ended, so its value goes from zero to that at
     /// the same step 2, and the anchor moves on end poses at a steady 2 km/s relative to the ship. The new following frame
     /// starts with the anchor's velocity, which is the chord of the step that ended, and its first plan, the next end pose,
@@ -747,7 +747,7 @@ public sealed class FrameTreeFollowingFrameTests
 
     /// <summary>
     /// In a turning parent, the acceleration of the anchor read backward from its row takes the parent's rotation terms too,
-    /// as the rule of the anchor's own proper acceleration did (docs/plans/spin-gravity.md, "The proper acceleration of a
+    /// as the rule of the anchor's own proper acceleration did (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The proper acceleration of a
     /// frame"). Here a station in empty space spins at 0.31321 rad/s about +Y, and the anchor moves on end poses at a steady
     /// 2 km/s along +Z of the station's turning axes, 1 km from its axis. Its acceleration in those axes is zero, so its new
     /// following frame starts with its velocity, which is the chord of its end poses, and its first plan, the next end pose,

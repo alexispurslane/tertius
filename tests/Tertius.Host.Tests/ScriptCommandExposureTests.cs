@@ -79,7 +79,7 @@ public sealed class ScriptCommandExposureTests : IDisposable
         );
 
         (settleCode, filmCode).Should().Be((ScriptCommand.Ok, ScriptCommand.Ok), error.ToString());
-        // The first frame of a run settles on its own view (docs/plans/auto-exposure.md, "The metering draw").
+        // The first frame of a run settles on its own view (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The metering draw").
         float bright = Readings(settledOut).Single().Stops;
         (int Frame, string Capture, float Stops)[] readings = Readings(filmOut);
         readings

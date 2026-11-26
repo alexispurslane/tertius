@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Tertius.Demo;
 
 /// <summary>
-/// The text of the readouts that the demo edit draws on each frame (docs/plans/blue-danube-demo.md, "The readouts on the
+/// The text of the readouts that the demo edit draws on each frame (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The readouts on the
 /// frame"). Every number shows in the invariant culture, with a comma between thousands.
 /// </summary>
 public static class ReadoutText
@@ -81,7 +81,7 @@ public static class ReadoutText
 
 /// <summary>
 /// The lines of a check panel at <paramref name="row"/>, for a span of films whose first frame is <paramref name="first"/>
-/// (docs/plans/blue-danube-demo.md, "The textbook checks"). All lines have one width.
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The textbook checks"). All lines have one width.
 /// </summary>
 public delegate string[] CheckPanel(ReadoutRow first, ReadoutRow row);
 

@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The history of one signal: demodulated, pre-exposed light accumulated over frames at each pixel of the render size
-/// (docs/plans/temporal-renderer.md, section 8, "The accumulator"). Its producer writes the sample of each part in each
+/// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The accumulator"). Its producer writes the sample of each part in each
 /// frame. <see cref="Accumulate"/> then reprojects the last frame's history through the surface test, rescales it by the
 /// exposure ratio, blends the sample in, fixes short histories from their neighbors and clamps the slow history into the
 /// fast history's box. A pixel whose sample is not finite keeps its history, and one without a history takes the
@@ -13,7 +13,7 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para>
 /// The screen tracer's two signals, under <see cref="ScreenTrace"/>, are the renderer's only signals: the direct light keeps
-/// one frame (docs/plans/temporal-renderer.md, decision 29). The accumulator's tests make signals of their own
+/// one frame (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 29). The accumulator's tests make signals of their own
 /// (<see cref="VulkanRenderer.CreateSignal(SignalParameters, string, int)"/>).
 /// </para>
 /// <para>
@@ -25,7 +25,7 @@ namespace Tertius.Rendering;
 /// the scratch images (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's
 /// age (<see cref="SampleAge"/>, sample_age.glsl), which the resolve writes and the spatial dispatch reads at binding 11
 /// (the light-change age, ticket tiunr-7haj): it acts on the evidence of each block of 8 × 8 pixels after the blend
-/// (docs/plans/bounce-light-confidence.md, sections 4 and 8). The temporal dispatch reads no light age. The diffuse signal
+/// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, sections 4 and 8). The temporal dispatch reads no light age. The diffuse signal
 /// keeps its half-precision history and takes the light-age variant of the spatial dispatch
 /// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
@@ -60,7 +60,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// resolve writes; g the slow history's length just before its blend, or −1 without a sample; b 1 where the sample
     /// holds at least a quarter of the slow history's luminance, else 0, an observation that no rule uses since ter-g3tk;
     /// a the length just before the blend again, where it held the length before the light-age cut until that cut went
-    /// (docs/plans/bounce-light-confidence.md, section 4). The temporal dispatch writes g, b and a.
+    /// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 4). The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
@@ -203,7 +203,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// The rules that a signal of <paramref name="confidence"/> follows: the narrow box where its storage keeps no deviation
     /// to widen a box by, or its samples no light age, whose evidence would narrow the box again. The single history keeps
     /// no fast history, and beside the original specular history no sample has a light age
-    /// (docs/plans/bounce-light-confidence.md, section 13).
+    /// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 13).
     /// </summary>
     private static HistoryConfidence ConfidenceOf(HistoryConfidence confidence, bool singleHistory, bool lightAge) =>
         singleHistory || !lightAge ? new NarrowBox() : confidence;
@@ -262,7 +262,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// signal. That dispatch is the light-age variant (<see cref="LightAgeShader(string)"/>), which alone compiles the
     /// test; the single-history prototype's spatial dispatch has no such variant. The reflections' test fired falsely in
     /// still views and brought bright specks into the bay film, where the bounce light's did neither (t0-acxm;
-    /// docs/plans/bounce-light-confidence.md, section 8.7).
+    /// https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.7).
     /// </summary>
     public bool TestsRegionDrift => KeepsLightAge && Parameters.Light == SignalLight.Diffuse && !singleDiffuseHistory;
 

@@ -58,7 +58,7 @@ public sealed class ScreenTraceHardeningTests
     public void ALightAgeAboveTheRecordsCodesCodesAsTheLargestAndLeavesTheMovedMarkAlone()
     {
         // The light code fills the 14 bits between RayTraced and the moved mark, so an age above 16,382 codes as
-        // 16,382, code 16,383, and never reaches bit 15 (docs/plans/bounce-light-confidence.md, section 8.5). The probe
+        // 16,382, code 16,383, and never reaches bit 15 (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.5). The probe
         // writes the codes minus 16,000.
         (VulkanRenderer renderer, RenderSnapshot scene) = Wall();
         try

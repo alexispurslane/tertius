@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Numeric frames (docs/plans/numeric-frames.md): frames that the engine makes around a group of bodies, which fall freely
+/// Numeric frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames): frames that the engine makes around a group of bodies, which fall freely
 /// in doubles or rest in their parent, with a Jolt system each. Only the numeric update at each sync point makes and moves
 /// them, so a test that needs one builds a scene that is fast or far enough for the default membership rules
 /// (<see cref="NumericFrameOptions"/>), or uses one of the rule sets of <see cref="NumericFrameTesting"/> on purpose.

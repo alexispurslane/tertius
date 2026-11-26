@@ -4,7 +4,7 @@ using Tertius.Host.Scripting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The subtitle files of the demo edit, in the ASS format that libass draws (docs/plans/blue-danube-demo.md, "The readouts
+/// The subtitle files of the demo edit, in the ASS format that libass draws (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The readouts
 /// on the frame", "The cut list" and "The title cards and the transitions"). Frame k of the master shows from k / 60 s,
 /// rounded down to the hundredth, to the next frame's time.
 /// </summary>

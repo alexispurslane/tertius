@@ -166,7 +166,7 @@ public sealed class SpinFrameTests
 
     /// <summary>
     /// The spin's sample of the tick of the write starts where the sample before it ends, so the write moves the frame for one
-    /// tick only, and the frame then turns at its old place for good (docs/plans/rails-components.md, "Tests").
+    /// tick only, and the frame then turns at its old place for good (https://github.com/alexispurslane/tertius/wiki/rails-components, "Tests").
     /// </summary>
     [Fact]
     public void WhenItsOwnerWritesANewPlaceABodylessSpinFrameStandsThereForOneTickAndThenTurnsAtItsOldPlaceForGood()
@@ -255,13 +255,13 @@ public sealed class SpinFrameTests
 
     // ---- Changing the motion ------------------------------------------------------------------------------
     // A change of motion is a swap of components, and for a hull also a change of the hull's motion with SetMotion
-    // (docs/plans/rails-components.md, "Changes of motion"). These frames have no body, so the components alone decide how
+    // (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion"). These frames have no body, so the components alone decide how
     // the frame moves.
 
     /// <summary>
     /// A component that is new on an entity runs first in the next tick, and its first sample acts in the step after that
     /// tick. So the frame holds still at its pose for the first step and stands on its spin from the second sync point on
-    /// (docs/plans/rails-components.md, "Other rules" in "The rails components"). The world starts two ticks before 1 s, so
+    /// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Other rules" in "The rails components"). The world starts two ticks before 1 s, so
     /// the second sync point ends at 1 s, when the spin has turned a quarter turn.
     /// </summary>
     [Fact]
@@ -294,7 +294,7 @@ public sealed class SpinFrameTests
 
     /// <summary>
     /// A ship without a body flies along +X at 10 m/s, on samples that a scripted flight writes. The game parks it on a
-    /// turntable: a <see cref="SpinMotion"/> in place of the flight (docs/plans/rails-components.md, "The rails components").
+    /// turntable: a <see cref="SpinMotion"/> in place of the flight (https://github.com/alexispurslane/tertius/wiki/rails-components, "The rails components").
     /// The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
     /// the second sync point after the swap, the ship stands still and turns at the place where that last sample left it: the
     /// spin's first sample starts where the flight's last sample ends.

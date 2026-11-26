@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The chord rule of a conversion between two frames (docs/plans/spin-gravity.md, "The two conversion rules"): a chord is the
+/// The chord rule of a conversion between two frames (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two conversion rules"): a chord is the
 /// change of a body's coordinates over a step divided by the step, so it converts by the frame's poses at both ends of the
 /// step. The frame of the tests turns by a quarter turn about +Z over a step of 1 s, so that every place and chord is a small
 /// vector that can be checked by hand. Its axes turn by +90° about +Z, so the coordinates of a direction that is fixed in

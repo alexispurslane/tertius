@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The build tool of scripted models (docs/plans/asset-pipeline.md, "The build tool"). Builds one model folder in
+# The build tool of scripted models (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "The build tool"). Builds one model folder in
 # headless Blender with no MCP server, and prints build.json.
 # Usage: tools/blender/build.sh <model folder> --out <folder> [--views] [--device auto|cpu]
 # Exit codes: 0 built, 2 bad input, 3 the build failed, 5 Blender is missing, 6 too little free space for the build,

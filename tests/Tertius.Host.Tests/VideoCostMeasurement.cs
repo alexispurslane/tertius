@@ -11,7 +11,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The measurement that docs/plans/blue-danube-demo.md asks of the video ticket, under "Cost to measure" of change 1: 600
+/// The measurement that https://github.com/alexispurslane/tertius/wiki/blue-danube-demo asks of the video ticket, under "Cost to measure" of change 1: 600
 /// frames of the orbit scene, 2 ticks apart, at 1280x720 and at 1920x1080, into a video and into PNG files. It is an
 /// explicit test, so a normal run reports it as not run. It runs in a Release build, with the variable
 /// <see cref="Variable"/> set to the file of its report:

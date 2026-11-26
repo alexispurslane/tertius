@@ -5,7 +5,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The step record of a frame in a step in flight, which the frame tree derives from the motion intent of the frame's owner
-/// in the intents of that step (<see cref="FrameTree.StepRecordInStep"/>, docs/plans/rails-components.md, "The motion
+/// in the intents of that step (<see cref="FrameTree.StepRecordInStep"/>, https://github.com/alexispurslane/tertius/wiki/rails-components, "The motion
 /// intent"): a full sample is its own record, an end pose gives the motion at a constant velocity from the frame's pose in
 /// its semantic parent where the step starts, and a steer target or no motion intent gives none.
 /// </summary>

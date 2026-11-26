@@ -99,7 +99,7 @@ An object becomes an impostor by its projected height in pixels, so the scene in
 The baseline is main's code at `d7ea3aff8` (the branch's base `8ebc19923` plus a ticket note), exported with `git archive` and built in Release. It ran each view's 120 measured frames at 1920 x 1080 with `--video none`. The passes that B replaces come from its `gpu-timings.json`, in three blocks of neighboring passes:
 
 - The environment map: environment faces and environment prefilter.
-- The screen-space bounce light: occlusion depth, occlusion sectors, occlusion denoise and occlusion upsample. These passes compute the bounce and the crease shadowing as one estimate (docs/plans/screen-space-illumination.md), so a world trace replaces both.
+- The screen-space bounce light: occlusion depth, occlusion sectors, occlusion denoise and occlusion upsample. These passes compute the bounce and the crease shadowing as one estimate (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination), so a world trace replaces both.
 - The reflections: radiance pyramid, reflection trace and reflections.
 
 ## Tables

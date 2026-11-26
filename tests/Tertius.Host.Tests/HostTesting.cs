@@ -216,7 +216,7 @@ public static class HostTesting
 
     /// <summary>
     /// The center of mass of the demo shuttle's hull, in meters, in the hull's own axes, as the engine computes it and
-    /// publishes it in <see cref="BodyFacts.CenterOfMass"/>: the value that the demo reads (docs/plans/parts.md, "Settled
+    /// publishes it in <see cref="BodyFacts.CenterOfMass"/>: the value that the demo reads (https://github.com/alexispurslane/tertius/wiki/parts, "Settled
     /// forks"). It comes from a parked hull in a world of its own.
     /// </summary>
     public static Vector3 ShuttleCenterOfMass => shuttleCenterOfMass.Value;

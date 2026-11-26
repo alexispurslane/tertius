@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The rule of a loose body in a frame (docs/plans/particles.md, "The rule of motion"): <see cref="LooseBodyStep"/>, which
+/// The rule of a loose body in a frame (https://github.com/alexispurslane/tertius/wiki/particles, "The rule of motion"): <see cref="LooseBodyStep"/>, which
 /// <see cref="FrameTree.LastLooseBodyStep"/> fills from the frame tree after step 2. A body that the medium does not lift
 /// takes the expression of physics for a free body with no numeric home, to the bit. A body that the medium lifts by its
 /// lift share feels the push, the linear gravity less the lift share times the effective gravity, and the drag keeps

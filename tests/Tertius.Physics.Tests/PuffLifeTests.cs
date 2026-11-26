@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The life of a puff on the World and the real Jolt backend (docs/plans/particles.md, "The sync point" and "The flow per
+/// The life of a puff on the World and the real Jolt backend (https://github.com/alexispurslane/tertius/wiki/particles, "The sync point" and "The flow per
 /// event in a puff's life"): which step an emitter's puffs start and stop in, what a hand-off, a reparent, a new medium
 /// and the death of a frame do to a puff, the end of its life, the cap and its switch, and determinism.
 /// </summary>

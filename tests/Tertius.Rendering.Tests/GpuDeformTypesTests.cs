@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# mirrors of the deform pass's structs keep the std430 layouts of deform.comp
-/// (docs/plans/skinning-and-morphs.md, "The layouts").
+/// (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The layouts").
 /// </summary>
 public sealed class GpuDeformTypesTests
 {

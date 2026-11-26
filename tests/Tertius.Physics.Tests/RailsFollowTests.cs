@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Frames follow their owners' step records (docs/plans/rails-components.md, "One motion record per frame", "The sync
+/// Frames follow their owners' step records (https://github.com/alexispurslane/tertius/wiki/rails-components, "One motion record per frame", "The sync
 /// point" and "Physics"), on the World and the real backend. A rails component writes a motion sample for each step. A
 /// frame without a body takes its sample at the sync point after the step; physics aims a kinematic hull at its sample,
 /// snaps it onto the sample's pose after the Jolt update, and releases the sample as the frame's record; and physics
@@ -38,7 +38,7 @@ public sealed class RailsFollowTests
 
     // ---- Velocity reads in the semantic parent ----------------------------------------------------------------------
     //
-    // Every kind of frame in the table "Who fills the step record" (docs/plans/rails-components.md, "One motion record per
+    // Every kind of frame in the table "Who fills the step record" (https://github.com/alexispurslane/tertius/wiki/rails-components, "One motion record per
     // frame") reads its instant velocity in its semantic parent. Under a numeric home the tree keeps a frame's velocity
     // relative to the home's frame velocity, the chord of the step, so a frame at rest in the home keeps the home's instant
     // velocity past its chord. Two kinds of frame live under a numeric home: a dynamic hull in a falling frame (see
@@ -503,7 +503,7 @@ public sealed class RailsFollowTests
     /// The fast form of the test above: a hull on <see cref="Fast"/> lives in a following frame of its own, and when its
     /// samples stop, it holds still in its parent as the slow hull does. In a step without a motion intent, the step plan of
     /// the following frame holds it still where the step starts, so the hull holds still whatever numeric frame holds it
-    /// (ticket ter-zsku, docs/plans/numeric-frames.md, "Following frames"). Test 7 of docs/plans/rails-components.md changed
+    /// (ticket ter-zsku, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Following frames"). Test 7 of https://github.com/alexispurslane/tertius/wiki/rails-components changed
     /// on purpose with ter-zsku: before, the following frame fell on by the pull of space, and the hull fell with it, so a
     /// numeric frame changed what gameplay saw. Once the hull holds still, it is slow and near the origin, so the numeric
     /// update lets it go into the system of space.

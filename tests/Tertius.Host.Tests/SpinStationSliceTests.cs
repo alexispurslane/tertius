@@ -87,7 +87,7 @@ internal sealed record SpinStationSample(
 }
 
 /// <summary>
-/// The checked-in run of the spin station against the expected paths of its bodies (docs/plans/spin-gravity.md,
+/// The checked-in run of the spin station against the expected paths of its bodies (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
 /// "Acceptance tests", the line for ter-n44b). The expected path of a free body is its inertial line with Jolt's damping
 /// relative to the station's axes ("Jolt's damping in the shadow"), worked out from inertial space and the station's poses,
 /// never from the turns that the engine derives. Angles follow <see cref="RevolvedSolid"/>: θ runs from +X toward -Z, the
@@ -136,7 +136,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
     /// <summary>
     /// How far the place where the jump's flight meets the floor may lie from where the inertial line of its takeoff meets
-    /// it, in meters: the 7 µm of the spike's jump (docs/plans/spin-gravity.md, "Acceptance tests", ter-1b21). Measured:
+    /// it, in meters: the 7 µm of the spike's jump (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Acceptance tests", ter-1b21). Measured:
     /// 5.7e-8 m, and 6e-8 to 8e-8 m in earlier runs.
     /// </summary>
     private const double JumpPlaceBound = 7e-6;
@@ -255,7 +255,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
     /// <summary>
     /// The expected path of a free body in the station without a field: its inertial line, with Jolt's linear damping
-    /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"), as
+    /// relative to the station's axes (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Jolt's damping in the shadow"), as
     /// <c>SpinStationBodyTests.ExpectedPath</c> of the Physics tests has it. In each step the chord of the body in the
     /// station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor max(0, 1 − c dt), which
     /// Jolt computes in floats. Without damping it is the inertial line. The path starts at <paramref name="place"/>, which

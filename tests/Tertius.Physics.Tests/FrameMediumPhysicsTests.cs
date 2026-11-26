@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Physics reads no medium (docs/plans/particles.md, "Settled forks", fork 1): a frame's medium acts only on puffs, for
+/// Physics reads no medium (https://github.com/alexispurslane/tertius/wiki/particles, "Settled forks", fork 1): a frame's medium acts only on puffs, for
 /// now, and each body keeps its own damping. So a body moves bit for bit the same in a frame with a medium as in the same
 /// frame without one. The scene is a ground of 9.81 m/s² along −Y with a floor, a box that falls onto it while it slides,
 /// and a character that walks. The medium is thick air with a strong drag, which a reader of the medium could not miss.

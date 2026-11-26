@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The composite (docs/plans/temporal-renderer.md, section 9, "The composite"): one fullscreen pass over all depth ranges
+/// The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): one fullscreen pass over all depth ranges
 /// that writes the HDR image. At each lit pixel it multiplies the direct light's two images and the two indirect terms back
 /// by their material factors (decision 18), adds the emission, and caps the sum at the surfaces' share. The indirect terms
 /// are the screen tracer's slow histories, or under <see cref="NoScreenTrace"/> the environment's closed forms. Sky pixels get the sky and the stars, and an impostor's pixels its baked light.

@@ -53,7 +53,7 @@ Alexis's rule applies: prefer the real mechanism. When a redesign replaces a qui
 1. Find the sources of the technique. One candidate is McGuire and Mara, "Efficient GPU Screen-Space Ray Tracing" (JCGT, 2014). Also find how current engines get a surface's thickness. For each source, state its situation: scene scale, hardware, quality target and the systems that it relies on, such as a denoiser. Then say whether it fits Tertius.
 2. Measure the frame cost before a design is final. Build a throwaway depth-only pass of back faces. Time it on the deck and in the cabin, on the Mac. Then time it in one workbench job on the RTX 2000 Ada, against main in the same job.
 3. Write two designs, as Alexis's rule asks: a compact table, a usage example of each, what both share, and one AskUserQuestion per point where they differ.
-4. Create the epic's design doc in `docs/plans/` and its tickets. The epic ticket is `ter-kh4g`.
+4. Create the epic's design doc in `https://github.com/alexispurslane/tertius/wiki/` and its tickets. The epic ticket is `ter-kh4g`.
 
 ### Points that the design covers
 

@@ -147,7 +147,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// How <paramref name="frame"/> followed its owner at the last sync point, which the frame's row stores beside the record
-    /// of the step that ended (see "The follow kind" in docs/plans/rails-components.md): <see cref="FollowKind.Rails"/> when
+    /// of the step that ended (see "The follow kind" in https://github.com/alexispurslane/tertius/wiki/rails-components): <see cref="FollowKind.Rails"/> when
     /// it took a full sample that its owner wrote, <see cref="FollowKind.Kinematic"/> when it took an end pose,
     /// <see cref="FollowKind.Physics"/> when it took the move that physics made of its dynamic hull, and
     /// <see cref="FollowKind.Static"/> otherwise: a teleport, a write of its owner's transform, or no record. The motion of
@@ -985,7 +985,7 @@ public sealed partial class FrameTree
     /// measures it by the same rule. No gameplay writes it. The rule reads the parent's value as the step found it, the
     /// value stored before step 2, so a change moves one level down a chain of frames in each step (see
     /// <see cref="FieldTheStepFound"/>). A new frame reads zero during its first step, and the rule's value from
-    /// the first step 2 after its spawn on (docs/plans/rails-components.md, "The proper acceleration of a new frame").
+    /// the first step 2 after its spawn on (https://github.com/alexispurslane/tertius/wiki/rails-components, "The proper acceleration of a new frame").
     /// </summary>
     public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
 
@@ -993,7 +993,7 @@ public sealed partial class FrameTree
     /// The gravity that a body at rest at <paramref name="position"/> in <paramref name="frame"/> feels over the last
     /// finished step, in m/s², in frame axes: the frame's field there (see <see cref="Gravity"/>), less its proper
     /// acceleration (see <see cref="ProperAcceleration"/>), plus the centrifugal term −ω × (ω × r) and the Euler term
-    /// −α × r of the frame's inertial turn at r = <paramref name="position"/> (docs/plans/spin-gravity.md, "V5, the effective
+    /// −α × r of the frame's inertial turn at r = <paramref name="position"/> (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the effective
     /// gravity"). ω and α are the frame's angular velocity and angular acceleration relative to the virtual root above the
     /// roots (see <see cref="AngularVelocityRelative"/> and <see cref="AngularAccelerationRelative"/>), turned into the
     /// frame's axes. It takes no velocity, so it has no Coriolis term. Game code reads it to ask whether a place has weight,
@@ -1043,7 +1043,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The linear gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
     /// body in its physics system, in frame axes: the field of the frame's semantic frame at the body's true position, minus
-    /// the acceleration of <paramref name="frame"/> relative to the semantic frame (docs/plans/spin-gravity.md, "Terms"). For
+    /// the acceleration of <paramref name="frame"/> relative to the semantic frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Terms"). For
     /// a semantic frame, that is its own field minus its proper acceleration. In a falling numeric frame it is the tidal
     /// gravity, plus the difference of the rotation terms that the frame's origin takes (see <see cref="BeginStep"/>). It
     /// leaves out the rotation terms of a turning frame, which <see cref="EffectiveGravity"/> adds. Physics reads it for the
@@ -1062,7 +1062,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, in frame axes,
-    /// which are the axes of its semantic frame (docs/plans/spin-gravity.md, "V5, the effective gravity"): the linear gravity
+    /// which are the axes of its semantic frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the effective gravity"): the linear gravity
     /// (see <see cref="LinearGravity"/>) plus the centrifugal and the Euler term of the semantic frame's turns at the body's
     /// semantic place (see <see cref="WithRotationTerms"/>). It takes no velocity, so it has no Coriolis term. It is the one
     /// continuous value for the readers that need one: the form, the standing and the weight of a character, the sleep
@@ -1106,7 +1106,7 @@ public sealed partial class FrameTree
     /// semantic frame's own proper acceleration, and in a turning semantic frame its rotation terms at the origin: zero for a
     /// falling frame, the field reversed for a resting frame, and for a following frame the acceleration that lands it on
     /// its anchor's step plan less the free body's. Physics wakes the members of a frame when its push moves, by the same
-    /// rule as a change of the frame's turn (docs/plans/spin-gravity.md, "The wake"). Valid from <see cref="BeginStep"/> to
+    /// rule as a change of the frame's turn (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The wake"). Valid from <see cref="BeginStep"/> to
     /// the end of the step.
     /// </summary>
     internal Vector3 PushInStep(FrameHandle frame)
@@ -1250,7 +1250,7 @@ public sealed partial class FrameTree
     /// velocity at the start of the step, such as an end pose that speeds up, or the plan of an anchor that stops (ticket
     /// ter-zsku), lands with the acceleration that turns its velocity into the plan's chord, and only this excess converts a
     /// velocity that a body gets at the start of that step into the motion that Jolt gives it in the semantic frame's own
-    /// system: the step acceleration then cancels out of the body's motion in the semantic frame (docs/plans/numeric-frames.md,
+    /// system: the step acceleration then cancels out of the body's motion in the semantic frame (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Velocity"). Physics converts every velocity that a spawn, gameplay or a hand-off gives a body for a step with it.
     /// Zero for a semantic frame. Valid from <see cref="BeginStep"/> to the end of the step.
     /// </summary>

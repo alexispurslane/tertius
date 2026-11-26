@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Tertius.Slop.Rules;
 
-// The verbosity rules about comments (docs/plans/code-quality-tooling.md, decision 17). A finding covers the comment
+// The verbosity rules about comments (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17). A finding covers the comment
 // lines, which hold no code, so these are the one kind of finding whose lines are outside the lines of code.
 
 /// <summary>A decorative banner comment.</summary>

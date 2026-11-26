@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Tertius.Rendering;
 
-/// <summary>The light quantities that the renderer derives (docs/plans/local-light-shadows.md, "The cutoff and the reach").</summary>
+/// <summary>The light quantities that the renderer derives (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The cutoff and the reach").</summary>
 internal static class LightUnits
 {
     /// <summary>R_cut = 2^−13: a pre-exposed radiance that both tone curves show below half an 8-bit step.</summary>

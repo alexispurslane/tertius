@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The deform region of a frame: the part of the global vertex buffer after the uploaded vertices that holds the frame's
-/// deformed copies, and the room of the frame's pose buffer and job table (docs/plans/skinning-and-morphs.md, "Posing in
+/// deformed copies, and the room of the frame's pose buffer and job table (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Posing in
 /// the batcher").
 /// </summary>
 /// <param name="Base">The first vertex of the region in the global vertex buffer, a multiple of 16.</param>

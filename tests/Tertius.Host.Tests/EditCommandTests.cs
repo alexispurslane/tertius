@@ -6,7 +6,7 @@ using Tertius.Host.Scripting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The demo's <c>--edit</c> on the real ffmpeg of the dev shell (docs/plans/blue-danube-demo.md, "The final render"). The
+/// The demo's <c>--edit</c> on the real ffmpeg of the dev shell (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The final render"). The
 /// master of these tests is 220 frames of 128 by 72 pixels, where every pixel of frame k has the gray level k. The script
 /// films <c>a</c>, 100 frames of every tick, and <c>b</c>, 120 frames of every 4th tick. The cut list trims 30 frames from
 /// the head of <c>a</c> and 10 from its tail, and its cards last 1 s each.

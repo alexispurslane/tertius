@@ -3,7 +3,7 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The table of the lift's changes, <see cref="LiftState.Next"/> (docs/plans/blue-danube-demo.md, "The lift"), as pure
+/// The table of the lift's changes, <see cref="LiftState.Next"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The lift"), as pure
 /// data: one test per row, and the pairs without a row.
 /// </summary>
 public sealed class LiftStateTests

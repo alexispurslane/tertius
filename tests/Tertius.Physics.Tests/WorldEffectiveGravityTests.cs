@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The effective gravity of a turning frame on the World and the real backend (docs/plans/spin-gravity.md, "V5, the
+/// The effective gravity of a turning frame on the World and the real backend (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V5, the
 /// effective gravity"): the linear gravity plus the centrifugal and the Euler term of the turns that the World fixes before
 /// each step, and the readers in physics that take it as one continuous value. The station of the tests is a frame without
 /// a body and without a field in a root frame, which turns about its +Y. A rate ω about +Y gives a body at (r, 0, 0) the

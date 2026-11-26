@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// A following frame without a plan holds still in its semantic frame (ticket ter-zsku, docs/plans/numeric-frames.md,
+/// A following frame without a plan holds still in its semantic frame (ticket ter-zsku, https://github.com/alexispurslane/tertius/wiki/numeric-frames,
 /// "Following frames"). In a step without a motion intent, the step plan of the frame's anchor is the record that physics
 /// gives a kinematic body without a motion intent: it stays where the step starts, with no velocity. The frame lands on that
 /// plan by the rule of every plan, so the anchor, a plain kinematic body or a kinematic hull, holds still whatever numeric

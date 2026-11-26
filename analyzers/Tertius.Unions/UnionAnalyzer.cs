@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Tertius.Unions;
 
 /// <summary>
-/// Steers each closed set to its form (docs/plans/union-tooling.md, "The analyzer"). It reports a hand-written
+/// Steers each closed set to its form (https://github.com/alexispurslane/tertius/wiki/union-tooling, "The analyzer"). It reports a hand-written
 /// <c>[Union]</c> struct (TU0001), a built-in <c>union</c> with a struct case (TU0002), an abstract base whose subtypes
 /// are all sealed (TU0004, in <see cref="SealedHierarchies"/>), and a type with an enum <c>Kind</c> beside other fields
 /// (TU0005). A class case of a generated union is the generator's TU1002.

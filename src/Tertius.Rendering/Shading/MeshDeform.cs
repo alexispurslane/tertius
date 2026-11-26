@@ -8,7 +8,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The CPU side of a deforming mesh: its counts, its place in the deform store, and the math of its deformation, the C#
-/// copy of Shaders/deform.comp (docs/plans/skinning-and-morphs.md, "The math, and its C# copy").
+/// copy of Shaders/deform.comp (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The math, and its C# copy").
 /// </summary>
 internal sealed partial record MeshDeform
 {

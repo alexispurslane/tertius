@@ -22,7 +22,7 @@ internal sealed partial class EntityTable
     /// <summary>
     /// The set of the slots whose front render row holds an emitter that can make puffs (see
     /// <see cref="PuffEmitter.CanMakePuffs"/>), one bit per slot: bit (slot % 64) of word slot / 64. The births of the puffs
-    /// read it instead of every render row (docs/plans/particles.md, "Two per-slot values in the entity table"). The copy
+    /// read it instead of every render row (https://github.com/alexispurslane/tertius/wiki/particles, "Two per-slot values in the entity table"). The copy
     /// of a render row sets or clears the bit of its slot, the release of a slot clears it, and the copy after a spawn sets
     /// the bits of the spawns whose rows hold such an emitter (see <see cref="newEmitters"/>). It is private to the table,
     /// because slots are the table's private storage index.

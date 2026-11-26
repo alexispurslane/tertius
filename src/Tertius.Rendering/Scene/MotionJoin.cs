@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The merge of one frame's instances, in the snapshot's order, with the placement history of the last drawn frame
-/// (docs/plans/temporal-renderer.md, "The placement history"). It gives each placed instance its motion row, and writes the
+/// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement history"). It gives each placed instance its motion row, and writes the
 /// frame's own placements into the pending state. The keys of both lists rise, so one walk of each joins them, with no
 /// hash.
 /// </summary>
@@ -61,7 +61,7 @@ internal ref struct MotionJoin(FrameHistory.PendingFrame frame, Vector3 previous
             kind: MotionKind.Moved,
             // The last frame drew the same static mesh, so a copy that it kept has this copy's vertex count and order: a
             // mesh never changes its vertices. The design's rule that a copy of another vertex count is new then never
-            // applies (docs/plans/temporal-renderer.md, "The placement history").
+            // applies (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The placement history").
             previousFirstVertex: last.Copy is { } kept ? (uint)kept.FirstVertex : GpuMotion.NoKeptCopy,
             firstVertex: firstVertex
         );

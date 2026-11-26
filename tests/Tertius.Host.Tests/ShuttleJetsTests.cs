@@ -6,7 +6,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The layout of the shuttle's jets on its hull and the allocation of their throttles, <see cref="ShuttleJets"/>
-/// (docs/plans/blue-danube-demo.md, "The jets as parts"), with no World: each couple turns the hull about one of its axes
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The jets as parts"), with no World: each couple turns the hull about one of its axes
 /// with no net force, each translation pair pushes along one axis with no torque about the center of mass, the
 /// allocation gives the torque and the force asked for within the jets' thrust, the couples hold the attitude
 /// autopilot's largest turn, and every jet sits on the hull's solid skin. Every place, force and torque is in the hull's

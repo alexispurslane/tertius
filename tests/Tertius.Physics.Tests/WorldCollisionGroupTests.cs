@@ -340,7 +340,7 @@ public sealed class WorldCollisionGroupTests
     /// <summary>
     /// A ball hangs in a bubble without a field of its own, 8 m above a floor in the ground frame that meets only Solid. The
     /// bubble holds still in the ground's gravity, so the ball starts to fall in it (see "The proper acceleration of a
-    /// frame" in docs/plans/rails-components.md). An intent moves the ball from Glass into Solid, or from Solid into Glass,
+    /// frame" in https://github.com/alexispurslane/tertius/wiki/rails-components). An intent moves the ball from Glass into Solid, or from Solid into Glass,
     /// each with a mask that names only that group. Then the bubble dies, so the ball moves into the ground frame, where
     /// physics creates its body again, and falls on. It meets
     /// the floor by the groups and mask of the intent, not by those of its spawn.

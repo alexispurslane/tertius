@@ -4,7 +4,7 @@ using System.Text;
 namespace Tertius.Demo;
 
 /// <summary>
-/// The subtitle files of the demo edit, in the ASS format that libass draws in ffmpeg (docs/plans/blue-danube-demo.md,
+/// The subtitle files of the demo edit, in the ASS format that libass draws in ffmpeg (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo,
 /// "The readouts on the frame"). Each file is drawn at 1280 by 720, and libass scales it to the video's size. Frame k of the
 /// master shows from k / 60 s to (k + 1) / 60 s, each rounded down to the hundredth, the resolution of ASS times. The edit
 /// sets the time of frame k to exactly k / 60 s, so every frame shows its own events.

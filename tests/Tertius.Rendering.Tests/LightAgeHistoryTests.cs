@@ -378,7 +378,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         pixel => SeenFramesAt(record, pixel) == 31 + 2 * LightChangeDraws,
                         "a change on a line one or two pixels tall gives no evidence, as FSR's light-change mask "
                             + "ignores it, and the record goes on counting the frames that showed the line "
-                            + "(docs/plans/sub-pixel-strips.md, section 5.2)"
+                            + "(https://github.com/alexispurslane/tertius/wiki/sub-pixel-strips, section 5.2)"
                     );
             }
         );
@@ -635,7 +635,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 ];
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
                 // No cut runs before the blend, so a bright sample takes its normal weight there, and the block's light
-                // evidence cuts the length after it (docs/plans/bounce-light-confidence.md, section 4). The clamp's
+                // evidence cuts the length after it (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 4). The clamp's
                 // anti-lag in the pending draws shortens a few histories toward the fast cap first, but none to the age 0.
                 bright
                     .Should()
@@ -961,7 +961,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 // The emitter goes out, and 4 draws later the record counts the change. A block of 8 × 8 pixels whose
                 // diffuse rays bring its light code has light evidence, which cuts every history of the block to
                 // FullRateFrames, also the histories of the pixels whose own rays missed the emitter in this draw
-                // (docs/plans/bounce-light-confidence.md, section 8.2).
+                // (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.2).
                 Draw(renderer, scene, 64);
                 SetGlow(renderer, scene, Vector3.Zero);
 
@@ -997,7 +997,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 // The light code of the change stays recent for the ages 0 to 6 (sample_age.glsl, RecentLightAge), so the
                 // blocks that see the emitter go out are cut to FullRateFrames for 7 draws. From then on their rays bring
                 // an old code, which is no evidence, and their histories grow by one frame per draw again: 24 draws after
-                // the change, at least 17 draws of growth (docs/plans/bounce-light-confidence.md, section 8.3).
+                // the change, at least 17 draws of growth (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.3).
                 Draw(renderer, scene, 64);
                 SetGlow(renderer, scene, Vector3.Zero);
                 Draw(renderer, scene, LightChangeDraws);
@@ -1040,7 +1040,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             (renderer, scene) =>
             {
                 // The settle tolerance of the epic: 60 draws after the emitter goes out, the floor's bounce light keeps at
-                // most 5 % of the step to where it settles, the mean of draws 200 to 231 (docs/plans/bounce-light-confidence.md,
+                // most 5 % of the step to where it settles, the mean of draws 200 to 231 (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
                 // section 22, point 5). The floor's bounce light comes almost all from the emitter. The widened box alone
                 // would drain the old light at 1 / 32 per draw.
                 Draw(renderer, scene, 64);
@@ -1211,7 +1211,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             {
                 // The emitter slides sideways by 2 cm per draw, about half a pixel at 5 m, and the camera stands still. So
                 // the floor's pixels do not move, and a floor sample's motion bit comes only from a ray that hit the
-                // emitter, whose pixels the plan marked as moved (docs/plans/bounce-light-confidence.md, section 8.4).
+                // emitter, whose pixels the plan marked as moved (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4).
                 Draw(renderer, scene, 32);
 
                 for (int draw = 0; draw < 4; draw++)
@@ -1260,7 +1260,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             {
                 // Both frames' matrices agree, so the motion target and the still motion take one rule to the same
                 // places, up to the last bits of the floats: at most 2.1 * 10^-6 pixels on the RTX 2000 Ada and 10^-6 on
-                // the Mac, four orders below LeastMotion (docs/plans/bounce-light-confidence.md, section 8.4).
+                // the Mac, four orders below LeastMotion (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 8.4).
                 Draw(renderer, scene, 16);
                 var probe = ScreenTraceProbe.On(renderer, "moved_surface_probe.comp");
                 Draw(renderer, scene, 1);
@@ -1310,7 +1310,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             {
                 // The emitter dims in place while a white block slides along the floor. The emitter's exact light changes,
                 // so its record counts a change 4 draws later, while its surface stays where it was: a changed light is
-                // light evidence, not motion (docs/plans/bounce-light-confidence.md, section 9, causes 1 and 3). Only the
+                // light evidence, not motion (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 9, causes 1 and 3). Only the
                 // block's own pixels carry the moved mark.
                 scene.Instances.Add(Occluder(renderer));
                 Draw(renderer, scene, 32);

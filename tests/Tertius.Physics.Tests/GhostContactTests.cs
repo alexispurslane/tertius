@@ -320,7 +320,7 @@ public sealed class GhostContactTests
     /// The scene of <see cref="TheImpulseOfAHitOnTheGhostOfADynamicBodyUsesTheMassesOfBothRealBodies"/>: a crate of 10 kg
     /// sticks 1 m out of a frame of radius 10 m, and a ball of 1 kg in space hits it at 5 m/s. The crate's bounding sphere
     /// grows the frame's content 1.7 m beyond the bubble, and the ball comes within 1 m of the bubble. But a dynamic body
-    /// reaches only the bubble (fork F2 of docs/plans/complete-ghosts.md): the crate meets it through the crate's own
+    /// reaches only the bubble (fork F2 of https://github.com/alexispurslane/tertius/wiki/complete-ghosts): the crate meets it through the crate's own
     /// stick-out ghost in space, so the ball gets no ghost in the frame. Such a ghost would make a mirror pair of two
     /// kinematic ghosts, in which each real body meets the other as an immovable body: the crate would be shoved into its
     /// bubble at about the ball's full speed. So the ball stops at the crate's ghost, and the crate stays where it is, as
@@ -629,7 +629,7 @@ public sealed class GhostContactTests
     /// needs the 1,000 m/s of a group of free bodies for a numeric frame of its own, and at 1,200 m/s it is fast enough. So
     /// it rests in a following frame of its own, which it anchors, and it is an anchor that moves differently from the box:
     /// the merge test links the two from the start, their group lives in the box's home, the system of ground, the ball stays
-    /// in its following frame, and the box's home keeps a ghost of it, with the ball's own layer (docs/plans/numeric-frames.md,
+    /// in its following frame, and the box's home keeps a ghost of it, with the ball's own layer (https://github.com/alexispurslane/tertius/wiki/numeric-frames,
     /// "Following frames"). The run checks both, and that the ball keeps its following frame once it is out of the merge
     /// test's reach, 2.4 km past the box. Before ter-dhkf, the ball fell in a frame of its own, which kept a kinematic ghost
     /// of the box, and from ter-dhkf to ter-zg77 the ball joined the box's home. Returns what the box and the ball heard of

@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// What a material says by default, and the cutoffs that a renderer refuses (docs/plans/skin-and-hair.md, "The material
+/// What a material says by default, and the cutoffs that a renderer refuses (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The material
 /// API"). The renderer's <see cref="VulkanRenderer.CreateMaterial"/> checks a material in its upload queue, so these tests
 /// need no GPU.
 /// </summary>

@@ -4,7 +4,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Script.Parse: the JSON form of a script, and the scripts that it refuses before anything runs. See
-/// docs/plans/host-and-scripted-runs.md, "Script format".
+/// https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "Script format".
 /// </summary>
 public sealed class ScriptParsingTests
 {

@@ -5,7 +5,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Parts (docs/plans/parts.md): an attached entity pushes the body of its chain's root with the additive intents, a force,
+/// Parts (https://github.com/alexispurslane/tertius/wiki/parts): an attached entity pushes the body of its chain's root with the additive intents, a force,
 /// a torque, an impulse and an angular impulse. At the sync point the engine carries each part's push to the root's body,
 /// at the part's place: a force there gives the body the same force and the torque of its lever about the body's center
 /// of mass. The exclusive intents stay with the root. Every test runs the World on the real Jolt backend.
@@ -102,7 +102,7 @@ public sealed class PartPushTests
 
     /// <summary>
     /// On a chain root: the push that a part at <see cref="PlaceAt"/> (the place in the body, in the root body's axes) gives
-    /// the root, plus the root's own force and torque, by the rule of docs/plans/parts.md. The lever is the place less the
+    /// the root, plus the root's own force and torque, by the rule of https://github.com/alexispurslane/tertius/wiki/parts. The lever is the place less the
     /// center of mass, turned by the root's rotation in the front snapshot. The sum starts from the root's own values, adds
     /// the part's, and narrows once.
     /// </summary>

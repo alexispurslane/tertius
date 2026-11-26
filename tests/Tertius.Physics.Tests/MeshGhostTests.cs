@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// The ghosts of static meshes (ter-dq92), on the World and the real backend. A static mesh has a ghost as the hull of a
 /// parked frame in each bubble that it touches. Before ter-dhkf it also had a ghost as an anchor of a falling numeric
-/// frame; now the merge test links a fast body to a static mesh, and the body joins the mesh's home (docs/plans/
+/// frame; now the merge test links a fast body to a static mesh, and the body joins the mesh's home (https://github.com/alexispurslane/tertius/wiki/
 /// numeric-frames.md, "Anchors"), so the scenes of a body that flies at a mesh wall check that. A ghost stands for its real
 /// body, so a body that hits the ghost must meet a body that moves as the real one does relative to the ghost's frame.
 /// Numeric frames must not change which bodies a body meets, how it moves, or what gameplay hears, so each scene with

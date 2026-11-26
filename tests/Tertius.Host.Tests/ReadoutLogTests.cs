@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The readout log of the demo edit (docs/plans/blue-danube-demo.md, "The readout log"): a playback that draws nothing and
+/// The readout log of the demo edit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The readout log"): a playback that draws nothing and
 /// adds one row at each capture of a script, on the real World and the real Jolt backend. The log reads in the frame
 /// <c>earth</c>, which does not turn. The first scene of these tests drops a ball, the <c>person</c>, from 5 m in the root
 /// frame <c>earth</c>, whose uniform gravity is 9.81 m/s². The <c>station</c> is a static box 30 m to the side at the

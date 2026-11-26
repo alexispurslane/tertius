@@ -22,7 +22,7 @@ internal enum DrawCost
 
 /// <summary>
 /// The identity of an instance from frame to frame: its entity and its render part
-/// (docs/plans/temporal-renderer.md, "The key of an object").
+/// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The key of an object").
 /// </summary>
 internal readonly record struct PlacementKey(Entity Entity, ushort Part)
 {
@@ -40,7 +40,7 @@ internal readonly record struct PlacementKey(Entity Entity, ushort Part)
 internal readonly record struct KeptCopy(int FirstVertex);
 
 /// <summary>
-/// One placed instance of a drawn frame, as the placement history keeps it (docs/plans/temporal-renderer.md, "The
+/// One placed instance of a drawn frame, as the placement history keeps it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The
 /// placement history").
 /// </summary>
 /// <param name="Row0">The first row of the 3 × 4 model matrix that the frame drew, relative to that frame's eye.</param>
@@ -56,7 +56,7 @@ internal readonly record struct KeptPlacement(
 );
 
 /// <summary>
-/// Which headless draws are stills, and how many warm-up draws a still takes (docs/plans/temporal-renderer.md, decision 32):
+/// Which headless draws are stills, and how many warm-up draws a still takes (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, decision 32):
 /// the input of <see cref="FrameHistory"/>'s still rule.
 /// </summary>
 /// <param name="Headless">Whether the renderer draws headless: a window never draws a still.</param>
@@ -118,7 +118,7 @@ internal readonly record struct DrawnFrame(
 );
 
 /// <summary>
-/// The record of the last drawn frame, and the rules that relate each draw to it (docs/plans/temporal-renderer.md, "The
+/// The record of the last drawn frame, and the rules that relate each draw to it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The
 /// frame history"). DrawsOf gives the draws of a snapshot at a clock step: 1, or for a headless still also its warm-up
 /// draws. Begin derives one draw's pending state: whether it resets every history, its draw index since the last reset,
 /// its exposure step, whether it refreshes every face of every map, the parity of the images that alternate, and the record
@@ -148,7 +148,7 @@ internal readonly record struct DrawnFrame(
 internal sealed class FrameHistory
 {
     /// <summary>
-    /// The shortest clock step, in s, after which a headless draw is a still (docs/plans/auto-exposure.md, "A headless still
+    /// The shortest clock step, in s, after which a headless draw is a still (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "A headless still
     /// after a long step"). It is 5.4 ticks at 60 Hz, so that no step of whole ticks lies on it.
     /// </summary>
     public const float MeteringStepSeconds = 0.09f;
@@ -382,7 +382,7 @@ internal sealed class FrameHistory
             this.history = history;
         }
 
-        /// <summary>Whether the draw resets every history (docs/plans/temporal-renderer.md, "Resets").</summary>
+        /// <summary>Whether the draw resets every history (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Resets").</summary>
         public bool Reset => history.derived.Reset;
 
         /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
@@ -393,7 +393,7 @@ internal sealed class FrameHistory
 
         /// <summary>
         /// The step in s by which the draw's adapt step moves the exposure: the clock step, or for a draw of a still its share
-        /// of the still rule (docs/plans/temporal-renderer.md, "The still rule").
+        /// of the still rule (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "The still rule").
         /// </summary>
         public float ExposureStep => history.derived.ExposureStep;
 

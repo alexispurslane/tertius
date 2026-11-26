@@ -198,7 +198,7 @@ internal sealed class Attachments
 
     /// <summary>
     /// Carries the push of every part that pushed in the tick to its chain root, the one choke-point method of the flow
-    /// (docs/plans/parts.md, "Where the push flows up"). Step 5 of the sync point calls it once, after the swap and after the
+    /// (https://github.com/alexispurslane/tertius/wiki/parts, "Where the push flows up"). Step 5 of the sync point calls it once, after the swap and after the
     /// destroy batch has grown, before any entity of the batch moves to another frame or dies. For each live part of the
     /// table's front pushers, in their order, it reads the part's push from its front intent and empties that intent. A part
     /// that <paramref name="dying"/> marks (indexed by slot) is skipped: it is not live in the next step, and its chain root

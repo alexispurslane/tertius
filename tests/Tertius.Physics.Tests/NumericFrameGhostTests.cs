@@ -111,7 +111,7 @@ public sealed class NumericFrameGhostTests
     /// A world on the wrapper for the scenes of a ship that passes a parked station: with the default numeric frames, but a
     /// lookahead of <paramref name="lookahead"/> s, or, when <paramref name="numericFrames"/> is false, with none. The
     /// station's hull is an anchor at rest, so the merge test links a fast body to it, and the body joins the hull's system
-    /// (ter-dhkf, docs/plans/numeric-frames.md, "Anchors"). With the default lookahead of 2 s, the ship's hull would join the
+    /// (ter-dhkf, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). With the default lookahead of 2 s, the ship's hull would join the
     /// system of space 127 m before it reaches the station's hull, before the bubbles overlap, so no ghost of these scenes
     /// would be in a numeric frame. At 0.2 s the merge test reaches 19 m between the two hulls: the ship falls past the
     /// station while their bubbles overlap, except within 16 m of the station's center in the lane y = 10.
@@ -1114,7 +1114,7 @@ public sealed class NumericFrameGhostTests
     /// <summary>
     /// How far the instant velocity of the frame of a dynamic hull at the end of the last step, which the tree keeps, is past
     /// its chord, which the ghosts follow: half a step of the hull's acceleration (see "One motion record per frame" in
-    /// docs/plans/rails-components.md). Numeric frames do not turn, so it is the same in every frame that does not turn.
+    /// https://github.com/alexispurslane/tertius/wiki/rails-components). Numeric frames do not turn, so it is the same in every frame that does not turn.
     /// </summary>
     private static Double3 InstantPastChord(FaultInjectingBackend faults, FrameHandle frame)
     {

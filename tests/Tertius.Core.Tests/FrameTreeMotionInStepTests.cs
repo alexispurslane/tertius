@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The motion of one frame relative to another over the step that the front intents describe
-/// (<see cref="FrameTree.MotionRelativeInStep"/>, docs/plans/spin-gravity.md, "V7, the relative motion of two frames"), on a
+/// (<see cref="FrameTree.MotionRelativeInStep"/>, https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V7, the relative motion of two frames"), on a
 /// tree built in the test. Each test runs steps as the sync point leaves the tree (see <see cref="RunStep"/>), and then asks
 /// for the motion over the next step, as steps 5 and 7b of the sync point ask while the tree stands where that step
 /// starts. <c>Start</c> is the relation at the start of the step: each level at its tree pose, or at the pose of a

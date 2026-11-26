@@ -1,7 +1,7 @@
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// A velocity shadow carried into another home (docs/plans/spin-gravity.md, "V6, the velocity shadow"): a body with no
+/// A velocity shadow carried into another home (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V6, the velocity shadow"): a body with no
 /// shadow keeps none, and a shadow moves its tracking as <see cref="ShadowTracking.Moved"/> says.
 /// </summary>
 public sealed class VelocityShadowTests

@@ -70,7 +70,7 @@ public sealed record JoltBackendOptions
 
     /// <summary>
     /// The fastest rate, in radians per second, at which a walking character that touches nothing turns its up toward the
-    /// up against its gravity (docs/plans/spin-gravity.md, "Characters"). A character that touches anything turns its up
+    /// up against its gravity (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"). A character that touches anything turns its up
     /// at once. The rate keeps a flip of the felt gravity for one step, such as the jolt of a hull or the start of an
     /// engine, from turning a floating person over, and it is fast enough that a person who jumps across a spinning
     /// station comes down feet first.

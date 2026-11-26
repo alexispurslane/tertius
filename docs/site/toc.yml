@@ -5,7 +5,7 @@
 - name: Code guide
   href: ../../GUIDE.md
 - name: Design docs
-  href: ../plans/README.md
+  href: https://github.com/alexispurslane/tertius/wiki
 - name: Tools
   href: ../../tools/README.md
 - name: API

@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// cabin. Past the ship's bubble, physics hands the person to <c>earth</c>, where gravity is 8.7 m/s². The person falls
 /// freely there, so it does not stand, and the one rule for a character that does not stand (User) holds: it keeps its
 /// momentum, and gravity and forces change its velocity. Under gravity its up turns against the gravity (fork F5 of
-/// docs/plans/spin-gravity.md), but with numeric frames its home in earth is a falling frame in which it is weightless,
+/// https://github.com/alexispurslane/tertius/wiki/spin-gravity), but with numeric frames its home in earth is a falling frame in which it is weightless,
 /// so it takes the rigid form there, and nothing turns it.
 /// </summary>
 public sealed class CharacterOrbitHandOffTests
@@ -270,7 +270,7 @@ public sealed class CharacterOrbitHandOffTests
         // The earth state of the step before, one step further along, in the ship's axes after the step.
         Double3 inEarth = run.BeforeEntry.Pose.Position + (Double3)run.BeforeEntry.LinearVelocity * Dt;
         (run.Entry.Pose.Position - run.ShipPoseAtEntry.InverseTransformPoint(inEarth)).Length.Should().BeLessThan(1e-2);
-        // Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): without numeric frames the
+        // Changed on purpose by ter-1b21 (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters", fork F5): without numeric frames the
         // person walks in earth's field of 8.7 m/s², so its up turns against that field in the air, away from earth's
         // center, where before it kept the up that it had in the ship. Outside the cabin the ship has no gravity, so the
         // person comes back with the up of its last step in earth, in the ship's axes.

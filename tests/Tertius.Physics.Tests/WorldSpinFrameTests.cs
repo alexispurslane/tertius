@@ -67,7 +67,7 @@ public sealed class WorldSpinFrameTests
     /// The game replaces the turntable's <see cref="SpinMotion"/> with one a quarter turn ahead. The new component's first
     /// run teleports the hull to its new rotation, so the hull never sweeps the quarter turn in one tick, which would spin it
     /// at about 94 rad/s for that tick. The old component's last sample turns it in the tick of the swap, so the swap has no
-    /// gap (docs/plans/rails-components.md, "Changes of motion").
+    /// gap (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion").
     /// </summary>
     [Fact]
     public void ANewSpinMotionPutsTheHullAtItsNewPoseInsteadOfSweepingItThere()
@@ -149,7 +149,7 @@ public sealed class WorldSpinFrameTests
 
     /// <summary>
     /// The ball starts with the velocity of the carousel's ground under it plus a drift of 5 m/s outward, and leaves the
-    /// carousel's bubble. Physics keeps a free body on its inertial line in every turning frame (docs/plans/spin-gravity.md,
+    /// carousel's bubble. Physics keeps a free body on its inertial line in every turning frame (https://github.com/alexispurslane/tertius/wiki/spin-gravity,
     /// "The two-turn update"), so in space the ball moves on a straight line at one velocity from its second step, through
     /// the hand-off and after it. Before the rotation terms, the ball flew straight in the carousel's turning axes, and the
     /// test predicted its place at the hand-off by one step of its velocity there; with the rotation terms that prediction

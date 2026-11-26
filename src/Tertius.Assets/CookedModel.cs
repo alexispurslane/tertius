@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Tertius.Assets;
 
 /// <summary>
-/// A cooked model file, read into memory: its pieces, its materials and its decoded textures (docs/plans/asset-pipeline.md,
+/// A cooked model file, read into memory: its pieces, its materials and its decoded textures (https://github.com/alexispurslane/tertius/wiki/asset-pipeline,
 /// "Models: nodes and pieces"). The file is a glTF binary in engine axes, as the asset converter writes it: meters, +Y up,
 /// the front toward -Z. So the reader turns nothing.
 /// </summary>
@@ -69,7 +69,7 @@ public sealed record CookedPiece(string Name, bool IsRoot, Pose Pose, Vector3 Sc
 public sealed record CookedPart(MeshData Mesh, int? Material, Pose Offset, Vector3 Scale);
 
 /// <summary>
-/// A glTF metallic-roughness material as the engine draws it (docs/plans/asset-pipeline.md, "Materials"). The maps are
+/// A glTF metallic-roughness material as the engine draws it (https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Materials"). The maps are
 /// indices in <see cref="CookedModel.Textures"/>, which <see cref="Desc"/> turns into the uploaded textures.
 /// </summary>
 public sealed record CookedMaterial

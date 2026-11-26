@@ -113,7 +113,7 @@ internal sealed class ChaoticWorkload : IDisposable
     private readonly Random sampler;
 
     /// <param name="puffCapacity">
-    /// With a capacity, the workload also makes puffs (docs/plans/particles.md): its spawns and churning entities carry and change
+    /// With a capacity, the workload also makes puffs (https://github.com/alexispurslane/tertius/wiki/particles): its spawns and churning entities carry and change
     /// emitters, two frames hold media, a medium changes between ticks, and the capacity is the World's cap. Without one, the
     /// run is the same as before puffs existed.
     /// </param>

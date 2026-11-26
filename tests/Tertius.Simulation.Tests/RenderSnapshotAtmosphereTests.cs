@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The atmosphere record of a render snapshot (docs/plans/atmosphere.md, "The snapshot build"): the planet medium of the
+/// The atmosphere record of a render snapshot (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The snapshot build"): the planet medium of the
 /// nearest frame of the camera's chain that has one, or else of the planet frame that is densest at the eye, the planet's
 /// center relative to the render origin, and the planet's sun, the point light that gives the planet's center the most
 /// light. The camera never turns here, so the axes of its frame are the axes of every snapshot position.

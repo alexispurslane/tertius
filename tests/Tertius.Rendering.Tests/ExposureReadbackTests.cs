@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The exposure in <see cref="RenderStats.Exposure"/> (docs/plans/auto-exposure.md, "Writers and readers"): each frame
+/// The exposure in <see cref="RenderStats.Exposure"/> (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Writers and readers"): each frame
 /// copies the exposure that its passes use into its slot's readback buffer, and the renderer reads that copy after the
 /// slot's fence. So a frame that is not captured reports the exposure of the frame that used its slot one round of
 /// frames in flight before, and a captured frame, whose capture waits on its own fence, reports its own.

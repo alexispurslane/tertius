@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// One pass of the separable scatter at one skin pixel: the kernel scaled to the pixel's depth, and the rules by which a
-/// tap gives way to the center's light (docs/plans/skin-and-hair.md, "The two passes"). Each test builds a small field.
+/// tap gives way to the center's light (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"). Each test builds a small field.
 /// </summary>
 public sealed class SkinScatterTests
 {

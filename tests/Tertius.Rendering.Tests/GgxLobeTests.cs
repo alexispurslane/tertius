@@ -2,7 +2,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The GGX lobe of the C# BRDF: its distribution, its visibility term, its roughness floor, its dominant direction
-/// (docs/plans/pbr-brdf.md, "The terms") and its specular occlusion (docs/plans/ambient-occlusion.md, "The lighting
+/// (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "The terms") and its specular occlusion (https://github.com/alexispurslane/tertius/wiki/ambient-occlusion, "The lighting
 /// pass").
 /// </summary>
 public sealed class GgxLobeTests
@@ -149,7 +149,7 @@ public sealed class GgxLobeTests
     public void APartNarrowerThanTheLobeBoundIsReadWithTheLobeOfTheBound(double width)
     {
         // The bound keeps a read from being so sharp that a small bright part of the map shows in some texels and not in
-        // their neighbors (docs/plans/screen-space-illumination.md, decision 42).
+        // their neighbors (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, decision 42).
         double roughness = GgxLobe.RoughnessForWidth(width);
 
         roughness.Should().Be(GgxLobe.MinPieceRoughness, "a read is never sharper than the bound's lobe");

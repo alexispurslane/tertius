@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Tertius.Slop.Rules;
 
 // The verbosity rules about exceptions and defensive guards, ported from the scb-check slop rules
-// (docs/plans/code-quality-tooling.md, decision 17). A rule about a whole function flags the statements that it counts,
+// (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 17). A rule about a whole function flags the statements that it counts,
 // not the whole function: the rest of the function is not what the rule calls verbose.
 
 /// <summary>A function with three or more try statements.</summary>

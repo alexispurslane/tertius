@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The tail of a pyramid's build (docs/plans/screen-space-reflections.md, "The passes"): one workgroup writes every mip
+/// The tail of a pyramid's build (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "The passes"): one workgroup writes every mip
 /// from the first that its shared memory holds to 1 × 1, with a barrier of the workgroup between two mips, so the small
 /// mips, whose work is less than the drain of a barrier between dispatches, share one dispatch.
 /// </summary>

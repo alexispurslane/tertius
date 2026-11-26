@@ -4,7 +4,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The profile of the lift's ride down a spoke, <see cref="LiftProfile"/> (docs/plans/blue-danube-demo.md, "The lift"), as
+/// The profile of the lift's ride down a spoke, <see cref="LiftProfile"/> (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The lift"), as
 /// pure math. The lift's floor starts at rest at the top, boosts outward at a share of the local spin gravity, cruises at
 /// a set speed and brakes to rest at the foot. Distances are the floor's distance from the axis along the spoke, in
 /// meters, and speeds and accelerations point outward.

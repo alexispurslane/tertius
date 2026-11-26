@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The confidence rules of a signal's history (docs/plans/bounce-light-confidence.md, section 13): whether a retained
+/// The confidence rules of a signal's history (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 13): whether a retained
 /// deviation widens the clamp's box. A built-in C# 15 union, so that no box widens without a deviation to widen it by. The
 /// motion evidence that narrows a widened box again is no case: it acts on every signal whose samples have a light age,
 /// because the sample age carries it (section 8). The default value holds no case.
@@ -11,7 +11,7 @@ internal union HistoryConfidence(WidenedBox, NarrowBox);
 /// <summary>
 /// The bounce light's rules beside a light age: the retained deviation lives in the alpha of the fast history, and
 /// <see cref="RetainedSigmas"/> of it widen the clamp's box where the pixel's block has no motion evidence in this draw
-/// (docs/plans/bounce-light-confidence.md, section 7).
+/// (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence, section 7).
 /// </summary>
 /// <param name="RetainedSigmas">The box's least half width, in retained deviations of the pixel's slow history.</param>
 internal sealed record WidenedBox(float RetainedSigmas);

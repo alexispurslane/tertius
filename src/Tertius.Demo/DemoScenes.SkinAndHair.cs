@@ -89,7 +89,7 @@ public static partial class DemoScenes
     ];
 
     /// <summary>
-    /// The review scene of skin and hair (docs/plans/skin-and-hair.md, "Part 6"), on the gray floor of
+    /// The review scene of skin and hair (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Part 6"), on the gray floor of
     /// <see cref="EarthSurface"/> under the sun along <see cref="SkinAndHairToSun"/>, with the sky of the hair card
     /// scenes.
     /// <list type="bullet">
@@ -180,7 +180,7 @@ public static partial class DemoScenes
     /// The entities <c>ear</c>, a skin disk of <see cref="SkinEarRadius"/> and <see cref="SkinEarThickness"/> that
     /// faces -X, and <c>ear-lamp</c>, a glowing lamp of <see cref="EarLampPower"/> 5 cm behind it along +X, at its
     /// upper rim, so that the lamp peeks over the rim. The view <c>ear-camera</c> looks at the ear from 0.25 m along
-    /// -X, toward the lamp and the sun. No light passes through thin skin (docs/plans/skin-and-hair.md, settled fork
+    /// -X, toward the lamp and the sun. No light passes through thin skin (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, settled fork
     /// 1), so the ear's front shows only its ambient light and its scatter.
     /// </summary>
     private static void SkinEar(
@@ -313,7 +313,7 @@ public static partial class DemoScenes
 
     /// <summary>
     /// The hall of <c>lamp-hall-16</c> (<see cref="LampHall"/>) with a wall of cutout hair: the measured view of hair under
-    /// many shadowed lamps (docs/plans/skin-and-hair.md, "Cost").
+    /// many shadowed lamps (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "Cost").
     /// <list type="bullet">
     /// <item>The wall, <c>hair-wall-0</c> and on, stands between four lamps, 1.2 m above the floor at its middle: rows of
     /// upright strand cards of the cutout hair material, 6 cm apart, so that their strands overlap and the floor and the

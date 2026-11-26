@@ -40,7 +40,7 @@ namespace Tertius.Physics;
 // velocities (see StepRecordOf).
 //
 // In a turning frame a chord spans the frame's turn over its step, so the chord of a dynamic body is the chord of the
-// inertial line through its state, as the frame's axes see it (docs/plans/spin-gravity.md, "The chord rule"): physics gives
+// inertial line through its state, as the frame's axes see it (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The chord rule"): physics gives
 // Jolt FrameTurn.ChordBehind of the instant velocity, on the body's semantic place and velocity, with the turn of the step
 // that ends at the instant of the velocity, and reads an instant velocity back by its exact inverse, FrameTurn.InstantAtEnd.
 // At the start of a step that turn is the frame's turn of the step that ended (V2 of the design), and at its end, for an
@@ -100,7 +100,7 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// A moment at which physics turns an instant velocity of a body in a turning frame into Jolt's chord, or Jolt's chord
-    /// back into an instant velocity (docs/plans/spin-gravity.md, "The chord rule"): the turn of the step that ends at that
+    /// back into an instant velocity (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The chord rule"): the turn of the step that ends at that
     /// moment, and the place and the frame velocity then of the origin of the body's home relative to its semantic frame. A
     /// place and a velocity relative to the home, plus these, are the body's semantic place and velocity, on which the rule
     /// acts.
@@ -109,7 +109,7 @@ public sealed partial class JoltPhysicsBackend
     /// moment. The chord behind lies in the axes of the step that ended, so the field part of that half step, the linear
     /// gravity plus the home's acceleration, takes the turn back like the rest of the velocity (see
     /// <see cref="ChordBehindChange"/>), as the two-turn update turns the field of the step's start on into the axes at its
-    /// end (docs/plans/spin-gravity.md, "The two-turn update"). The instant velocity at the end of a step gains the field at
+    /// end (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The two-turn update"). The instant velocity at the end of a step gains the field at
     /// that moment in the axes then, which is the frame's field there, fixed in its axes, so that half step takes no turn
     /// (see <see cref="InstantAtEndChange"/>).
     /// </para>
@@ -274,7 +274,7 @@ public sealed partial class JoltPhysicsBackend
     /// The step record of the motion intent that aimed the plain kinematic body of <paramref name="record"/> in the current
     /// step, relative to the body's semantic frame, when the body is still in the home where the step started; else null.
     /// Jolt's velocity of the body is the chord of the step, to its float rounding, and its rotation a float, so the body
-    /// state and a hand-off of the step take the record's instant velocity and rotation instead (docs/plans/
+    /// state and a hand-off of the step take the record's instant velocity and rotation instead (https://github.com/alexispurslane/tertius/wiki/
     /// rails-components.md, "The flow per kind of entity"). After a hand-off the body is in another home, and Jolt holds
     /// the velocity that the hand-off carried, which came from the record. A hull's frame takes its record from the frame
     /// tree (see <see cref="StepRecordOf"/>).

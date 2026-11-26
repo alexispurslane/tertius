@@ -4,9 +4,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one compute dispatch over every job of the frame
+/// The deform pass (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The pass"): one compute dispatch over every job of the frame
 /// writes each job's deformed copy into the deform region, before every pass that draws a mesh, and each deformed vertex's
-/// position into the kept positions of the frame's parity (docs/plans/temporal-renderer.md, "Kept deformed positions"). A
+/// position into the kept positions of the frame's parity (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Kept deformed positions"). A
 /// frame without a job records nothing.
 /// </summary>
 internal sealed unsafe class DeformPass : RenderPass
@@ -66,7 +66,7 @@ internal sealed unsafe class DeformPass : RenderPass
         // deform.comp writes a kept position for each vertex of a job's target, with no bound of its own.
         Contract.Requires(kept.Capacity >= context.Geometry.Region.Capacity);
         // A write after the vertex reads of every earlier pass, the frame before's included: the region serves every
-        // frame in flight (docs/plans/skinning-and-morphs.md, decision 18).
+        // frame in flight (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, decision 18).
         barriers.Buffer(vertices, BufferUse.ComputeWrite);
         // After the vertex reads of the frame before the last, the last one that read this parity's buffer. A frame with a
         // job has a region, which the kept positions hold.

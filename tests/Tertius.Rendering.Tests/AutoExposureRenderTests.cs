@@ -5,7 +5,7 @@ using static Tertius.Rendering.Tests.ExposureScenes;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The automatic exposure as the viewer sees it (docs/plans/auto-exposure.md, "GPU tests of the acceptance criteria"):
+/// The automatic exposure as the viewer sees it (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "GPU tests of the acceptance criteria"):
 /// the exposure follows the brightness of the surfaces in view over film time, with its time constants, its trims, its
 /// clamp and its compensation, and the sky does not move it. The views that settle use the gray square, whose pixels
 /// share one luminance. The films use the ramp square, whose trimmed mean moves smoothly with the exposure.

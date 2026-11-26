@@ -4,8 +4,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# copy of the depth pyramid: its level count and sizes, the surface of each pixel of level 0, the slab of each
-/// pixel from its back share, and the min-max bounds of inverse depth of its cells (docs/plans/screen-space-reflections.md,
-/// "The depth pyramid" and "The pixel's surface", and docs/plans/back-face-depth-layer.md, decision 3).
+/// pixel from its back share, and the min-max bounds of inverse depth of its cells (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections,
+/// "The depth pyramid" and "The pixel's surface", and https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 3).
 /// </summary>
 public sealed class DepthPyramidTests
 {

@@ -31,7 +31,7 @@ internal readonly record struct WhereFilter(EntityPredicate Predicate);
 /// stack. Every form tests a filter with <see cref="Passes"/>, so they share one filter code.
 /// </summary>
 /// <remarks>
-/// This is a generated union (docs/plans/union-tooling.md) of <see cref="InFilter"/>, <see cref="NearAsker"/>,
+/// This is a generated union (https://github.com/alexispurslane/tertius/wiki/union-tooling) of <see cref="InFilter"/>, <see cref="NearAsker"/>,
 /// <see cref="NearEntity"/>, <see cref="NearPoint"/> and <see cref="WhereFilter"/>. The default value holds no case: it
 /// is the empty filter, which passes every entity. The static factories <see cref="In"/>, <c>Near</c> and
 /// <see cref="Where"/> refuse a case that breaks the invariants that its record documents. EntityQuery and FoundEntities

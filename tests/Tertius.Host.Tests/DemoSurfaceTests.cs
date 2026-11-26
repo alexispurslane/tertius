@@ -118,7 +118,7 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
 }
 
 /// <summary>
-/// The scene <c>demo-surface</c> in the Earth system (docs/plans/blue-danube-demo.md, "The demo in the Earth system"),
+/// The scene <c>demo-surface</c> in the Earth system (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The demo in the Earth system"),
 /// built without a script, on the World and the real Jolt backend: the ground, the shuttle and the person start in the
 /// turning <c>earth-surface</c> at the north pole, and the ground's turn puts the ramp in the station's plane at the
 /// departure.

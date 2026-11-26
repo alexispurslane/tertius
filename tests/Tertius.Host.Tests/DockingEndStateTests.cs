@@ -8,7 +8,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The end state of the docking, which the exit starts from (docs/plans/blue-danube-demo.md, "The docking", "The parked
+/// The end state of the docking, which the exit starts from (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The docking", "The parked
 /// pose and the end state for the exit", "The fit to the art"): the docked shuttle parks on its wheels on the deck, port
 /// side on the cradle rail, with its tail 1.5 m inside the bay's +Y end. So it leaves the lift's hole in the deck free,
 /// its hatch opens spinward onto the deck's stair, whose foot lies in the lift's lane, and the spin gravity holds it

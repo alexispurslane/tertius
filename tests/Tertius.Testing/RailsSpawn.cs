@@ -8,7 +8,7 @@ namespace Tertius.Testing;
 /// Spawns of frames on rails, outside a tick. A rails component (<see cref="KeplerMotion"/> or <see cref="SpinMotion"/>)
 /// writes its first sample in the first tick after the spawn, which acts in the second step. Without a first motion intent,
 /// the new frame holds still at the pose of its spawn description for its first step, and the first sample of its
-/// component puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components"). So a spawn
+/// component puts it on its rails (https://github.com/alexispurslane/tertius/wiki/rails-components, "Other rules" in "The rails components"). So a spawn
 /// that starts at the rails pose and velocities of the world's time is one step of its motion behind its rails until then,
 /// and never far from them. With <c>firstMove</c>, the description carries the sample of the first step as its first
 /// motion intent (see <see cref="SpawnDesc.FirstMove"/>), so the frame is on its rails from its first step.
@@ -65,7 +65,7 @@ public static class RailsSpawn
     private static double FirstStepEnd(World world) => world.TimeAt(world.TickNumber + 1);
 
     /// <summary>
-    /// The copy. Only an entity whose spawn takes a velocity gets the rails velocities (docs/plans/rails-components.md,
+    /// The copy. Only an entity whose spawn takes a velocity gets the rails velocities (https://github.com/alexispurslane/tertius/wiki/rails-components,
     /// "Which entity takes a spawn velocity"): a kinematic hull, which keeps them as its frame's velocities, and a body that
     /// physics integrates, such as a hull that a test makes dynamic. A spawn refuses a velocity on every entity that only its
     /// motion intents and teleports move, and a rails component moves a plain kinematic body and an entity without a body by

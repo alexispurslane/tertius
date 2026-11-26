@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The turns of the frames that the World fixes before each step (<see cref="FrameTree.BeginStep"/>,
-/// docs/plans/spin-gravity.md, "V1, the turn of the step in flight", "V2, the turn of the step that ended" and "Frames without
+/// https://github.com/alexispurslane/tertius/wiki/spin-gravity, "V1, the turn of the step in flight", "V2, the turn of the step that ended" and "Frames without
 /// a last turn"), on the World and the real backend: how a spawn starts a station's turns, and what a failed step does to
 /// them. The station of the tests is a frame without a body that spins in a root frame, at 0.31321 rad/s, the rate that
 /// gives 9.81 m/s² at a radius of 100 m.

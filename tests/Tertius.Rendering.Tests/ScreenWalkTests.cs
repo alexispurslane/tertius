@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the two-depth walk, <see cref="ScreenRay.Walk"/> (docs/plans/temporal-renderer.md, section 6, "The
+/// The C# copy of the two-depth walk, <see cref="ScreenRay.Walk"/> (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6, "The
 /// traversal"): its hits against a march over the flat slabs of the pyramid's finest level, its facing test, its cap and
 /// its steps. The scenes are synthetic: rectangles seen by a camera built by hand.
 /// </summary>

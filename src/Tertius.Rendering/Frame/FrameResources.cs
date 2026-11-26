@@ -240,7 +240,7 @@ internal sealed unsafe class FrameResources : IDisposable
 
     /// <summary>
     /// The GPU form of each light of the frame, in its order, written after every pass's Prepare, when every slot is
-    /// complete (docs/plans/local-light-shadows.md, decision 37).
+    /// complete (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 37).
     /// </summary>
     private ReadOnlySpan<GpuLight> GpuLightsOf(PreparedScene scene)
     {
@@ -472,7 +472,7 @@ internal sealed class HostArray<T> : IDisposable
 
     /// <summary>
     /// The most elements that a growth gives the buffer: for a storage buffer, which binds whole, as many as fit
-    /// maxStorageBufferRange (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
+    /// maxStorageBufferRange (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Portable Vulkan").
     /// </summary>
     private readonly int maxCapacity;
 

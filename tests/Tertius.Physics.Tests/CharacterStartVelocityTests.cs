@@ -4,7 +4,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The float rule of a walking character whose velocity at the start of its update is an instant velocity
-/// (docs/plans/spin-gravity.md, "Characters"). In a frame that does not turn, the character moves by the float rule of
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"). In a frame that does not turn, the character moves by the float rule of
 /// before the rotation terms, to the bit: a jump, which is relative to the ground and so to the home's instant velocity,
 /// loses half a step of gravity, and a velocity that the game gave, which is relative to the home's frame velocity, also
 /// loses the home's instant velocity past its frame velocity where the step starts. That excess is half a step of the
@@ -52,7 +52,7 @@ public sealed class CharacterStartVelocityTests
 
 /// <summary>
 /// The gravity that Jolt reads to press a walking character's weight onto a dynamic body that it touches
-/// (docs/plans/spin-gravity.md, "Characters"), from its weight input: the effective gravity plus the Coriolis term. The
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "Characters"), from its weight input: the effective gravity plus the Coriolis term. The
 /// weight here is that input for a person 95 m from a station's axis who moves at 2 m/s across it: 9.32 m/s² outward and
 /// 1.25 m/s² of the Coriolis term along the floor.
 /// </summary>

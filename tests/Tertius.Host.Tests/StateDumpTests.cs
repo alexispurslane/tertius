@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The state dumps of a scripted run, in memory: poses in two frames, the frame tree, the events since the previous dump
-/// and the world's errors. See docs/plans/host-and-scripted-runs.md, "State dumps".
+/// and the world's errors. See https://github.com/alexispurslane/tertius/wiki/host-and-scripted-runs, "State dumps".
 /// </summary>
 public sealed class StateDumpTests
 {
@@ -129,7 +129,7 @@ public sealed class StateDumpTests
 
     /// <summary>
     /// A new frame goes live before its rails component first runs, so the step of its first tick has no sample, and the
-    /// frame holds still at its spawn pose at that tick's sync point (docs/plans/rails-components.md, "Other rules"). The
+    /// frame holds still at its spawn pose at that tick's sync point (https://github.com/alexispurslane/tertius/wiki/rails-components, "Other rules"). The
     /// sample that the component writes in the first tick moves the frame at the second sync point.
     /// </summary>
     [Fact]
@@ -229,7 +229,7 @@ public sealed class StateDumpTests
     }
 
     /// <summary>
-    /// The frame tree stores how each frame followed its owner beside the record of the step that ended (docs/plans/
+    /// The frame tree stores how each frame followed its owner beside the record of the step that ended (https://github.com/alexispurslane/tertius/wiki/
     /// rails-components.md, "The follow kind"): a full sample is rails, an end pose kinematic, a dynamic hull physics, and a
     /// frame that held still static, and so is a frame whose owner wrote its transform in the same tick as a motion intent,
     /// because the write wins for one tick. The yard is the owner of a root frame, whose body is only the frame's static

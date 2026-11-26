@@ -71,7 +71,7 @@ nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -- --scene 
 
 - [src](src) holds the modules. Tertius.Core holds the math, handles, messages and the frame tree, and it depends on nothing. Tertius.Simulation, Tertius.Physics and Tertius.Rendering each depend only on Core. Tertius.Host holds the window, the threads and the script runner, and Tertius.Demo holds the demo scenes.
 - [tests](tests) holds one xUnit project per module.
-- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and the [GitHub wiki](https://github.com/alexispurslane/tertius/wiki) holds the design docs. The paths in [docs/plans](docs/plans/README.md) link to their wiki pages.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the binding design, and the [GitHub wiki](https://github.com/alexispurslane/tertius/wiki) holds the design docs.
 - [scripts](scripts) holds the JSON scripts for the demo scenes.
 - [tools](tools/README.md) holds the helpers for coverage, mutation testing, duplicate code and the docs site, and [native](native) builds the Jolt library.
 

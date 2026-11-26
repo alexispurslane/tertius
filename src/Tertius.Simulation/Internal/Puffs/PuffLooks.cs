@@ -1,7 +1,7 @@
 namespace Tertius.Simulation;
 
 /// <summary>
-/// The look table of the puffs (docs/plans/particles.md, "The look table"): each look that live puffs use, once, with the
+/// The look table of the puffs (https://github.com/alexispurslane/tertius/wiki/particles, "The look table"): each look that live puffs use, once, with the
 /// count of the puffs that use it. A row holds the index of its look here. A birth looks its emitter's look up by value,
 /// and equal looks share one entry. A puff keeps the entry of its birth when its emitter changes its look. An entry whose
 /// count falls to 0 leaves the table, and a later new look takes its index first.

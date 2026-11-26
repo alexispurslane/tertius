@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The size of the depth pyramid image and the largest screen that the pyramid covers
-/// (docs/plans/screen-space-reflections.md, "Images"), with no GPU. A Vulkan mip halves its image and rounds down, and a
+/// (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "Images"), with no GPU. A Vulkan mip halves its image and rounds down, and a
 /// level of the depth pyramid halves the screen and rounds up, so the image is padded until each of its mips holds its
 /// level.
 /// </summary>

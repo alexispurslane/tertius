@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Tertius.Unions.Tests;
 
 /// <summary>
-/// The analyzer's rules that steer a closed set to its form (docs/plans/union-tooling.md, "The analyzer"): for each rule,
+/// The analyzer's rules that steer a closed set to its form (https://github.com/alexispurslane/tertius/wiki/union-tooling, "The analyzer"): for each rule,
 /// a declaration that it reports and a near miss that it does not. Each test runs the generator first, as a build does,
 /// and then the analyzer on the compilation with the generated files.
 /// </summary>

@@ -20,7 +20,7 @@ internal readonly record struct TileView(int Layer, int Light, TileAim Aim);
 internal readonly record struct TileDraw(int View, int First, int Count);
 
 /// <summary>
-/// The CPU side of the local shadow atlas (docs/plans/local-light-shadows.md, "The budget", "The cache"): which light holds
+/// The CPU side of the local shadow atlas (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The budget", "The cache"): which light holds
 /// which layer, and what each layer holds, as of the last submitted frame. <see cref="Update"/> chooses a frame's layers
 /// and draws; <see cref="Drew"/> keeps them once the frame is submitted. Invariants, checked by AssertInvariants after Drew:
 /// <list type="bullet">
@@ -43,7 +43,7 @@ internal sealed class ShadowTiles
     /// ranks for tiles: a challenger, a light that holds none, takes the layers only with more than this many times the
     /// holder's rank irradiance in the holder's tier, or with exactly this many times when it comes first in the list,
     /// or from a higher tier than the holder reaches even at <see cref="HolderReachGrowth"/> times its reach
-    /// (docs/plans/local-light-shadows.md, settled fork 2). The margin spans tiers only inside the light list, and only
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, settled fork 2). The margin spans tiers only inside the light list, and only
     /// inside the main view's tiers. A holder that the batcher drops from the list, because its own reach misses the
     /// view and no drawn face keeps it (SceneBatcher.Reaches), loses its layers at once, a holder that only a face
     /// keeps ranks at <see cref="MainViewTier.FaceOnly"/>, and a light that took its layers while only a face kept it
@@ -60,7 +60,7 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// How far float rounding of a caster's camera-relative pose can move it, as a share of its largest input: 8 × 2⁻²³
-    /// (docs/plans/local-light-shadows.md, "The cache").
+    /// (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The cache").
     /// </summary>
     private const float RoundingShare = 8f / (1 << 23);
 
@@ -87,7 +87,7 @@ internal sealed class ShadowTiles
     private readonly List<(int Mesh, int Caster)> meshOrder = [];
 
     // The frame in flight: what the last Update chose, which Drew keeps once the frame is submitted, and the next Update
-    // drops when no Drew came (docs/plans/local-light-shadows.md, "The cache").
+    // drops when no Drew came (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, "The cache").
 
     /// <summary>The light of each layer in the frame in flight, an index into its lights, or <see cref="NoLight"/>.</summary>
     private readonly int[] layerLights;
@@ -321,7 +321,7 @@ internal sealed class ShadowTiles
     /// (<see cref="Candidate.Holder"/>), so a ranking that swings by less than the margin keeps one owner. So a
     /// challenger spot lamp whose axis misses the view takes only the layers that the lights whose light falls in view
     /// leave free, and a light that only a face keeps, holder or challenger, only the layers that the main view's lights
-    /// leave free (docs/plans/environment-map.md, decision 20). A holder that the batcher dropped from <paramref name="lights"/>
+    /// leave free (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20). A holder that the batcher dropped from <paramref name="lights"/>
     /// is not ranked, so it loses its layers at once (<see cref="HolderMargin"/>). Clears every near light's slot.
     /// </summary>
     private void Grant(Span<PreparedLight> lights, in CameraView camera)
@@ -390,7 +390,7 @@ internal sealed class ShadowTiles
     /// it held them from a tier of the main view in the last submitted frame, or only a face still keeps it. So a light
     /// that took the layers that the main view's lights left free, while only a face kept it, ranks as a challenger once
     /// it is in the main view, and the faces that a map drew never decide which light of the main view keeps a layer
-    /// (docs/plans/environment-map.md, decision 20).
+    /// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20).
     /// </summary>
     private bool RanksAsHolder(in PreparedLight light)
     {
@@ -503,10 +503,10 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>
-    /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
+    /// True when the record no longer matches the tile (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 34, "The cache"):
     /// another light or aim, another camera frame, another projection, a turn of the aim, other casters or materials, or a
     /// caster that moved by a quarter of a texel where it shows, or by more than float rounding of its pose, or a caster of
-    /// another static mesh or other pose rows (docs/plans/skinning-and-morphs.md, fork 1).
+    /// another static mesh or other pose rows (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, fork 1).
     /// </summary>
     private static bool IsStale(
         TileRecord record,
@@ -558,7 +558,7 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// Whether a caster's pose rows <paramref name="now"/> are the recorded caster's, bit for bit: an empty span for a
-    /// static mesh on both sides, or the same rows of a still rig (docs/plans/skinning-and-morphs.md, decision 21).
+    /// static mesh on both sides, or the same rows of a still rig (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, decision 21).
     /// </summary>
     private static bool SamePose(TileRecord record, in RecordedCaster was, ReadOnlySpan<Vector4> now)
     {
@@ -636,7 +636,7 @@ internal sealed class ShadowTiles
         /// holder that only a face keeps (<see cref="MainViewTier.FaceOnly"/>) stays in that tier. With
         /// <see cref="RanksAsHolder"/>, which makes a light that held its layers only for a face a challenger in the main
         /// view, this keeps the main view's shadow slots from ever depending on the faces that a map draws
-        /// (docs/plans/environment-map.md, decision 20).
+        /// (https://github.com/alexispurslane/tertius/wiki/environment-map, decision 20).
         /// The grown tier is an input of this ranking only: <see cref="PreparedLight.Tier"/>, which decides the direct
         /// pass's lights, stays as the batcher set it.
         /// </summary>
@@ -651,7 +651,7 @@ internal sealed class ShadowTiles
 
         /// <summary>
         /// The higher tier first (<see cref="MainViewTier"/>), then the brighter first, and of equal ones the first in the
-        /// list (docs/plans/local-light-shadows.md, decision 24).
+        /// list (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, decision 24).
         /// </summary>
         public static readonly Comparison<Candidate> Ranked = static (a, b) =>
         {

@@ -4,7 +4,7 @@ using Tertius.Host.Scripting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The pure parts of the demo edit (docs/plans/blue-danube-demo.md, "The edit"): where the frames of each film of a script
+/// The pure parts of the demo edit (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The edit"): where the frames of each film of a script
 /// lie in the script's video, and the stretches that the cut list keeps of them.
 /// </summary>
 public sealed class FilmEditTests

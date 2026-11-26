@@ -52,7 +52,7 @@ public readonly record struct BoxGone;
 /// <see cref="Played"/>, or
 /// <see cref="Halted"/> once the station's frame or a box is gone. The default value is <see cref="Idle"/>. A generated
 /// union like <see cref="DisembarkState"/>, and <see cref="Next"/> is the whole table of its changes
-/// (docs/plans/blue-danube-demo.md, "The box play component").
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The box play component").
 /// </summary>
 [GeneratedUnion(
     typeof(Idle),

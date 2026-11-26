@@ -223,7 +223,7 @@ internal sealed unsafe class GeometryPass : RenderPass
     public static void DrawRuns(FrameContext context, OpaqueRuns runs, Pipeline solid, Pipeline cutout)
     {
         // The solid run first, so that its early depth writes hide the cutout fragments behind it before their shader
-        // runs (docs/plans/skin-and-hair.md, decision 25).
+        // runs (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 25).
         DrawRun(context: context, commands: runs.Solid, pipeline: solid);
         DrawRun(context: context, commands: runs.Cutout, pipeline: cutout);
     }
@@ -254,7 +254,7 @@ internal sealed unsafe class GeometryPass : RenderPass
     )
     {
         // Both solid runs first, so that their depth hides the cutout fragments behind them before their shader runs
-        // (docs/plans/skin-and-hair.md, decision 25).
+        // (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 25).
         DrawRun(context: context, commands: first.Solid, pipeline: solid.First);
         DrawRun(context: context, commands: second.Solid, pipeline: solid.Second);
         DrawRun(context: context, commands: first.Cutout, pipeline: cutout.First);

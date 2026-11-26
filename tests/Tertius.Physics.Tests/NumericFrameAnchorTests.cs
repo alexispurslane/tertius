@@ -6,7 +6,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Anchors in the merge test of numeric frames (ter-dhkf, docs/plans/numeric-frames.md, "Anchors"), on the World and the
+/// Anchors in the merge test of numeric frames (ter-dhkf, https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"), on the World and the
 /// real backend. An anchor is a static body or the hull of a frame that physics does not drive. The merge test links an
 /// anchor to every group, also to one that falls, and the group takes the anchor's home: an anchor counts as infinitely
 /// heavy. So the anchor is a real body of the group's Jolt system, and Jolt sweeps a fast body against it. Before, a fast

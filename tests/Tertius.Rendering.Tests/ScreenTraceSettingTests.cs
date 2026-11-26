@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The screen tracer's setting (docs/plans/temporal-renderer.md, section 6): its default value, the ranges that the
+/// The screen tracer's setting (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 6): its default value, the ranges that the
 /// renderer refuses when it is made, and the warm-up draws of a still, with no GPU.
 /// </summary>
 public sealed class ScreenTraceSettingTests

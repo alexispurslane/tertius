@@ -5,7 +5,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The opaque runs of a depth range as the back-face pass draws them (docs/plans/back-face-depth-layer.md, decision 4):
+/// The opaque runs of a depth range as the back-face pass draws them (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 4):
 /// the back faces of a closed mesh with a one-sided material, and both faces of everything else, as ranges of the
 /// commands that the G-buffer pass draws. No GPU needed. The camera sits at the render origin and looks down −Z.
 /// </summary>

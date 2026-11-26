@@ -4,7 +4,7 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// The ride of a lift's floor down a spoke of a spinning station, from rest at the top to rest at the foot
-/// (docs/plans/blue-danube-demo.md, "The lift"). A distance is the floor's distance from the axis along the spoke, in meters,
+/// (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The lift"). A distance is the floor's distance from the axis along the spoke, in meters,
 /// and a speed or an acceleration points outward. The ride has three phases. The boost accelerates outward at a share
 /// c of the local spin gravity, c ω² d, so d = d₀ cosh(√c ω t) and a rider keeps the rest of its weight. The cruise holds
 /// the cruise speed. The brake decelerates at a constant rate to rest at the foot. Every member is a pure function of the

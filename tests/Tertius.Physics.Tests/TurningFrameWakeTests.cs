@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The wake of sleeping bodies on a change of a frame's turn, on the World and the real Jolt backend
-/// (docs/plans/spin-gravity.md, "The wake" and "V8, the turn at the last wake"): a change of the frame's angular velocity or
+/// (https://github.com/alexispurslane/tertius/wiki/spin-gravity, "The wake" and "V8, the turn at the last wake"): a change of the frame's angular velocity or
 /// angular acceleration wakes its sleepers when the change of the centrifugal and the Euler acceleration that it bounds at
 /// any place of the system's bodies, added to the change of the frame's push, passes
 /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>.

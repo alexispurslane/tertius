@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The cards of a mesh (docs/plans/skin-and-hair.md, "The card number"): its connected strips of triangles. Two triangles
+/// The cards of a mesh (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The card number"): its connected strips of triangles. Two triangles
 /// lie on one card when a chain of triangles joins them, each with a vertex position of the next, so a strip whose
 /// exporter splits its vertices at a sharp bend or a seam stays one card.
 /// </summary>

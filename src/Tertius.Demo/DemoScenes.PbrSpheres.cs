@@ -34,7 +34,7 @@ public static partial class DemoScenes
     ];
 
     /// <summary>
-    /// The review scene of the PBR BRDF (docs/plans/pbr-brdf.md, "Part 4"): two rows of six spheres on the gray floor of
+    /// The review scene of the PBR BRDF (https://github.com/alexispurslane/tertius/wiki/pbr-brdf, "Part 4"): two rows of six spheres on the gray floor of
     /// <see cref="EarthSurface"/>, in sunlight, under a blue sky color and a brown ground color, with one lamp.
     /// <list type="bullet">
     /// <item>The spheres, 0.4 m in radius and 1 m apart along X, take the roughness of <see cref="PbrRoughnesses"/>

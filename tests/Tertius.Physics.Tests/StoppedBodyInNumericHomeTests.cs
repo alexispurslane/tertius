@@ -5,7 +5,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A body that physics stops holds still in its semantic frame, whatever numeric frame holds it, as it does without numeric
-/// frames (docs/plans/numeric-frames.md, "Limits", and ticket ter-unpc). These tests pin it for a plain kinematic ball that
+/// frames (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Limits", and ticket ter-unpc). These tests pin it for a plain kinematic ball that
 /// lives as a member, not as an anchor, in the falling frame of a crate that thrusts: after its end poses stop, after a
 /// teleport, and after a move out of that frame or into one, where <see cref="Self.PoseAtNextStepStartIn"/> gives its pose
 /// now. They pin it for a dynamic box and a dynamic hull in such a frame after their steer targets stop, also in a frame that
@@ -480,7 +480,7 @@ public sealed class StoppedBodyInNumericHomeTests
     }
 
     /// <summary>
-    /// A limit (docs/plans/numeric-frames.md, "Limits", ticket ter-u75o): Jolt damps a body's velocity in its home, so a box
+    /// A limit (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Limits", ticket ter-u75o): Jolt damps a body's velocity in its home, so a box
     /// with the default linear damping of 0.05/s that physics stops in a home that falls with gravity relaxes toward the
     /// home's velocity, where without numeric frames it relaxes toward rest in space. The difference is the damping rate
     /// times the home's velocity, summed over the steps: 0.71 mm/s and 63 µm in the ten steps after the stop, in a home at

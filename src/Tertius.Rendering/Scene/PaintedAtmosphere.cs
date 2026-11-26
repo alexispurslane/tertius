@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The painted atmosphere of a frame (docs/plans/atmosphere.md, "The model"): what the shaders read of a snapshot's
+/// The painted atmosphere of a frame (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The model"): what the shaders read of a snapshot's
 /// atmosphere record, at the interpolated eye. The sky is the planet's painted sky times the day factor and the density
 /// share at the eye. The haze's light is the painted haze, which the shaders dim by the day factor at each hazed point. The
 /// shaders compute the haze's transmittance, the day factor and the sun's tint per point from the planet's shape and the

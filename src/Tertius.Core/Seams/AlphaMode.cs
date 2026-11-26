@@ -16,9 +16,9 @@ public readonly record struct GlassAlpha;
 
 /// <summary>
 /// How a material's alpha draws: <see cref="OpaqueAlpha"/>, <see cref="CutoutAlpha"/>, <see cref="FringedAlpha"/> or
-/// <see cref="GlassAlpha"/> (docs/plans/skin-and-hair.md, decision 7). The default value is opaque.
+/// <see cref="GlassAlpha"/> (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 7). The default value is opaque.
 /// </summary>
-/// <remarks>The union generator writes its union members (docs/plans/union-tooling.md).</remarks>
+/// <remarks>The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling).</remarks>
 [GeneratedUnion(
     typeof(OpaqueAlpha),
     typeof(CutoutAlpha),

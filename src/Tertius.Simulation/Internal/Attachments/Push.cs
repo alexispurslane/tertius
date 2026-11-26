@@ -2,7 +2,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The four additive intents of one entity in one tick, in doubles, in the axes of the frame of the intents
-/// (docs/plans/parts.md, "How a part's push converts into the root's push"): a force in N, a torque in N·m, an impulse in
+/// (https://github.com/alexispurslane/tertius/wiki/parts, "How a part's push converts into the root's push"): a force in N, a torque in N·m, an impulse in
 /// N·s and an angular impulse in N·m·s. The flow of the parts' pushes (see <see cref="Attachments.CarryPushes"/>) widens
 /// each part's intent into a push, moves it to the center of mass of its root's body, sums the pushes of each root in
 /// doubles, and narrows each sum once, into the root's intent.

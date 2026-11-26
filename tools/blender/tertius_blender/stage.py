@@ -1,5 +1,5 @@
 """The stage of the views: a dark world with sparse stars, a key sun, a fill sun and one camera per shot
-(docs/plans/asset-pipeline.md, "The build tool"). The build adds the stage after it saved model.blend, so the stage
+(https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "The build tool"). The build adds the stage after it saved model.blend, so the stage
 never reaches model.blend or model.glb. Its objects live in the collection "Stage".
 
 build saves every scene setting that the stage changes, and remove restores them. So a check that builds and removes

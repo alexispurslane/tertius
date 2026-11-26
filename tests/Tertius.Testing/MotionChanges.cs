@@ -5,7 +5,7 @@ namespace Tertius.Testing;
 /// <summary>
 /// Changes of a hull's motion for tests, made the way a game makes them: the entity's own components write
 /// <see cref="BodyHandle.SetMotion"/> in a tick, and may swap their rails components in the same run
-/// (docs/plans/rails-components.md, "Changes of motion").
+/// (https://github.com/alexispurslane/tertius/wiki/rails-components, "Changes of motion").
 /// </summary>
 public static class MotionChanges
 {

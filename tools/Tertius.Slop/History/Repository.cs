@@ -5,7 +5,7 @@ using System.Globalization;
 namespace Tertius.Slop.History;
 
 /// <summary>
-/// The git repository whose slop history the commands read and write (docs/plans/code-quality-tooling.md, decision
+/// The git repository whose slop history the commands read and write (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision
 /// 18). Each call runs git in <paramref name="folder"/>. Git runs on the repository of that folder, whatever the
 /// <c>GIT_</c> variables of a hook that runs the tool say, so a hook's temporary index never leaks into a read.
 /// </summary>

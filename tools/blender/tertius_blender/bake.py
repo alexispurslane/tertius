@@ -1,5 +1,5 @@
 """The bake: turns the procedural material of an object into three texture maps that glTF can hold
-(docs/plans/asset-pipeline.md, "The bake").
+(https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "The bake").
 
 The contract of a bake object: a mesh with one material and an active UV map. No other object uses the material. The
 material has one Principled BSDF node, linked to the material output, and its metallic input holds a constant.

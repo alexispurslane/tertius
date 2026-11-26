@@ -10,7 +10,7 @@ public static partial class DemoScenes
     /// <summary>
     /// The scene <c>station</c>: a station whose KeplerMotion carries it round Earth on the orbit scene's circle, 400 km
     /// up, at 7.67 km/s, with the orbit scene's sun, Earth and Moon (see <see cref="Orbit"/>). It shows the two cases of
-    /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in a following frame of its own, a
+    /// ter-dhkf (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors"). A fast hull on rails lives in a following frame of its own, a
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
     /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 1,200 m/s inside the
     /// station, faster than the 1,000 m/s from which a group of free bodies falls in a numeric frame, stops at a thin static
@@ -44,7 +44,7 @@ public static partial class DemoScenes
     /// (ARCHITECTURE.md, "Collision groups"), so only a hull bumps the station's hull there. A loose crate would pass
     /// through the radiator. The pods glow faintly in their orange, as marker lights do.</item>
     /// <item>A dump gives a body's velocity as the chord of its last step and a Kepler frame's velocity as its orbit's
-    /// velocity at the moment (docs/plans/numeric-frames.md, "Bubbles and ghosts"). So a pod's velocity relative to the
+    /// velocity at the moment (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Bubbles and ghosts"). So a pod's velocity relative to the
     /// station worked out from two dumped velocities is off by half a step of Earth's pull, 7 cm/s, away from Earth, while
     /// the pods' places drift at exactly 1 m/s relative to the station. The places are the measure.</item>
     /// <item>A thin static <c>wall</c>, 3 by 5.2 m and 10 cm thick, stands across the cabin's starboard half, 10 m ahead
@@ -58,7 +58,7 @@ public static partial class DemoScenes
     /// the crate's speed, 2,400 m, so every body of the frame. With the pods gone, the crate shares its group with the wall, the station's interior and
     /// the airlock's two kinematic doors, of 1 kg each. Each of them keeps the group out of a falling numeric frame: the
     /// wall and the interior are anchors, which fix the group in the frame's own system, and a kinematic body counts as
-    /// infinitely heavy, so the still doors give the group their velocity, zero (docs/plans/numeric-frames.md, "Anchors").
+    /// infinitely heavy, so the still doors give the group their velocity, zero (https://github.com/alexispurslane/tertius/wiki/numeric-frames, "Anchors").
     /// Weighed by their masses, the crate and the doors would move at 1,111 m/s, and the crate alone at 1,200 m/s, both
     /// above the 1,000 m/s from which a group of free bodies falls (<c>NumericFrameOptions.CreateSpeed</c>). So the crate is
     /// the user's case: a fast body that, before ter-dhkf, fell in a numeric frame of its own and passed through the wall's

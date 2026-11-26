@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The <c>outlines</c> step on the real headless renderer: it shows or hides the frame outlines from the next capture on,
-/// and captures with outlines stay the same from run to run. See docs/plans/blue-danube-demo.md, change 3, "Who turns
+/// and captures with outlines stay the same from run to run. See https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, change 3, "Who turns
 /// outlines on".
 /// </summary>
 public sealed class OutlinesStepTests : IDisposable

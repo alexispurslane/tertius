@@ -12,7 +12,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The closed sets of the script format and the runner are built-in C# 15 unions, because their cases are classes: a script
 /// step, an event target, the capture target of a run, and the runner's step after its checks. See
-/// docs/plans/blue-danube-demo.md, "Engine changes for the demo", and docs/plans/union-tooling.md, decision 1.
+/// https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "Engine changes for the demo", and https://github.com/alexispurslane/tertius/wiki/union-tooling, decision 1.
 /// </summary>
 public sealed class ScriptUnionTests
 {

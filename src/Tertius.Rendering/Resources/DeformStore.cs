@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The sources of the deform pass: the deform vertices and the morph deltas of every deforming mesh, each in a
-/// device-local storage buffer that grows by doubling (docs/plans/skinning-and-morphs.md, "Buffers and the region").
+/// device-local storage buffer that grows by doubling (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "Buffers and the region").
 /// </summary>
 /// <remarks>
 /// <see cref="Add"/> places a mesh after the meshes before it, and <see cref="Upload"/> records the copy of every mesh

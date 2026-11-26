@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Tertius.Slop;
 
 /// <summary>
-/// A function in a syntax tree, and the code that it owns (docs/plans/code-quality-tooling.md, decision 16). A function
+/// A function in a syntax tree, and the code that it owns (https://github.com/alexispurslane/tertius/wiki/code-quality-tooling, decision 16). A function
 /// is a method, a constructor, a destructor, an operator, a conversion operator, a property, indexer or event accessor
 /// with a body, an expression-bodied property or indexer, or a local function. A declaration without a body, such as the
 /// accessor of an auto-property, holds no code, so it is not a function. A lambda or an anonymous method belongs to the

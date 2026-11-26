@@ -4,7 +4,7 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The depth pyramid of the screen tracer on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the
+/// The depth pyramid of the screen tracer on the GPU (https://github.com/alexispurslane/tertius/wiki/screen-space-reflections, "GPU tests of the
 /// pyramids"): the depth pyramid and its finest level against their C# copy, the padding of its image, a resize, and the
 /// passes that the setting adds. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
 /// A second scene puts a panel before a wall, for the bounds at a depth edge.

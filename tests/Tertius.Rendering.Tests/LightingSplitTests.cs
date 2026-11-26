@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The cap at MaxRadiance across the split of the lighting pass, on the C# copies of `exposed` and of the passes' caps:
 /// the direct pass caps the direct light, the ambient pass caps the sum, and together they give the one pass's light
-/// below the cap and keep the surfaces' share at it (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+/// below the cap and keep the surfaces' share at it (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
 /// Single floats, as the shaders compute.
 /// </summary>
 public sealed class LightingSplitTests

@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The guards of a mesh's rigging in <see cref="UploadQueue.AddMesh"/>, and the packed deformation that it hands over
-/// beside the mesh (docs/plans/skinning-and-morphs.md, "The mesh data"). No GPU needed.
+/// beside the mesh (https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs, "The mesh data"). No GPU needed.
 /// </summary>
 public sealed class UploadQueueRiggingTests
 {

@@ -18,7 +18,7 @@ public readonly record struct UpAwayFrom(Vector3 Center);
 /// ground color one that faces down, and a surface that faces sideways gets their mean. It is <see cref="UpAlong"/>,
 /// <see cref="UpAwayFrom"/> or neither. The empty value is <see cref="Even"/>: no way is up, so every surface gets the
 /// mean of the sky and the ground color, as in a frame without gravity.
-/// The union generator writes its union members (docs/plans/union-tooling.md). The empty union is the all-zero default,
+/// The union generator writes its union members (https://github.com/alexispurslane/tertius/wiki/union-tooling). The empty union is the all-zero default,
 /// and its <c>HasValue</c> is false. It is 16 bytes: both cases keep their one vector in the same slot, because a value
 /// holds only one case, and every render instance carries one.
 /// </summary>

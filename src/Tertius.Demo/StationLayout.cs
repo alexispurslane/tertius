@@ -5,7 +5,7 @@ using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 namespace Tertius.Demo;
 
 /// <summary>
-/// The shape of the Blue Danube station in its own axes, from a few named sizes (docs/plans/blue-danube-demo.md, "The
+/// The shape of the Blue Danube station in its own axes, from a few named sizes (https://github.com/alexispurslane/tertius/wiki/blue-danube-demo, "The
 /// kilometre wheel" and "The fit to the art"). +Y is the axis, about which the station turns, and the angle θ about it runs
 /// from +X toward -Z. The wheel's floor lies <see cref="FloorRadius"/> from the axis, and the station's rate gives one
 /// standard gravity there. The shuttle enters through the axial mouth of Pioneer's hub and lands on berth 14,

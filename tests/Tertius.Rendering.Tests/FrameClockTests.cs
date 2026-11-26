@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The clock that steps the exposure's approach (docs/plans/auto-exposure.md, "The clock"): a window's clock steps by
+/// The clock that steps the exposure's approach (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "The clock"): a window's clock steps by
 /// the wall time between drawn frames, a headless run's clock by the snapshot time, and a time that does not move
 /// forward steps by 0.
 /// </summary>

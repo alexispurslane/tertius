@@ -1,7 +1,7 @@
 """General geometry helpers for model scripts: collections, a mesh builder and beams.
 
 Units are meters, in Blender axes: +Z up, and the front of a model toward -Y
-(docs/plans/asset-pipeline.md, "Axes, units and scale").
+(https://github.com/alexispurslane/tertius/wiki/asset-pipeline, "Axes, units and scale").
 """
 
 import math

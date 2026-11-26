@@ -110,7 +110,7 @@ The reusable part is the size split. Merging its FSR 1 and SMAA pipeline as it i
 
 Reference images are compared with FLIP, a perceptual difference measure, with a default tolerance of 0.1. Approval uses `TERTIUS_APPROVE_SNAPSHOTS=1`. A failure writes the actual image and a heat map (`tests/Tertius.Rendering.Tests/ReferenceImages.cs:22` and line 67). Seven approved reference PNGs exist.
 
-The planned switch for deterministic rendering is not in `RendererOptions`. The plan still describes it at `docs/plans/renderer-snapshot-tests.md:16`.
+The planned switch for deterministic rendering is not in `RendererOptions`. The plan still describes it at `https://github.com/alexispurslane/tertius/wiki/renderer-snapshot-tests:16`.
 
 Headless runs use:
 
@@ -136,17 +136,17 @@ These places state that nothing accumulates over frames, or build on that rule. 
 
 | Document | Lines |
 |---|---|
-| `docs/plans/rendering-performance.md` | 34, 50, 99, and the exclusion of dynamic resolution at 100 |
-| `docs/plans/rendering-upgrade.md` | 47 |
-| `docs/plans/renderer-snapshot-tests.md` | 16, 19 |
-| `docs/plans/ambient-occlusion.md` | 53, 72, 211, 350, 568, 578 |
-| `docs/plans/screen-space-illumination.md` | 26, 76, 87, 137, 145, 1004, 1052, 1060, 1061, 1374, 1632 |
-| `docs/plans/screen-space-reflections.md` | 54, 62, 95, 465, 1445, 1447 |
-| `docs/plans/screen-space-artifacts.md` | 16 |
-| `docs/plans/environment-map-distances.md` | 22, 83, 734 |
-| `docs/plans/environment-maps-per-frame.md` | 507, 513 |
-| `docs/plans/skinning-and-morphs.md` | 784, 791 |
-| `docs/plans/skin-and-hair.md` | 75, 101, 111, 721, 792, 1307 |
+| `https://github.com/alexispurslane/tertius/wiki/rendering-performance` | 34, 50, 99, and the exclusion of dynamic resolution at 100 |
+| `https://github.com/alexispurslane/tertius/wiki/rendering-upgrade` | 47 |
+| `https://github.com/alexispurslane/tertius/wiki/renderer-snapshot-tests` | 16, 19 |
+| `https://github.com/alexispurslane/tertius/wiki/ambient-occlusion` | 53, 72, 211, 350, 568, 578 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-illumination` | 26, 76, 87, 137, 145, 1004, 1052, 1060, 1061, 1374, 1632 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-reflections` | 54, 62, 95, 465, 1445, 1447 |
+| `https://github.com/alexispurslane/tertius/wiki/screen-space-artifacts` | 16 |
+| `https://github.com/alexispurslane/tertius/wiki/environment-map-distances` | 22, 83, 734 |
+| `https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame` | 507, 513 |
+| `https://github.com/alexispurslane/tertius/wiki/skinning-and-morphs` | 784, 791 |
+| `https://github.com/alexispurslane/tertius/wiki/skin-and-hair` | 75, 101, 111, 721, 792, 1307 |
 | `ARCHITECTURE.md` | 2117, 2305, and the fixed-noise description at 2116 |
 
 Tickets:
