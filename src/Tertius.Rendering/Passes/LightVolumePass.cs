@@ -175,7 +175,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
             {
                 Vector4 grid = grids[level];
                 float half = Side * 0.5f * grid.W;
-                Vector3 offset = Vector3.Abs(p.Position - new Vector3(grid.X + half, grid.Y + half, grid.Z + half));
+                var offset = Vector3.Abs(p.Position - new Vector3(grid.X + half, grid.Y + half, grid.Z + half));
                 float distance = MathF.Max(offset.X, MathF.Max(offset.Y, offset.Z));
                 if (distance > half + p.Radius)
                     continue;
@@ -223,7 +223,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
     private void Dispatch(FrameContext context, Pipeline pipeline, uint index, uint x, uint y)
     {
         Use(context, BufferUse.ComputeWrite);
-        var layout = layouts.VolumeSweepLayout;
+        PipelineLayout layout = layouts.VolumeSweepLayout;
         context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Compute, pipeline);
         Bind(context: context, point: PipelineBindPoint.Compute, layout: layout, slot: 0);
         context.Vk.CmdPushConstants(

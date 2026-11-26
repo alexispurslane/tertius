@@ -63,7 +63,7 @@ public sealed class LightVolumeRenderTests
     [Fact]
     public void AnOffscreenEmitterLightsTheReceiverUntilAnOpaqueSheetInterceptsIt()
     {
-        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+        var renderer = VulkanRenderer.CreateHeadless(
             new RendererOptions
             {
                 Width = 64,
