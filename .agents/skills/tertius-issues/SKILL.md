@@ -66,12 +66,16 @@ Use `experiment` instead of `production` for work whose result is evidence rathe
 Run this audit at the start and end of every orchestration action, not only at the end of a session:
 
 ```powershell
-gh project item-list 5 --owner alexispurslane --limit 200 --format json
-gh issue list --repo alexispurslane/tertius --state open --limit 200 --json number,title,labels,issueType,parent,subIssues,url
-gh pr list --repo alexispurslane/tertius --state open --limit 200 --json number,title,isDraft,headRefName,url
+python3 -I .agents/skills/tertius-issues/scripts/board_sync.py
 ```
 
-For each open issue, inspect its native sub-issues, active branch, draft or ready pull request, latest review and latest required check. Set the column from the table above. Do not infer active work from the column itself.
+The script reads issues, native sub-issues and pull requests, then prints every status change needed. Review its dry-run, then apply it:
+
+```powershell
+python3 -I .agents/skills/tertius-issues/scripts/board_sync.py --apply
+```
+
+Inspect any surprising change yourself before applying it. The script cannot know that an unlinked local branch exists, so an In Progress issue without a pull request keeps that status until you change it. Do not infer active work from the column itself.
 
 ## Plan the issue
 
@@ -186,14 +190,19 @@ The reviewer can post comments directly. To avoid repeated GitHub calls, it can 
 ]
 ```
 
-The builder posts each finding as an inline comment with the pull request's current head commit:
+Save that array as `findings.json` and post only new comments with the current head commit:
 
 ```powershell
-$head = gh pr view <pr-number> --json headRefOid --jq .headRefOid
-gh api repos/alexispurslane/tertius/pulls/<pr-number>/comments -f body='<finding>' -f path='<file>' -F line=<changed-line> -f side=RIGHT -f commit_id=$head
+python3 -I .agents/skills/tertius-issues/scripts/review_comments.py post <pr-number> findings.json
 ```
 
-The builder owns the response. Work through each finding in turn. Fix the code and tests, push the change, reply with the evidence and resolve that comment's thread before moving to the next finding. Do not leave a fixed finding unresolved while other findings remain open. Use subagents for independent findings when that saves time. Do not start another review round by default.
+The builder owns the response. Work through each finding in turn. Fix the code and tests, push the change, reply with the evidence and resolve that comment's thread before moving to the next finding. Use the inline comment's database id:
+
+```powershell
+python3 -I .agents/skills/tertius-issues/scripts/review_comments.py resolve <pr-number> <comment-id> '<evidence>'
+```
+
+Do not leave a fixed finding unresolved while other findings remain open. Use subagents for independent findings when that saves time. Do not start another review round by default.
 
 ## Use CI as the merge gate
 
@@ -219,6 +228,18 @@ The `Tests and metrics` check is required on `main`. A merge is allowed only whe
 The wiki is canonical. Each design document lives only at `https://github.com/alexispurslane/tertius/wiki/<name>`. The repository has no `docs/plans` directory. Link issues and epics to a section with `#<github-slug>`.
 
 Do not recreate design documents in the repository. Link between wiki pages by their wiki names. Leave research reports and binding architecture in the repository.
+
+## Automation library
+
+Use the scripts under `.agents/skills/tertius-issues/scripts/` instead of rebuilding GitHub API calls by hand:
+
+| Script | Purpose |
+|---|---|
+| `board_sync.py` | Compute and apply status changes from native sub-issues and pull requests. Dry-run by default. |
+| `review_comments.py` | Post only new inline findings, reply with evidence and resolve review threads. |
+| `tools/pr_metrics.py` | Turn the `Tertius.Slop all` JSON into the branch metrics table. |
+
+`tools/test_tertius_issues.py` covers the board and review planning logic. `tools/test_pr_metrics.py` covers the table. `tools/test_ci_workflow.py` covers the GitHub Actions policy. Run them before changing the workflow.
 
 ## Read back uncertain writes
 

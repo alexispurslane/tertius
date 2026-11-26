@@ -18,7 +18,7 @@ Set each status from the work itself, in the same action that changes it:
 - Return an issue to Todo if work stops or its pull request closes unmerged. Record the reason and next action.
 - Close the issue and set Done immediately after its pull request merges. Do not leave merged work open or In Review.
 - Close an epic only after every native sub-issue is Done.
-- At the start and end of orchestration, compare every open issue with its branch, pull request and check state. Correct every mismatch before continuing.
+- At the start and end of orchestration, run `python3 -I .agents/skills/tertius-issues/scripts/board_sync.py`. Inspect the dry-run, then apply the changes with `--apply`. Correct any other mismatch before continuing.
 
 ## Merge through CI
 
