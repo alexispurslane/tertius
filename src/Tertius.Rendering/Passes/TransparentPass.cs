@@ -32,7 +32,7 @@ internal sealed unsafe class TransparentPass : RenderPass
         var glass = new GraphicsPipelineDesc
         {
             Name = "transparent",
-            VertexShader = "mesh.vert",
+            VertexShader = "mesh_nomotion.vert",
             FragmentShader = "transparent.frag",
             Layout = layouts.SceneLayout,
             ColorFormats = [RenderTargets.HdrFormat],
