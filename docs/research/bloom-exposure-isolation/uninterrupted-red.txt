@@ -1,0 +1,8 @@
+failed Tertius.Rendering.Tests.BloomExposureIsolationTests.EveryAppliedExposureIsIdenticalWithoutSynchronizingTheMovingDraws (4s 707ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-6a87b8cd-eca6f8039e5600a0/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected BitConverter.SingleToInt32Bits(reading.Stops) to be 1067526331 because at moving frame 32, bloom variant 1, but found 1048576000 (difference of -18950331).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.Be(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.BloomExposureIsolationTests.EveryAppliedExposureIsIdenticalWithoutSynchronizingTheMovingDraws() in /Users/alexispurslane/.t3/worktrees/tertius/t3-6a87b8cd-eca6f8039e5600a0/tests/Tertius.Rendering.Tests/BloomExposureIsolationTests.cs:262
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
