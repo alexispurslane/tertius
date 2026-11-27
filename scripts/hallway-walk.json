@@ -1,0 +1,22 @@
+{
+  "scene": "orbit",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "person" },
+    { "do": "run", "ticks": 30 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [-1256.637, 0] } },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 450 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [-1256.637, 0] } },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "aft-wall" },
+    { "do": "film", "name": "start", "frames": 30, "every": 1 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "film", "name": "walk", "frames": 1100, "every": 1 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "dump", "name": "nose-wall" },
+    { "do": "film", "name": "end", "frames": 60, "every": 1 }
+  ]
+}
