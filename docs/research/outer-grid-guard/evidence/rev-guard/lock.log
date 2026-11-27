@@ -1,0 +1,11 @@
+uptime-start:  13:58:19  up 63 days  1:32,  2 users,  load average: 3.65, 9.22, 6.96
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+timed-start
+timed-end
+/private/tmp/claude-501/-Users-alexispurslane--t3-worktrees-tertius-t3-343285ff-f8dc54ee4377651e/1b77e6d9-f453-44ac-b458-e4d1cd53d4e0/scratchpad/diag/rev-guard/walk.mkv
+/private/tmp/claude-501/-Users-alexispurslane--t3-worktrees-tertius-t3-343285ff-f8dc54ee4377651e/1b77e6d9-f453-44ac-b458-e4d1cd53d4e0/scratchpad/diag/rev-guard/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 10.877 ms, median 11.248 ms, p95 13.269 ms over 170 frames
+/private/tmp/claude-501/-Users-alexispurslane--t3-worktrees-tertius-t3-343285ff-f8dc54ee4377651e/1b77e6d9-f453-44ac-b458-e4d1cd53d4e0/scratchpad/diag/rev-guard/exposure.json
+uptime-end:  13:58:34  up 63 days  1:32,  2 users,  load average: 3.30, 8.86, 6.87

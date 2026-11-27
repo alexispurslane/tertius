@@ -6,16 +6,23 @@ namespace Tertius.Rendering;
 /// <summary>Rasterizes surface coverage into camera-centered shells, shades occupied patches and sweeps light through the grids.</summary>
 internal sealed unsafe class LightVolumePass : RenderPass
 {
-    private const int Side = 16;
+    // The grids' shape, as volume_layout.glsl has it: each level's receivers use a reach of 16 cells per axis, and the
+    // outer level also stores a guard of one cell on each face, 18 cells per axis.
     private const int Levels = 3;
-    private const int Cells = Side * Side * Side;
+    private const int Reach = 16;
+    private const int OuterSide = Reach + 2;
+    private const int OuterWidth = 1;
     private const int Directions = 32;
-    private const int Tiles = Cells / 64;
+    private const int CellCount = (Levels - 1) * Reach * Reach * Reach + OuterSide * OuterSide * OuterSide;
+    private const int OuterTilesPerAxis = 6;
+    private const int TileCount = (Levels - 1) * 64 + OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis;
     internal const uint CounterOffset = Levels * 16;
     private const uint HeaderBytes = Levels * 16 + 16;
-    private const uint SurfaceBytes = Levels * Cells * 6 * 48;
-    private const uint BufferBytes =
-        HeaderBytes + SurfaceBytes + 16 * Levels * (Tiles * 6 + Cells * (Directions + 6 + 12));
+    private const uint SurfaceBytes = CellCount * 6 * 48;
+
+    /// <summary>The size of the volume's buffer in bytes: 15,291,200 (14.58 MiB).</summary>
+    internal const uint BufferBytes =
+        HeaderBytes + SurfaceBytes + 16 * (TileCount * 6 + CellCount * (Directions + 6 + 12));
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly DescriptorSet set;
@@ -99,9 +106,18 @@ internal sealed unsafe class LightVolumePass : RenderPass
     public override string Name => "directional light volume";
     public GpuBuffer Buffer { get; }
 
-    // A grid center lies at most half a cell from the camera along any axis.
+    /// <summary>
+    /// Whether a sphere, camera-relative, can reach a cell of the outer grid. The grid's center lies at most half a cell
+    /// from the camera along any axis, so the grid lies within (OuterSide + 1) / 2 cells of the camera.
+    /// </summary>
     public static bool Intersects(Vector3 center, float radius) =>
-        MathF.Max(MathF.Abs(center.X), MathF.Max(MathF.Abs(center.Y), MathF.Abs(center.Z))) <= 8.5f + radius;
+        MathF.Max(MathF.Abs(center.X), MathF.Max(MathF.Abs(center.Y), MathF.Abs(center.Z)))
+        <= (OuterSide + 1) * 0.5f * OuterWidth + radius;
+
+    // The cells per axis that a level stores.
+    private static int SideOf(int level) => level == Levels - 1 ? OuterSide : Reach;
+
+    private static uint WorkGroups(int cells) => (uint)(cells + 63) / 64;
 
     public override void Record(FrameContext context)
     {
@@ -110,7 +126,8 @@ internal sealed unsafe class LightVolumePass : RenderPass
         for (int level = 0; level < Levels; level++)
         {
             float width = 0.25f * (1 << level);
-            float Origin(double x) => (float)Math.IEEERemainder(x, width) - Side / 2 * width;
+            int side = SideOf(level);
+            float Origin(double x) => (float)Math.IEEERemainder(x, width) - side / 2 * width;
             grids[level] = new(x: Origin(anchor.X), y: Origin(anchor.Y), z: Origin(anchor.Z), w: width);
         }
         Use(context, BufferUse.TransferDestination);
@@ -135,10 +152,34 @@ internal sealed unsafe class LightVolumePass : RenderPass
         context.Barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         Rasterize(context, grids);
         for (uint parent = 1; parent < Levels; parent++)
-            Dispatch(context: context, pipeline: restrictSurface, index: parent, x: Cells / 64, y: 6);
+        {
+            int side = SideOf((int)parent);
+            Dispatch(
+                context: context,
+                pipeline: restrictSurface,
+                index: parent,
+                x: WorkGroups(side * side * side),
+                y: 6
+            );
+        }
+        ShadeGroups(context);
+
+        for (uint bounce = 0; bounce <= 1; bounce++)
+        {
+            Dispatch(context: context, pipeline: source, index: bounce, x: WorkGroups(CellCount), y: Directions);
+            for (int level = Levels - 1; level >= 0; level--)
+                Dispatch(context: context, pipeline: sweep, index: (uint)level, x: Directions, y: 1);
+            Dispatch(context: context, pipeline: filter, index: bounce, x: WorkGroups(CellCount), y: 6);
+        }
+    }
+
+    // Evaluates the lights once per lighting group and side (volume_shade.frag).
+    private void ShadeGroups(FrameContext context)
+    {
         context.Barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
         context.ShadowAtlas?.DeclareSampled(context.Barriers, ImageUse.SampledFragment);
-        BeginRaster(context, shading, new(Tiles * 6, Levels));
+        // One pixel per lighting group and side, one row per level: the outer level's groups set the width.
+        BeginRaster(context, shading, new(OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis * 6, Levels));
         context.Vk.CmdDraw(
             commandBuffer: context.CommandBuffer,
             vertexCount: 3,
@@ -147,19 +188,13 @@ internal sealed unsafe class LightVolumePass : RenderPass
             firstInstance: 0
         );
         context.Vk.CmdEndRendering(context.CommandBuffer);
-
-        for (uint bounce = 0; bounce <= 1; bounce++)
-        {
-            Dispatch(context: context, pipeline: source, index: bounce, x: Cells * Levels / 64, y: Directions);
-            for (int level = Levels - 1; level >= 0; level--)
-                Dispatch(context: context, pipeline: sweep, index: (uint)level, x: Directions, y: 1);
-            Dispatch(context: context, pipeline: filter, index: bounce, x: Cells * Levels / 64, y: 6);
-        }
     }
 
     private void Rasterize(FrameContext context, ReadOnlySpan<Vector4> grids)
     {
-        BeginRaster(context, geometry, new(Side * 4, Side * 4));
+        // 4 × 4 pixels per cell. Every level projects its cells into the same OuterSide × OuterSide cells
+        // (volume_surface.vert), so the inner levels sample their cells as before at the lower corner.
+        BeginRaster(context, geometry, new(OuterSide * 4, OuterSide * 4));
         GeometryPass.BindGeometry(context);
         foreach (ref readonly PreparedInstance p in context.Scene.PlacedSpan)
         {
@@ -176,7 +211,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
             for (int level = 0; level < Levels; level++)
             {
                 Vector4 grid = grids[level];
-                float half = Side * 0.5f * grid.W;
+                float half = SideOf(level) * 0.5f * grid.W;
                 var offset = Vector3.Abs(p.Position - new Vector3(grid.X + half, grid.Y + half, grid.Z + half));
                 float distance = MathF.Max(offset.X, MathF.Max(offset.Y, offset.Z));
                 if (distance > half + p.Radius)

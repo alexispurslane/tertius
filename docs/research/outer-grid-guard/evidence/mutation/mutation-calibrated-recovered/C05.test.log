@@ -1,0 +1,20 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 3.625, z: 3.75) (1s 115ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected Enumerable.Range(0, 5832).Sum(cell => values[4 * cell]) to approximate 1536F +/- 24F because six faces of a 0.25 m cube cover 0.375 square metres, at 4096 units per outer-cell face, but 0F differed by 1536F.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.NumericAssertionsExtensions.FailIfDifferenceOutsidePrecision[T](Boolean differenceWithinPrecision, NumericAssertions`1 parent, T expectedValue, T precision, T actualDifference, String because, Object[] becauseArgs)
+    at AwesomeAssertions.NumericAssertionsExtensions.BeApproximately(NumericAssertions`1 parent, Single expectedValue, Single precision, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(Single x, Single y, Single z) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeLayoutTests.cs:46
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 1 error(s) [+28/x1/?0] (29s 974ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 29
+  failed: 1
+  succeeded: 28
+  skipped: 0
+  duration: 30s 340ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

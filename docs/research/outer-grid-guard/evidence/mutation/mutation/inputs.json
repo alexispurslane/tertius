@@ -1,0 +1,54 @@
+{
+  "identity": {
+    "HEAD": "975d99e51f8d86ca3773e321b6c76749ba8ef7b7\n",
+    "MERGE_HEAD": null,
+    "MERGE_MSG": null,
+    "MERGE_MODE": null
+  },
+  "files": {
+    "src/Tertius.Rendering/Passes/LightVolumePass.cs": {
+      "sha256": "d17cdac61bbfa1a1193d1d2ceabaa172d00df5e0584a58a978abf976b85d6706",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume.glsl": {
+      "sha256": "2f844167f39884e94e0d122248df11c6dadf085f92f035448f722e0114986595",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_filter.comp": {
+      "sha256": "0cc008832aec1563f96d6c3b7844a12aedc4020d68344293b159fcab34d293e7",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_layout.glsl": {
+      "sha256": "25836f1820bbd68cf792d71d40fcfedf806d3274bc879e6fbf7406d0ef4006e6",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_receive.glsl": {
+      "sha256": "edcd7940c588084002fe6bcc31395e2d675fed50e1e534cdcf785920391e7ee2",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_restrict.comp": {
+      "sha256": "98d47bb0b45953561ac1aad8799b451b1f16c0043162f989247571292bf4c2e3",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_shade.frag": {
+      "sha256": "231294f46b5d645a61325bf7c2cc544c146751c8077a0c6498e48fee301ef10f",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_source.comp": {
+      "sha256": "327916c61835ec5c5c5a7582ed21ec4587b497bb9f9bb211b736669fa66c07cf",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_surface.frag": {
+      "sha256": "5b35f1c2c9bb24028e4c52b6bebee3886a156668e73eb82686def9c8aafea6cd",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_surface.vert": {
+      "sha256": "4414bc48572616d99756fa4697e3009bf0a6f14cfd3f91785101efbd9b6a7b45",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_sweep.comp": {
+      "sha256": "a24b435884e42db118fccbef0215943d71d28364021e3f0c42a27771c23467b3",
+      "executable": false
+    }
+  }
+}

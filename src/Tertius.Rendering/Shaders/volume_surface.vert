@@ -1,4 +1,6 @@
 #version 460
+#extension GL_GOOGLE_include_directive : require
+#include "volume_layout.glsl"
 layout(location = 0) in vec3 position;
 layout(location = 3) in vec2 texCoord;
 layout(location = 0) out vec3 world;
@@ -18,7 +20,9 @@ void main()
     vec4 p = vec4(position, 1);
     world = vec3(dot(draw.row0, p), dot(draw.row1, p), dot(draw.row2, p));
     uv = texCoord;
-    vec3 local = (world - draw.grid.xyz) / (16.0 * draw.grid.w);
+    // Every level rasterizes into the same MaxSide × MaxSide cells of 4 × 4 pixels (LightVolumePass.Rasterize). A grid
+    // with fewer cells uses the lower corner, and its fragments discard the rest.
+    vec3 local = (world - draw.grid.xyz) / (float(MaxSide) * draw.grid.w);
     axis = uint(gl_InstanceIndex);
     gl_Position = vec4(2.0 * vec2(local[(axis + 1u) % 3u], local[(axis + 2u) % 3u]) - 1.0, local[axis], 1);
 }

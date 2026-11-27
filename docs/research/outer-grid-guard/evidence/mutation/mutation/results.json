@@ -1,0 +1,420 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "G01",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 21,
+   "change": "return level == Levels - ... -> return 0;",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps",
+    "LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera"
+   ],
+   "seconds": 90.15599525067955,
+   "original": "return level == Levels - 1 ? 1 : 0;",
+   "replacement": "return 0;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G02",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 69,
+   "change": "return 2 * ((sideOf(level... -> return 2 * ((sideOf(level...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+   ],
+   "seconds": 91.83628516737372,
+   "original": "return 2 * ((sideOf(level) / 2 + 3) / 4);",
+   "replacement": "return 2 * ((sideOf(level) / 2) / 4);",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G03",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 73,
+   "change": "return 2 * tilesPerAxisOf... -> return 0;",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 87.1736471671611,
+   "original": "return 2 * tilesPerAxisOf(level) - sideOf(level) / 2;",
+   "replacement": "return 0;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G04",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 61,
+   "change": "return Directions * first... -> return Directions * first...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 100.18266541603953,
+   "original": "return Directions * firstCellOf(level) + direction * cellsOf(level) + cell;",
+   "replacement": "return Directions * firstCellOf(level) + direction * 4096 + cell;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G05",
+   "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+   "line": 36,
+   "change": "for (int j = 0; j < 4; ++j) -> for (int j = 0; j < 3; ++j)",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 80.04760754201561,
+   "original": "for (int j = 0; j < 4; ++j)",
+   "replacement": "for (int j = 0; j < 3; ++j)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G06",
+   "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+   "line": 42,
+   "change": "c[axis] = step[axis] > 0 ... -> c[axis] = step[axis] > 0 ...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 33.87619216553867,
+   "original": "c[axis] = step[axis] > 0 ? slice : side - 1 - slice;",
+   "replacement": "c[axis] = step[axis] > 0 ? slice : 15 - slice;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G07",
+   "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+   "line": 39,
+   "change": "if (any(greaterThanEqual(... -> if (false)",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 26.61255562491715,
+   "original": "if (any(greaterThanEqual(xy, ivec2(side))))",
+   "replacement": "if (false)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G08",
+   "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+   "line": 31,
+   "change": "for (int slice = 0; slice... -> for (int slice = 0; slice...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 26.79263220820576,
+   "original": "for (int slice = 0; slice < side; ++slice)",
+   "replacement": "for (int slice = 0; slice < 16; ++slice)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G09",
+   "file": "src/Tertius.Rendering/Shaders/volume_source.comp",
+   "line": 16,
+   "change": "if (cell >= CellCount) -> if (false)",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 27.065600167028606,
+   "original": "if (cell >= CellCount)",
+   "replacement": "if (false)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G10",
+   "file": "src/Tertius.Rendering/Shaders/volume_filter.comp",
+   "line": 28,
+   "change": "if (cell >= CellCount) -> if (false)",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 26.104770000092685,
+   "original": "if (cell >= CellCount)",
+   "replacement": "if (false)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G11",
+   "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+   "line": 18,
+   "change": "if (cell >= cellsOf(level)) -> if (false)",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 26.397784000262618,
+   "original": "if (cell >= cellsOf(level))",
+   "replacement": "if (false)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G12",
+   "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+   "line": 30,
+   "change": "vec3 center = clamp(-grid... -> vec3 center = gridCenter;",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 73.22840258292854,
+   "original": "vec3 center = clamp(-grid.xyz / grid.w, gridCenter - float(guardOf(level)), gridCenter + float(guardOf(level)));",
+   "replacement": "vec3 center = gridCenter;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G13",
+   "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+   "line": 32,
+   "change": "return clamp(0.5 * float(... -> return clamp(0.5 * float(...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps"
+   ],
+   "seconds": 70.74027262534946,
+   "original": "return clamp(0.5 * float(Reach) - 0.5 - max(",
+   "replacement": "return clamp(0.5 * float(Reach) - max(",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G14",
+   "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+   "line": 37,
+   "change": "vec3 local = clamp(p - 0.... -> vec3 local = clamp(p - 0....",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 66.53399774990976,
+   "original": "vec3 local = clamp(p - 0.5, 0.0, float(last));",
+   "replacement": "vec3 local = clamp(p - 0.5, 0.0, 15.0);",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G15",
+   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+   "line": 14,
+   "change": "tile >= tilesOf(level) -> tile >= 64",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+   ],
+   "seconds": 65.20868183299899,
+   "original": "tile >= tilesOf(level)",
+   "replacement": "tile >= 64",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G16",
+   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+   "line": 29,
+   "change": "if (!withinGrid(level, c)) -> if (false)",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 30.72602237481624,
+   "original": "if (!withinGrid(level, c))",
+   "replacement": "if (false)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G17",
+   "file": "src/Tertius.Rendering/Shaders/volume_surface.vert",
+   "line": 25,
+   "change": "(float(MaxSide) * draw.gr... -> (16.0 * draw.grid.w)",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera",
+    "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+   ],
+   "seconds": 28.136450124904513,
+   "original": "(float(MaxSide) * draw.grid.w)",
+   "replacement": "(16.0 * draw.grid.w)",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G18",
+   "file": "src/Tertius.Rendering/Shaders/volume_surface.frag",
+   "line": 32,
+   "change": "if (withinGrid(finest - 1... -> if (withinGrid(finest, iv...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 26.649368832819164,
+   "original": "if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))",
+   "replacement": "if (withinGrid(finest, ivec3(floor((world - finer.xyz) / finer.w))))",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G19",
+   "file": "src/Tertius.Rendering/Shaders/volume.glsl",
+   "line": 62,
+   "change": "0, sideOf(level + 1) - 1); -> 0, 15);",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 62.01614879164845,
+   "original": "0, sideOf(level + 1) - 1);",
+   "replacement": "0, 15);",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G20",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 40,
+   "change": "while (level + 1 < Levels... -> while (level + 1 < Levels...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 63.31886512506753,
+   "original": "while (level + 1 < Levels && cell >= firstCellOf(level + 1))",
+   "replacement": "while (level + 1 < Levels && cell > firstCellOf(level + 1))",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 118,
+   "change": "private static int SideOf... -> private static int SideOf...",
+   "result": "build-failed",
+   "killed_by": [],
+   "seconds": 36.795329416170716,
+   "original": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide : Reach;",
+   "replacement": "private static int SideOf(int level) => Reach;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C02",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 115,
+   "change": "<= (OuterSide + 1) * 0.5f... -> <= (Reach + 1) * 0.5f * O...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.ALightThatReachesOnlyTheOuterGridsShellCanLightTheVolume"
+   ],
+   "seconds": 30.075663625262678,
+   "original": "<= (OuterSide + 1) * 0.5f * OuterWidth + radius;",
+   "replacement": "<= (Reach + 1) * 0.5f * OuterWidth + radius;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 197,
+   "change": "BeginRaster(context, geom... -> BeginRaster(context, geom...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 24.945289332419634,
+   "original": "BeginRaster(context, geometry, new(OuterSide * 4, OuterSide * 4));",
+   "replacement": "BeginRaster(context, geometry, new(Reach * 4, Reach * 4));",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C04",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 120,
+   "change": "private static uint WorkG... -> private static uint WorkG...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 24.644881458953023,
+   "original": "private static uint WorkGroups(int cells) => (uint)(cells + 63) / 64;",
+   "replacement": "private static uint WorkGroups(int cells) => (uint)cells / 64;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C05",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 161,
+   "change": "x: WorkGroups(side * side... -> x: WorkGroups(Reach * Rea...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 24.999557791277766,
+   "original": "x: WorkGroups(side * side * side),",
+   "replacement": "x: WorkGroups(Reach * Reach * Reach),",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C06",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 182,
+   "change": "BeginRaster(context, shad... -> BeginRaster(context, shad...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+   ],
+   "seconds": 26.5909272916615,
+   "original": "BeginRaster(context, shading, new(OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis * 6, Levels));",
+   "replacement": "BeginRaster(context, shading, new(64 * 6, Levels));",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C07",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 214,
+   "change": "float half = SideOf(level... -> float half = Reach * 0.5f...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 27.993127416819334,
+   "original": "float half = SideOf(level) * 0.5f * grid.W;",
+   "replacement": "float half = Reach * 0.5f * grid.W;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps (907ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected beyond to contain only items matching (red == 0) because the dark scene's only light reaches the wall through the grid, but {1.3466797F, 1.3583984F, 1.3671875F, 1.3251953F, 1.3408203F} do(es) not match.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Execution.GivenSelector`1.FailWith(String message, Func`2[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass88_0.<OnlyContain>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:397
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 1 error(s) [+19/x1/?0] (30s 522ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 20
+  failed: 1
+  succeeded: 19
+  skipped: 0
+  duration: 30s 968ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

@@ -1,0 +1,22 @@
+{
+  "identity": {
+    "HEAD": "7f908eae2352bc845625804ff891c822f2ed7f55\n",
+    "MERGE_HEAD": null,
+    "MERGE_MSG": null,
+    "MERGE_MODE": null
+  },
+  "files": {
+    "src/Tertius.Rendering/Passes/LightVolumePass.cs": {
+      "sha256": "d17cdac61bbfa1a1193d1d2ceabaa172d00df5e0584a58a978abf976b85d6706",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_layout.glsl": {
+      "sha256": "25836f1820bbd68cf792d71d40fcfedf806d3274bc879e6fbf7406d0ef4006e6",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_surface.frag": {
+      "sha256": "5b35f1c2c9bb24028e4c52b6bebee3886a156668e73eb82686def9c8aafea6cd",
+      "executable": false
+    }
+  }
+}

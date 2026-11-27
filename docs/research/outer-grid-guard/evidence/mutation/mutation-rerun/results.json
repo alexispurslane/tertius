@@ -1,0 +1,125 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "G03",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 73,
+   "change": "return 2 * tilesPerAxisOf... -> return 0;",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 2)"
+   ],
+   "seconds": 76.73332562483847,
+   "original": "return 2 * tilesPerAxisOf(level) - sideOf(level) / 2;",
+   "replacement": "return 0;",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  },
+  {
+   "id": "G18",
+   "file": "src/Tertius.Rendering/Shaders/volume_surface.frag",
+   "line": 32,
+   "change": "if (withinGrid(finest - 1... -> if (withinGrid(finest, iv...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AnEmitterJustOutsideTheMiddleGridLightsAReceiverThroughTheOuterGrid(distance: 4.25)",
+    "LightVolumeRenderTests.AnEmitterJustOutsideTheMiddleGridLightsAReceiverThroughTheOuterGrid(distance: 4.75)"
+   ],
+   "seconds": 66.12349245883524,
+   "original": "if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))",
+   "replacement": "if (withinGrid(finest, ivec3(floor((world - finer.xyz) / finer.w))))",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "G20",
+   "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+   "line": 40,
+   "change": "while (level + 1 < Levels... -> while (level + 1 < Levels...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 2)",
+    "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 1)",
+    "LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells"
+   ],
+   "seconds": 68.88934395834804,
+   "original": "while (level + 1 < Levels && cell >= firstCellOf(level + 1))",
+   "replacement": "while (level + 1 < Levels && cell > firstCellOf(level + 1))",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  },
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 118,
+   "change": "private static int SideOf... -> private static int SideOf...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+    "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+   ],
+   "seconds": 71.68298162519932,
+   "original": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide : Reach;",
+   "replacement": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide - 2 : Reach;",
+   "classes": [
+    "LightVolumeRenderTests"
+   ]
+  },
+  {
+   "id": "C04",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 120,
+   "change": "private static uint WorkG... -> private static uint WorkG...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells"
+   ],
+   "seconds": 35.93231541663408,
+   "original": "private static uint WorkGroups(int cells) => (uint)(cells + 63) / 64;",
+   "replacement": "private static uint WorkGroups(int cells) => (uint)cells / 64;",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  },
+  {
+   "id": "C05",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 161,
+   "change": "x: WorkGroups(side * side... -> x: WorkGroups(Reach * Rea...",
+   "result": "survived",
+   "killed_by": [],
+   "seconds": 33.72668704111129,
+   "original": "x: WorkGroups(side * side * side),",
+   "replacement": "x: WorkGroups(Reach * Reach * Reach),",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  },
+  {
+   "id": "C07",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 214,
+   "change": "float half = SideOf(level... -> float half = Reach * 0.5f...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(distance: 8.5)"
+   ],
+   "seconds": 32.202658750116825,
+   "original": "float half = SideOf(level) * 0.5f * grid.W;",
+   "replacement": "float half = Reach * 0.5f * grid.W;",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  }
+ ]
+}
