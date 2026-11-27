@@ -1,0 +1,22 @@
+{
+  "test_head": "61a12d8c2e1a5df24fad36400919b88fd17a8adb",
+  "production_commit": "975d99e51f8d86ca3773e321b6c76749ba8ef7b7",
+  "script": "scripts/hallway-walk.json",
+  "script_sha256": "fbbe97560770cb6b38d352c94f72cd079d399e77c6099d3c4ffed368bcc4b384",
+  "frames": 1190,
+  "size": [
+    1280,
+    720
+  ],
+  "fps": 60,
+  "exposure_stops": 3.79,
+  "gray_box": true,
+  "reference": "original guard lossless walk.mkv",
+  "comparison": "RGB24 SHA256 per frame, before lossy encoding",
+  "reviewed_frames": [
+    38,
+    1064,
+    1065,
+    1077
+  ]
+}

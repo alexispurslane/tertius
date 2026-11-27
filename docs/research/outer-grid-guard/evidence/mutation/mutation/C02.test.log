@@ -1,0 +1,19 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.ALightThatReachesOnlyTheOuterGridsShellCanLightTheVolume (42ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected LightVolumePass.Intersects(center: new(0, 0, 9.3f), radius: 0) to be True, but found False.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Primitives.BooleanAssertions`1.BeTrue(String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.ALightThatReachesOnlyTheOuterGridsShellCanLightTheVolume() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:493
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 1 error(s) [+19/x1/?0] (22s 467ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 20
+  failed: 1
+  succeeded: 19
+  skipped: 0
+  duration: 22s 896ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

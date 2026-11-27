@@ -13,22 +13,25 @@ pass;
 // At a surface those grazing taps can bring radiance from the far side of its own
 // wall. The strictly upwind corner of the same stencil lies across each crossed
 // face. Use that corner for the last step of a bounce onto occupied geometry.
-vec4 incidentAtSurface(int cell, int direction, vec3 step)
+vec4 incidentAtSurface(int level, int local, int direction, vec3 step)
 {
-    int level = cell / Cells;
-    ivec3 q = coordinates(cell % Cells) - ivec3(sign(step));
-    if (!withinGrid(q))
+    ivec3 q = coordinates(level, local) - ivec3(sign(step));
+    if (!withinGrid(level, q))
         return parentOutgoing(q, level, direction);
-    return outgoingOf(volume.field[(level * Directions + direction) * Cells + cellIndex(q)]);
+    return outgoingOf(volume.field[fieldIndex(level, direction, cellIndex(level, q))]);
 }
 
 void main()
 {
     int cell = int(gl_GlobalInvocationID.x), side = int(gl_WorkGroupID.y);
+    // The last work group runs past the last cell.
+    if (cell >= CellCount)
+        return;
     int k = cell * 6 + side;
     if (pass.finalPass == 0u && volume.surfaces[k].areaNormal.w == 0)
         return;
-    int level = cell / Cells;
+    int level = levelOfCell(cell);
+    int local = cell - firstCellOf(level);
     vec3 n = axisNormal(side);
     if (pass.finalPass == 0u)
     {
@@ -47,8 +50,8 @@ void main()
         // All octants use the same four angular samples.
         float weight = cosine;
         float glossy = weight * cosine * cosine * cosine;
-        int index = (level * Directions + d) * Cells + cell % Cells;
-        vec4 light = pass.finalPass == 0u ? incidentAtSurface(cell, d, step) : incomingOf(volume.field[index]);
+        int index = fieldIndex(level, d, local);
+        vec4 light = pass.finalPass == 0u ? incidentAtSurface(level, local, d, step) : incomingOf(volume.field[index]);
         diffuse += weight * light;
         specular += glossy * light;
         total += vec2(weight, glossy);

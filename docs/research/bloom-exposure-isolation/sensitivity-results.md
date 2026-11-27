@@ -1,0 +1,6 @@
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| B01 | src/Tertius.Rendering/Passes/BloomPass.cs:32 | Bloom overwrites next-frame exposure only after moving frame 30; delayed feedback must be caught. | killed | BloomExposureIsolationTests.TheDelayedExposureReadingsAreTheSameWhateverTheBloom, BloomExposureIsolationTests.TheUpscaledHdrImageThatBloomReadsIsTheSameInEveryFrameWhateverTheBloom, BloomExposureIsolationTests.TheWallKeepsVisibleSurfaceContrastBelowTheLampWhateverTheBloom | 15.9 |
+| B02 | src/Tertius.Rendering/Passes/ToneMapPass.cs:90 | Disable visible halo while leaving exposure isolated. | killed | BloomExposureIsolationTests.TheHaloGrowsFromNoBloomToTheDefaultToTheExaggeratedBloom | 16.3 |
+| B03 | src/Tertius.Rendering/Shaders/exposure_adapt.comp:80 | Freeze exposure so equal bloom variants cannot hide a broken light response. | killed | BloomExposureIsolationTests.TheWallKeepsVisibleSurfaceContrastBelowTheLampWhateverTheBloom, BloomExposureIsolationTests.TheHaloGrowsFromNoBloomToTheDefaultToTheExaggeratedBloom, BloomExposureIsolationTests.TheExposureRisesAfterTheSunDimsWhateverTheBloom | 18.4 |
+3 rows: killed 3, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0

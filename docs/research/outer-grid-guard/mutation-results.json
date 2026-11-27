@@ -1,0 +1,492 @@
+{
+  "counts": {
+    "killed": 21,
+    "survived": 6
+  },
+  "rows": [
+    {
+      "id": "G01",
+      "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+      "line": 21,
+      "change": "return level == Levels - ... -> return 0;",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps",
+        "LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera"
+      ],
+      "seconds": 90.15599525067955,
+      "original": "return level == Levels - 1 ? 1 : 0;",
+      "replacement": "return 0;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G02",
+      "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+      "line": 69,
+      "change": "return 2 * ((sideOf(level... -> return 2 * ((sideOf(level...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+      ],
+      "seconds": 91.83628516737372,
+      "original": "return 2 * ((sideOf(level) / 2 + 3) / 4);",
+      "replacement": "return 2 * ((sideOf(level) / 2) / 4);",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G03",
+      "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+      "line": 73,
+      "change": "return 2 * tilesPerAxisOf... -> return 0;",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 2)"
+      ],
+      "seconds": 76.73332562483847,
+      "original": "return 2 * tilesPerAxisOf(level) - sideOf(level) / 2;",
+      "replacement": "return 0;",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-rerun"
+    },
+    {
+      "id": "G04",
+      "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+      "line": 61,
+      "change": "return Directions * first... -> return Directions * first...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 100.18266541603953,
+      "original": "return Directions * firstCellOf(level) + direction * cellsOf(level) + cell;",
+      "replacement": "return Directions * firstCellOf(level) + direction * 4096 + cell;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G05",
+      "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+      "line": 36,
+      "change": "for (int j = 0; j < 4; ++j) -> for (int j = 0; j < 3; ++j)",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 80.04760754201561,
+      "original": "for (int j = 0; j < 4; ++j)",
+      "replacement": "for (int j = 0; j < 3; ++j)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G06",
+      "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+      "line": 42,
+      "change": "c[axis] = step[axis] > 0 ... -> c[axis] = step[axis] > 0 ...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 33.87619216553867,
+      "original": "c[axis] = step[axis] > 0 ? slice : side - 1 - slice;",
+      "replacement": "c[axis] = step[axis] > 0 ? slice : 15 - slice;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G07",
+      "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+      "line": 39,
+      "change": "if (any(greaterThanEqual(... -> if (false)",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 26.61255562491715,
+      "original": "if (any(greaterThanEqual(xy, ivec2(side))))",
+      "replacement": "if (false)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "judgment",
+      "reason": "Removing the slice guard lets inner-grid invocations write cells outside their level, with aliases and races that normal Vulkan validation and sampled image results cannot reliably detect; retain the guard and the checked slice ranges."
+    },
+    {
+      "id": "G08",
+      "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+      "line": 31,
+      "change": "for (int slice = 0; slice... -> for (int slice = 0; slice...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 26.79263220820576,
+      "original": "for (int slice = 0; slice < side; ++slice)",
+      "replacement": "for (int slice = 0; slice < 16; ++slice)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G09",
+      "file": "src/Tertius.Rendering/Shaders/volume_source.comp",
+      "line": 16,
+      "change": "if (cell >= CellCount) -> if (false)",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 27.065600167028606,
+      "original": "if (cell >= CellCount)",
+      "replacement": "if (false)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "judgment",
+      "reason": "The final 56 source invocations address past shader array bounds without this guard, but robust whole-buffer access and sampled images do not give a portable failure oracle for that undefined access; retain the guard and dispatch-bound proof."
+    },
+    {
+      "id": "G10",
+      "file": "src/Tertius.Rendering/Shaders/volume_filter.comp",
+      "line": 28,
+      "change": "if (cell >= CellCount) -> if (false)",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 26.104770000092685,
+      "original": "if (cell >= CellCount)",
+      "replacement": "if (false)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "judgment",
+      "reason": "The final 56 filter invocations address past shader array bounds without this guard, but normal validation does not check those accesses and image equality cannot prove their safety; retain the guard and dispatch-bound proof."
+    },
+    {
+      "id": "G11",
+      "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+      "line": 18,
+      "change": "if (cell >= cellsOf(level)) -> if (false)",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 26.397784000262618,
+      "original": "if (cell >= cellsOf(level))",
+      "replacement": "if (false)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "equivalent",
+      "reason": "The middle level has no dispatch tail, and every extra outer invocation has z = 18 and maps beyond the child grid, so the later child-overlap guard returns before any storage access even with the first guard removed."
+    },
+    {
+      "id": "G12",
+      "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+      "line": 30,
+      "change": "vec3 center = clamp(-grid... -> vec3 center = gridCenter;",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 73.22840258292854,
+      "original": "vec3 center = clamp(-grid.xyz / grid.w, gridCenter - float(guardOf(level)), gridCenter + float(guardOf(level)));",
+      "replacement": "vec3 center = gridCenter;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G13",
+      "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+      "line": 32,
+      "change": "return clamp(0.5 * float(... -> return clamp(0.5 * float(...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps"
+      ],
+      "seconds": 70.74027262534946,
+      "original": "return clamp(0.5 * float(Reach) - 0.5 - max(",
+      "replacement": "return clamp(0.5 * float(Reach) - max(",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G14",
+      "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+      "line": 37,
+      "change": "vec3 local = clamp(p - 0.... -> vec3 local = clamp(p - 0....",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.OppositeFacesOfTheOuterFadeReceiveTheSameLightFromMirroredScenes"
+      ],
+      "seconds": 76.41149479243904,
+      "original": "vec3 local = clamp(p - 0.5, 0.0, float(last));",
+      "replacement": "vec3 local = clamp(p - 0.5, 0.0, 15.0);",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation-calibrated-recovered"
+    },
+    {
+      "id": "G15",
+      "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+      "line": 14,
+      "change": "tile >= tilesOf(level) -> tile >= 64",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+      ],
+      "seconds": 65.20868183299899,
+      "original": "tile >= tilesOf(level)",
+      "replacement": "tile >= 64",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G16",
+      "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+      "line": 29,
+      "change": "if (!withinGrid(level, c)) -> if (false)",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 30.72602237481624,
+      "original": "if (!withinGrid(level, c))",
+      "replacement": "if (false)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "judgment",
+      "reason": "Removing the partial-group guard admits coordinates outside the grid and invalid shader array accesses that normal validation and these sampled images cannot reliably detect; retain the guard and the tested group bounds."
+    },
+    {
+      "id": "G17",
+      "file": "src/Tertius.Rendering/Shaders/volume_surface.vert",
+      "line": 25,
+      "change": "(float(MaxSide) * draw.gr... -> (16.0 * draw.grid.w)",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera",
+        "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+      ],
+      "seconds": 28.136450124904513,
+      "original": "(float(MaxSide) * draw.grid.w)",
+      "replacement": "(16.0 * draw.grid.w)",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "G18",
+      "file": "src/Tertius.Rendering/Shaders/volume_surface.frag",
+      "line": 32,
+      "change": "if (withinGrid(finest - 1... -> if (withinGrid(finest, iv...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AnEmitterJustOutsideTheMiddleGridLightsAReceiverThroughTheOuterGrid(distance: 4.25)",
+        "LightVolumeRenderTests.AnEmitterJustOutsideTheMiddleGridLightsAReceiverThroughTheOuterGrid(distance: 4.75)"
+      ],
+      "seconds": 66.12349245883524,
+      "original": "if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))",
+      "replacement": "if (withinGrid(finest, ivec3(floor((world - finer.xyz) / finer.w))))",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation-rerun"
+    },
+    {
+      "id": "G19",
+      "file": "src/Tertius.Rendering/Shaders/volume.glsl",
+      "line": 62,
+      "change": "0, sideOf(level + 1) - 1); -> 0, 15);",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 62.01614879164845,
+      "original": "0, sideOf(level + 1) - 1);",
+      "replacement": "0, 15);",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation",
+      "triage": "equivalent",
+      "reason": "Parent samples come only from the immediately finer grid and its one-cell stencil, inside the central 16 cells of the parent, so clamping to 15 cannot change any reachable parent sample in this three-level layout."
+    },
+    {
+      "id": "G20",
+      "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+      "line": 40,
+      "change": "while (level + 1 < Levels... -> while (level + 1 < Levels...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 2)",
+        "LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 1)",
+        "LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells"
+      ],
+      "seconds": 68.88934395834804,
+      "original": "while (level + 1 < Levels && cell >= firstCellOf(level + 1))",
+      "replacement": "while (level + 1 < Levels && cell > firstCellOf(level + 1))",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-rerun"
+    },
+    {
+      "id": "C01",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 118,
+      "change": "private static int SideOf... -> private static int SideOf...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019)",
+        "LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7)"
+      ],
+      "seconds": 71.68298162519932,
+      "original": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide : Reach;",
+      "replacement": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide - 2 : Reach;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation-rerun"
+    },
+    {
+      "id": "C02",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 115,
+      "change": "<= (OuterSide + 1) * 0.5f... -> <= (Reach + 1) * 0.5f * O...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.ALightThatReachesOnlyTheOuterGridsShellCanLightTheVolume"
+      ],
+      "seconds": 30.075663625262678,
+      "original": "<= (OuterSide + 1) * 0.5f * OuterWidth + radius;",
+      "replacement": "<= (Reach + 1) * 0.5f * OuterWidth + radius;",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "C03",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 197,
+      "change": "BeginRaster(context, geom... -> BeginRaster(context, geom...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 3.625, z: 3.75)",
+        "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 0.125, z: 8.5)"
+      ],
+      "seconds": 34.798477625474334,
+      "original": "BeginRaster(context, geometry, new(OuterSide * 4, OuterSide * 4));",
+      "replacement": "BeginRaster(context, geometry, new(Reach * 4, Reach * 4));",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-raster"
+    },
+    {
+      "id": "C04",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 120,
+      "change": "private static uint WorkG... -> private static uint WorkG...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells"
+      ],
+      "seconds": 35.93231541663408,
+      "original": "private static uint WorkGroups(int cells) => (uint)(cells + 63) / 64;",
+      "replacement": "private static uint WorkGroups(int cells) => (uint)cells / 64;",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-rerun"
+    },
+    {
+      "id": "C05",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 161,
+      "change": "x: WorkGroups(side * side... -> x: WorkGroups(Reach * Rea...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 3.625, z: 3.75)"
+      ],
+      "seconds": 73.81620599981397,
+      "original": "x: WorkGroups(side * side * side),",
+      "replacement": "x: WorkGroups(Reach * Reach * Reach),",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-calibrated-recovered"
+    },
+    {
+      "id": "C06",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 182,
+      "change": "BeginRaster(context, shad... -> BeginRaster(context, shad...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera"
+      ],
+      "seconds": 26.5909272916615,
+      "original": "BeginRaster(context, shading, new(OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis * 6, Levels));",
+      "replacement": "BeginRaster(context, shading, new(64 * 6, Levels));",
+      "classes": [
+        "LightVolumeRenderTests"
+      ],
+      "run": "mutation"
+    },
+    {
+      "id": "C07",
+      "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+      "line": 214,
+      "change": "float half = SideOf(level... -> float half = Reach * 0.5f...",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 0.125, z: 8.5)"
+      ],
+      "seconds": 33.7234267918393,
+      "original": "float half = SideOf(level) * 0.5f * grid.W;",
+      "replacement": "float half = Reach * 0.5f * grid.W;",
+      "classes": [
+        "LightVolumeRenderTests",
+        "LightVolumeLayoutTests"
+      ],
+      "run": "mutation-calibrated-recovered"
+    }
+  ]
+}

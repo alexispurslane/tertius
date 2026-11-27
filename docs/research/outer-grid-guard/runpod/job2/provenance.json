@@ -1,0 +1,39 @@
+{
+  "time": "2026-11-27T19:43:52.559229+00:00",
+  "agent": "issue-25-outer-grid-guard",
+  "kind": "gpu",
+  "endpoint": "shmmav4u60m5u8",
+  "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+  "trees": {
+    "main": {
+      "ref": "refs/gpu-jobs/2026-11-27/issue-25-outer-grid-guard/b0f8bbf1b3a787673f6266cfad2a4606bc0ba51c",
+      "sha": "b0f8bbf1b3a787673f6266cfad2a4606bc0ba51c"
+    },
+    "guard8": {
+      "ref": "refs/gpu-jobs/2026-11-27/issue-25-outer-grid-guard/7bd8c915ae7f010dc93a12be937623c8aa36ac40",
+      "sha": "7bd8c915ae7f010dc93a12be937623c8aa36ac40"
+    },
+    "guard": {
+      "ref": "refs/gpu-jobs/2026-11-27/issue-25-outer-grid-guard/0c4847b4136fd5fab9f98f68bd87935665412990",
+      "sha": "0c4847b4136fd5fab9f98f68bd87935665412990"
+    }
+  },
+  "commands": [
+    "DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash main/tools/runpod/ab_run.sh scripts/hallway-walk.json 5 main guard guard8"
+  ],
+  "outputs": [
+    "out/*/run-*/gpu-timings.json",
+    "out/clocks.csv"
+  ],
+  "worstCaseUsd": 0.1552,
+  "jobId": "3ca224fd-2f5e-47cc-a1c0-1e5f8c3a3711-u2",
+  "gpuSeconds": 480.295,
+  "delaySeconds": 51.228,
+  "costUsd": 0.08804720000000002,
+  "result": "ok",
+  "exitCodes": [
+    0
+  ],
+  "error": null,
+  "ended": "2026-11-27T19:52:55.174384+00:00"
+}

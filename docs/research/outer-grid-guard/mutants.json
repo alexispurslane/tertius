@@ -1,0 +1,305 @@
+[
+ {
+  "id": "G01",
+  "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+  "line": 21,
+  "original": "return level == Levels - 1 ? 1 : 0;",
+  "replacement": "return 0;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G02",
+  "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+  "line": 69,
+  "original": "return 2 * ((sideOf(level) / 2 + 3) / 4);",
+  "replacement": "return 2 * ((sideOf(level) / 2) / 4);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G03",
+  "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+  "line": 73,
+  "original": "return 2 * tilesPerAxisOf(level) - sideOf(level) / 2;",
+  "replacement": "return 0;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ },
+ {
+  "id": "G04",
+  "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+  "line": 61,
+  "original": "return Directions * firstCellOf(level) + direction * cellsOf(level) + cell;",
+  "replacement": "return Directions * firstCellOf(level) + direction * 4096 + cell;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G05",
+  "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+  "line": 36,
+  "original": "for (int j = 0; j < 4; ++j)",
+  "replacement": "for (int j = 0; j < 3; ++j)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G06",
+  "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+  "line": 42,
+  "original": "c[axis] = step[axis] > 0 ? slice : side - 1 - slice;",
+  "replacement": "c[axis] = step[axis] > 0 ? slice : 15 - slice;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G07",
+  "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+  "line": 39,
+  "original": "if (any(greaterThanEqual(xy, ivec2(side))))",
+  "replacement": "if (false)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G08",
+  "file": "src/Tertius.Rendering/Shaders/volume_sweep.comp",
+  "line": 31,
+  "original": "for (int slice = 0; slice < side; ++slice)",
+  "replacement": "for (int slice = 0; slice < 16; ++slice)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G09",
+  "file": "src/Tertius.Rendering/Shaders/volume_source.comp",
+  "line": 16,
+  "original": "if (cell >= CellCount)",
+  "replacement": "if (false)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G10",
+  "file": "src/Tertius.Rendering/Shaders/volume_filter.comp",
+  "line": 28,
+  "original": "if (cell >= CellCount)",
+  "replacement": "if (false)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G11",
+  "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+  "line": 18,
+  "original": "if (cell >= cellsOf(level))",
+  "replacement": "if (false)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G12",
+  "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+  "line": 30,
+  "original": "vec3 center = clamp(-grid.xyz / grid.w, gridCenter - float(guardOf(level)), gridCenter + float(guardOf(level)));",
+  "replacement": "vec3 center = gridCenter;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G13",
+  "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+  "line": 32,
+  "original": "return clamp(0.5 * float(Reach) - 0.5 - max(",
+  "replacement": "return clamp(0.5 * float(Reach) - max(",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G14",
+  "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+  "line": 37,
+  "original": "vec3 local = clamp(p - 0.5, 0.0, float(last));",
+  "replacement": "vec3 local = clamp(p - 0.5, 0.0, 15.0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G15",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 14,
+  "original": "tile >= tilesOf(level)",
+  "replacement": "tile >= 64",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G16",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 29,
+  "original": "if (!withinGrid(level, c))",
+  "replacement": "if (false)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G17",
+  "file": "src/Tertius.Rendering/Shaders/volume_surface.vert",
+  "line": 25,
+  "original": "(float(MaxSide) * draw.grid.w)",
+  "replacement": "(16.0 * draw.grid.w)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G18",
+  "file": "src/Tertius.Rendering/Shaders/volume_surface.frag",
+  "line": 32,
+  "original": "if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))",
+  "replacement": "if (withinGrid(finest, ivec3(floor((world - finer.xyz) / finer.w))))",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G19",
+  "file": "src/Tertius.Rendering/Shaders/volume.glsl",
+  "line": 62,
+  "original": "0, sideOf(level + 1) - 1);",
+  "replacement": "0, 15);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "G20",
+  "file": "src/Tertius.Rendering/Shaders/volume_layout.glsl",
+  "line": 40,
+  "original": "while (level + 1 < Levels && cell >= firstCellOf(level + 1))",
+  "replacement": "while (level + 1 < Levels && cell > firstCellOf(level + 1))",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ },
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 118,
+  "original": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide : Reach;",
+  "replacement": "private static int SideOf(int level) => level == Levels - 1 ? OuterSide - 2 : Reach;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 115,
+  "original": "<= (OuterSide + 1) * 0.5f * OuterWidth + radius;",
+  "replacement": "<= (Reach + 1) * 0.5f * OuterWidth + radius;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "C03",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 197,
+  "original": "BeginRaster(context, geometry, new(OuterSide * 4, OuterSide * 4));",
+  "replacement": "BeginRaster(context, geometry, new(Reach * 4, Reach * 4));",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ },
+ {
+  "id": "C04",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 120,
+  "original": "private static uint WorkGroups(int cells) => (uint)(cells + 63) / 64;",
+  "replacement": "private static uint WorkGroups(int cells) => (uint)cells / 64;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ },
+ {
+  "id": "C05",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 161,
+  "original": "x: WorkGroups(side * side * side),",
+  "replacement": "x: WorkGroups(Reach * Reach * Reach),",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ },
+ {
+  "id": "C06",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 182,
+  "original": "BeginRaster(context, shading, new(OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis * 6, Levels));",
+  "replacement": "BeginRaster(context, shading, new(64 * 6, Levels));",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ]
+ },
+ {
+  "id": "C07",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 214,
+  "original": "float half = SideOf(level) * 0.5f * grid.W;",
+  "replacement": "float half = Reach * 0.5f * grid.W;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ]
+ }
+]

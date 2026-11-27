@@ -69,7 +69,7 @@ bool sameSurface(SurfaceKey pixel, SurfaceKey neighbor)
         && dot(neighbor.normal, pixel.normal) >= SameNormalCosine && neighbor.model == pixel.model;
 }
 
-// The light of both indirect signals at a surface, demodulated and pre-exposed.
+// The light of both indirect signals at a surface, demodulated. The producing helper names its exposure encoding.
 struct IndirectLight
 {
     vec3 diffuse;
@@ -90,11 +90,11 @@ layout(constant_id = 6) const bool screenTraceOn = false;
 
 // The environment's closed form at a surface, with every direction open (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8,
 // "The zero cases"): the irradiance term at the shading normal and the specular term along the lobe's dominant direction,
-// from the map while it is on and from the hemisphere while it is off, pre-exposed. A pixel without a sample and without
+// from the map while it is on and from the hemisphere while it is off, in scene units. A pixel without a sample and without
 // a history takes it, and so does a tracer's hit whose surface has no history. It is demodulated: the specular term is
 // the incoming light, which the factor W of materialFactors weights again, except at a hair pixel, whose factor is 1, so
 // the term holds the hair's W itself, as the forward passes' ambientTerms weights it.
-IndirectLight closedForm(ShadingInput s, vec3 V)
+IndirectLight closedFormScene(ShadingInput s, vec3 V)
 {
     IndirectLight light;
     if (environmentMapOn)
@@ -111,6 +111,13 @@ IndirectLight closedForm(ShadingInput s, vec3 V)
     }
     if (s.model == ShadingHair)
         light.specular *= specularWeight(lobesOf(s, V));
+    return light;
+}
+
+// The closed form in the bounded, pre-exposed encoding of indirect samples and histories.
+IndirectLight closedForm(ShadingInput s, vec3 V)
+{
+    IndirectLight light = closedFormScene(s, V);
     float k = exposureScale();
     light.diffuse = exposed(light.diffuse, k);
     light.specular = exposed(light.specular, k);
