@@ -61,12 +61,13 @@ float volumeTransmissionAt(vec3 position, vec3 geometricNormal, vec3 direction)
     }
     return clamp(transmission, 0.0, 1.0);
 }
-void applyLightVolume(ShadingInput s, vec3 view, MaterialFactors factors, inout vec3 diffuse, inout vec3 specular)
+void applyLightVolume(
+    ShadingInput s, vec3 view, MaterialFactors factors, bool replaceGlossy, inout vec3 diffuse, inout vec3 specular)
 {
     vec4 d = vec4(0, 0, 0, 1), g = d;
     vec3 reflected = normalize(reflect(-view, s.normal));
     float share = glossyShare(s.roughness);
-    bool needsSpecular = share < 1.0 || !screenTraceOn;
+    bool needsSpecular = share < 1.0 || !replaceGlossy;
     float remaining = 1.0;
     for (int level = 0; level < Levels && remaining > 0.0; ++level)
     {
@@ -87,8 +88,8 @@ void applyLightVolume(ShadingInput s, vec3 view, MaterialFactors factors, inout 
     {
         float open = clamp(g.a, 0.0, 1.0);
         vec3 broad = open * specular + factors.specular * preExposed(max(g.rgb, vec3(0)));
-        // Without the screen tracer, glossy surfaces still obey volume transmission without taking coarse volume radiance.
-        specular = screenTraceOn ? broad : mix(broad, open * specular, share);
+        // When glossy reflections will not replace this specular term, keep volume transmission without coarse volume radiance.
+        specular = replaceGlossy ? broad : mix(broad, open * specular, share);
     }
 }
 

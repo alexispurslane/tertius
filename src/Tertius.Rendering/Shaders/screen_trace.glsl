@@ -462,7 +462,7 @@ vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
     vec3 indirectDiffuse = factors.diffuse * closedLight.diffuse;
     vec3 indirectSpecular = factors.specular * closedLight.specular;
     if (lightVolumeOn)
-        applyLightVolume(s, V, factors, indirectDiffuse, indirectSpecular);
+        applyLightVolume(s, V, factors, holdsHistory(r.specular), indirectDiffuse, indirectSpecular);
     vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
         + indirectDiffuse;
     float share = glossyShare(s.roughness);

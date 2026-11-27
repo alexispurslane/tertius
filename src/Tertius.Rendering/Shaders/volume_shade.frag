@@ -11,6 +11,8 @@ void main()
     int side = int(gl_FragCoord.x) % 6;
     int tile = int(gl_FragCoord.x) / 6;
     int level = int(gl_FragCoord.y);
+    if (gl_HelperInvocation || level >= Levels || tile >= Tiles)
+        return;
     int patchIndex = (level * Tiles + tile) * 6 + side;
     if (frame.counts.x == 0u)
     {

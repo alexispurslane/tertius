@@ -132,9 +132,12 @@ internal sealed unsafe class LightVolumePass : RenderPass
 
         context.Barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
         context.Barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+        context.Barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         Rasterize(context, grids);
         for (uint parent = 1; parent < Levels; parent++)
             Dispatch(context: context, pipeline: restrictSurface, index: parent, x: Cells / 64, y: 6);
+        context.Barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+        context.ShadowAtlas?.DeclareSampled(context.Barriers, ImageUse.SampledFragment);
         BeginRaster(context, shading, new(Tiles * 6, Levels));
         context.Vk.CmdDraw(
             commandBuffer: context.CommandBuffer,

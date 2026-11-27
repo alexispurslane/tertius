@@ -89,7 +89,7 @@ void main()
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
 #ifdef LIGHT_VOLUME
-    applyLightVolume(s, V, factors, indirectDiffuse, indirectSpecular);
+    applyLightVolume(s, V, factors, screenTraceOn, indirectDiffuse, indirectSpecular);
 #endif
     float share = glossyShare(s.roughness);
     if (screenTraceOn && share > 0.0)

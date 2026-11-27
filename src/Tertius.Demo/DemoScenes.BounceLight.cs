@@ -126,9 +126,27 @@ public static partial class DemoScenes
             )
         );
         var red = new Vector3(1, 0.008f, 0.003f);
-        Panel("red-panel", -1.55, red);
+        SpawnSpinningPanel(
+            world: world,
+            resources: resources,
+            scene: scene,
+            wheel: wheel,
+            name: "red-panel",
+            x: -1.55,
+            color: red,
+            emissive: emissive
+        );
         if (emissive)
-            Panel("blue-panel", 1.55, new(0.005f, 0.28f, 1));
+            SpawnSpinningPanel(
+                world: world,
+                resources: resources,
+                scene: scene,
+                wheel: wheel,
+                name: "blue-panel",
+                x: 1.55,
+                color: new(0.005f, 0.28f, 1),
+                emissive: true
+            );
         else
             Star(world: world, scene: scene, frame: stage, center: Double3.Zero, direction: new(0.7, 0.8, -1));
 
@@ -139,6 +157,21 @@ public static partial class DemoScenes
             GroundColor = new(fill * 0.35f),
             Intensity = 1,
         };
+        SpawnMovingStage(world: world, resources: resources, scene: scene, stage: stage, emissive: emissive);
+        AddCamera(world: world, scene: scene, frame: stage, pose: LookingAt(new(0, 0.04, 0), new(0, -0.2, -2.6)));
+        scene.Add("source-camera", world.Spawn(ViewIn(stage, LookingAt(new(3.7, 3.1, -2.3), new(0, 0, -1.1)))));
+        scene.AddView("source-camera");
+        return scene;
+    }
+
+    private static void SpawnMovingStage(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle stage,
+        bool emissive
+    )
+    {
         var neutral = new Vector4(new Vector3(emissive ? 0.15f : 0.78f), 1);
         BounceSlab(
             world: world,
@@ -178,34 +211,39 @@ public static partial class DemoScenes
                 )
             );
         }
-        AddCamera(world: world, scene: scene, frame: stage, pose: LookingAt(new(0, 0.04, 0), new(0, -0.2, -2.6)));
-        scene.Add("source-camera", world.Spawn(ViewIn(stage, LookingAt(new(3.7, 3.1, -2.3), new(0, 0, -1.1)))));
-        scene.AddView("source-camera");
-        return scene;
+    }
 
-        void Panel(string name, double x, Vector3 color)
-        {
-            var half = new Vector3(0.86f, 0.05f, 1.08f);
-            var material = new MaterialDesc(
-                BaseColor: new(color, 1),
-                Roughness: 1,
-                Emissive: emissive ? 26 * color : Vector3.Zero
-            );
-            scene.Add(
-                name,
-                world.Spawn(
-                    DrawnAt(
-                        wheel,
-                        new(x, 0, 0),
-                        Shaded(
-                            resources.CreateMesh(Primitives.Box(half)),
-                            resources.CreateMaterial(material),
-                            half.Length()
-                        )
+    private static void SpawnSpinningPanel(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle wheel,
+        string name,
+        double x,
+        Vector3 color,
+        bool emissive
+    )
+    {
+        var half = new Vector3(0.86f, 0.05f, 1.08f);
+        var material = new MaterialDesc(
+            BaseColor: new(color, 1),
+            Roughness: 1,
+            Emissive: emissive ? 26 * color : Vector3.Zero
+        );
+        scene.Add(
+            name,
+            world.Spawn(
+                DrawnAt(
+                    wheel,
+                    new(x, 0, 0),
+                    Shaded(
+                        resources.CreateMesh(Primitives.Box(half)),
+                        resources.CreateMaterial(material),
+                        half.Length()
                     )
                 )
-            );
-        }
+            )
+        );
     }
 
     /// <summary>

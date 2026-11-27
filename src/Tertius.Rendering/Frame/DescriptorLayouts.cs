@@ -300,19 +300,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
-        if (lightVolume)
-        {
-            VolumeSet = CreateLayout(
-                bindings: [StorageBuffer(0, ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit)],
-                name: "light volume set"
-            );
-            VolumeDrawLayout = CreatePipelineLayout(
-                sets: [FrameSet, TextureSet, GBufferSet, VolumeSet],
-                push: DrawPush,
-                name: "light volume raster layout"
-            );
-            VolumeSweepLayout = ComputeLayout<uint>(sets: [VolumeSet], name: "light volume sweep layout");
-        }
+        (VolumeSet, VolumeDrawLayout, VolumeSweepLayout) = CreateVolumeLayouts(lightVolume);
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
@@ -336,6 +324,26 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         (SurfaceTestLayout, AccumulateLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
+    }
+
+    /// <summary>
+    /// The directional light volume's descriptor set layout and pipeline layouts, or default handles when the volume is off.
+    /// </summary>
+    private (DescriptorSetLayout Set, PipelineLayout Draw, PipelineLayout Sweep) CreateVolumeLayouts(bool lightVolume)
+    {
+        if (!lightVolume)
+            return default;
+        DescriptorSetLayout volumeSet = CreateLayout(
+            bindings: [StorageBuffer(0, ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit)],
+            name: "light volume set"
+        );
+        PipelineLayout drawLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, volumeSet],
+            push: DrawPush,
+            name: "light volume raster layout"
+        );
+        PipelineLayout sweepLayout = ComputeLayout<uint>(sets: [volumeSet], name: "light volume sweep layout");
+        return (volumeSet, drawLayout, sweepLayout);
     }
 
     /// <summary>
