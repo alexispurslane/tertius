@@ -37,6 +37,12 @@ internal sealed unsafe class BloomPass : RenderPass
             Threshold = bloom.Threshold,
             Knee = bloom.Knee,
             Levels = (uint)bloom.Levels,
+            SourceWidth = context.Extent.Width,
+            SourceHeight = context.Extent.Height,
+            ScaleX = context.Extent.Width / (float)targets.OutputExtent.Width,
+            ScaleY = context.Extent.Height / (float)targets.OutputExtent.Height,
+            JitterX = context.Scene.Constants.RenderParams.Y,
+            JitterY = context.Scene.Constants.RenderParams.Z,
         };
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
@@ -50,7 +56,7 @@ internal sealed unsafe class BloomPass : RenderPass
         Draw(
             context: context,
             pipeline: prefilter,
-            source: targets.PostHdr,
+            source: targets.Hdr,
             sourceSet: targets.GlowSources[0],
             target: levels[0],
             add: false
@@ -92,6 +98,7 @@ internal sealed unsafe class BloomPass : RenderPass
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
+        context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         context.Barriers.Image(source, ImageUse.SampledFragment);
         context.Barriers.Image(target, ImageUse.ColorAttachment, discard: !add);
         context.Barriers.Flush(vk, commandBuffer);
@@ -114,13 +121,14 @@ internal sealed unsafe class BloomPass : RenderPass
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
+        DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, sourceSet };
         vk.CmdBindDescriptorSets(
             commandBuffer: commandBuffer,
             pipelineBindPoint: PipelineBindPoint.Graphics,
             layout: layouts.BloomLayout,
             firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &sourceSet,
+            descriptorSetCount: 2,
+            pDescriptorSets: sets,
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
@@ -147,7 +155,7 @@ internal sealed unsafe class BloomPass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = fragmentShader,
             Layout = layouts.BloomLayout,
-            ColorFormats = [RenderTargets.HdrFormat],
+            ColorFormats = [RenderTargets.GlowFormat],
             Blend = blend,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);

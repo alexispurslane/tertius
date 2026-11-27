@@ -217,7 +217,7 @@ public sealed class PortableFloatTests
     }
 
     [Fact]
-    public void EmissionThatTheExposureCarriesPastTheFloatRangeStoresTheCap()
+    public void EmissionStaysSceneReferredWhenItsDisplayExposureWouldOverflow()
     {
         // The brightest radiance that the renderer reads, 2^64, at the largest exposure, +64 stops, is 2^128, past the
         // largest single float. Multiplied first, it is infinity, and a min with infinity is not defined.
@@ -229,7 +229,9 @@ public sealed class PortableFloatTests
 
             Vector3 center = HdrCenter(renderer, snapshot);
 
-            center.Should().Be(new Vector3(ShaderInput.MaxRadiance), "pre-exposed light stops at the HDR image's cap");
+            center
+                .Should()
+                .Be(new Vector3(ShaderInput.RadianceLimit), "the source retains radiance before downstream exposure");
         }
         finally
         {
@@ -238,12 +240,12 @@ public sealed class PortableFloatTests
     }
 
     [Fact]
-    public void ReflectedLightThatTheExposureCarriesPastTheFloatRangeStoresTheCap()
+    public void ReflectedLightStaysFiniteAndSceneReferredAtTheLargestExposure()
     {
         VulkanRenderer renderer = Headless(stops: 64);
         try
         {
-            // A white receiver preserves the direct pass's capped radiance when the composite restores its albedo.
+            // A white receiver retains the scene-referred direct radiance before exposure.
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.6f));
             RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), white);
             snapshot.Lights.Add(
@@ -257,7 +259,13 @@ public sealed class PortableFloatTests
 
             Vector3 center = HdrCenter(renderer, snapshot);
 
-            center.Should().Be(new Vector3(ShaderInput.MaxRadiance), "reflected light stops at the HDR image's cap");
+            ShaderInput.IsFinite(center).Should().BeTrue();
+            center
+                .X.Should()
+                .BeGreaterThan(
+                    ShaderInput.RadianceLimit / 10,
+                    "the source retains the physical reflection before downstream exposure"
+                );
         }
         finally
         {
@@ -266,7 +274,7 @@ public sealed class PortableFloatTests
     }
 
     [Fact]
-    public void TheBrightestLightOneCentimeterFromAMirrorShowsTheCap()
+    public void TheBrightestLightOneCentimeterFromAMirrorRetainsFiniteSceneRadiance()
     {
         // The brightest light that the renderer keeps, 10^34 W/sr, 1 cm in front of a mirror at the roughness floor, on the
         // view axis. Its irradiance there, 10^38 W/m², is past what a sum of lights can hold, so the shaders cap it at
@@ -298,7 +306,16 @@ public sealed class PortableFloatTests
             Vector3 center = HdrCenter(renderer, snapshot);
 
             renderer.LastScene.LightCount.Should().Be(1, "the light is the brightest that the renderer keeps");
-            center.Should().Be(new Vector3(ShaderInput.MaxRadiance), "the mirrored light stops at the HDR image's cap");
+            ShaderInput.IsFinite(center).Should().BeTrue();
+            double expected = MirrorRadianceAtCenter(new Double3(0, 0, -2.99f));
+            expected.Should().BeGreaterThan(ShaderInput.MaxRadiance);
+            center
+                .X.Should()
+                .BeApproximately(
+                    (float)expected,
+                    (float)(expected * 0.02),
+                    "the source retains the reflected radiance at this pixel's actual surface point"
+                );
         }
         finally
         {
@@ -306,8 +323,31 @@ public sealed class PortableFloatTests
         }
     }
 
+    private static double MirrorRadianceAtCenter(Double3 lightPosition)
+    {
+        // At even dimensions the center pixel is half a pixel off the view axis, so it samples the lobe's tail.
+        Double3 point = OnPlane(
+            Ray(new Vector2(Width / 2, Height / 2), Width, Height),
+            new Double3(0, 0, -3),
+            Double3.UnitZ
+        );
+        var sample = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
+        double expected =
+            ShaderInput.IrradianceLimit
+            * sample
+                .Reflected(
+                    normal: Double3.UnitZ,
+                    toView: -point.Normalized(),
+                    toLight: (lightPosition - point).Normalized(),
+                    tables: BrdfTables.Shared,
+                    lightSine: 0
+                )
+                .X;
+        return expected;
+    }
+
     [Fact]
-    public void AGlassPaneWhoseEmissionTheExposureCarriesPastTheFloatRangeKeepsTheBlendAtTheCap()
+    public void AGlassPaneKeepsItsSceneEmissionBeforeAnExtremeDisplayExposure()
     {
         // The pane's emission, 2^64, times the exposure, 2^64, is past the largest single float, as for an opaque
         // surface, and the pane's cap of the sum is a min that is not defined for an infinity.
@@ -340,13 +380,25 @@ public sealed class PortableFloatTests
 
             center
                 .X.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
             center
                 .Y.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
             center
                 .Z.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
         }
         finally
         {
@@ -355,7 +407,7 @@ public sealed class PortableFloatTests
     }
 
     [Fact]
-    public void AGlassPaneOverLightAtTheCapKeepsTheBlendAtTheCap()
+    public void AGlassPaneAddsItsSceneEmissionToTheTransmittedBackground()
     {
         // The pane's own light takes at most the cap times what it does not let through, so the blend's sum with the
         // light behind it, times what it lets through, stays at the cap.
@@ -377,13 +429,25 @@ public sealed class PortableFloatTests
 
             center
                 .X.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
             center
                 .Y.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
             center
                 .Z.Should()
-                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+                .BeInRange(
+                    ShaderInput.RadianceLimit,
+                    2 * ShaderInput.RadianceLimit,
+                    "the scene blend retains emission and transmitted background"
+                );
         }
         finally
         {
@@ -432,10 +496,9 @@ public sealed class PortableFloatTests
     [InlineData(Bloom.MaxLevels)]
     public void TheSummedBloomLevelsOfLightAtTheHdrBoundStayFiniteInABlendThatRoundsToNearest(int levels)
     {
-        // A pixel holds at most the surfaces' cap and twice the puffs' budget. The prefilter gives each level a share of
-        // it, and the filters of the levels average, so no texel of a level holds more than that share, rounded up to a
-        // half float here. The up chain adds level by level in a blend, which .NET's Half rounds to nearest, ties to even.
-        float bound = ShaderInput.MaxRadiance + 2 * ShaderInput.PuffBudget;
+        // The extreme response is bounded by 16384. Every level starts with an equal share, then positive
+        // filters average those shares. Model the additive chain with half-float rounding to nearest, ties to even.
+        float bound = 16384;
         var share = (Half)(bound / levels);
         if ((float)share < bound / levels)
             share = Half.BitIncrement(share);
@@ -484,7 +547,9 @@ public sealed class PortableFloatTests
 
             float[] hdr = renderer.ReadHdr();
 
-            Center(hdr).Should().Be(new Vector3((float)(Half)0.2f), "the puff adds no light to the wall");
+            LargestChannelDifference(Center(hdr), new Vector3(0.2f))
+                .Should()
+                .BeLessThan(1e-6f, "the puff adds no light and the scene image stores single-precision radiance");
             hdr.Should()
                 .OnlyContain(value => float.IsFinite(value), "no pixel of the HDR image holds a NaN or an infinity");
         }
@@ -522,7 +587,7 @@ public sealed class PortableFloatTests
     [Theory]
     [InlineData(63)]
     [InlineData(4096)]
-    public void PuffsAtTheirCapOverASurfaceAtTheCapKeepEveryPixelWithinTheHdrBound(int puffs)
+    public void PuffsOverTheBrightestSurfaceKeepTheSceneRadianceFinite(int puffs)
     {
         // Every puff sits at one place, 5 m ahead and 5 m before the wall, so each adds its full share at the center.
         // Each puff alone at the surfaces' cap would carry the sum of the blend past the largest half float.
@@ -557,9 +622,9 @@ public sealed class PortableFloatTests
 
             hdr.Should()
                 .OnlyContain(
-                    value => float.IsFinite(value) && value <= HdrBound,
-                    "the wall holds at most {0}, and the {1} puffs over a pixel add at most {2} in all before the blend rounds",
-                    ShaderInput.MaxRadiance,
+                    value => float.IsFinite(value) && value <= 2 * ShaderInput.RadianceLimit,
+                    "the wall retains source radiance {0}, and the {1} puffs over a pixel add at most {2} in all before the blend rounds",
+                    ShaderInput.RadianceLimit,
                     puffs,
                     ShaderInput.PuffBudget
                 );

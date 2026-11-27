@@ -29,9 +29,9 @@ void main()
     }
 
     vec3 position = normalize(inRay) * distanceToEye;
-    vec3 airLight = exposed(frame.atmosphere.haze.rgb, exposureScale());
+    vec3 airLight = frame.atmosphere.haze.rgb;
     // throughAir of a black surface is the haze's own share. The image's share, T, goes to the blend. The convex sum of
-    // the image and the haze's light, each at most MaxRadiance, stays at most MaxRadiance.
+    // the scene image and haze radiance stays inside their finite source bounds.
     outColor = vec4(throughAir(vec3(0.0), vec3(1.0), position, airLight), 0.0);
     outTransmittance = vec4(vec3(airTransmittance(position)), 0.0);
 }

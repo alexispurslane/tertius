@@ -3,10 +3,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// A test pass after the composite that writes each pixel's direct light and emission, pre-exposed and capped, into an
-/// image of its own: the direct light's two images times their material factors. Sky pixels get 0. It draws
-/// Shaders/direct_light_probe.frag, the composite without the ambient light. A probe of the diffuse part draws
-/// Shaders/direct_diffuse_probe.frag: the diffuse factor times the diffuse image alone, the bounce source's light.
+/// A test pass after the composite that writes actual direct scene radiance and emission to its own RGBA32F image.
+/// Sky pixels get zero. The diffuse-only variant writes the direct diffuse image without a material factor or exposure.
 /// </summary>
 internal sealed unsafe class DirectLightProbe : RenderPass
 {

@@ -30,6 +30,98 @@ public sealed class ToneCurveTests
             }
         );
 
+    [Theory]
+    [InlineData(ToneCurve.AcesFitted)]
+    [InlineData(ToneCurve.Hable)]
+    public void TheLargestSupportedBloomStrengthKeepsAnOverexposedSurfaceWhite(ToneCurve curve)
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = 160,
+                Height = 90,
+                ToneCurve = curve,
+                Exposure = new FixedExposure(0),
+                Bloom = Bloom.Default with { Strength = float.MaxValue },
+                Upscaling = new NoUpscaling(),
+                ScreenTrace = new NoScreenTrace(),
+                EnvironmentMap = new NoEnvironmentMap(),
+                Impostors = false,
+            }
+        );
+        try
+        {
+            RenderSnapshot snapshot = ExposureScenes.Sunlit();
+            ExposureScenes.AddGlowingSquare(
+                renderer: renderer,
+                snapshot: snapshot,
+                position: ExposureScenes.Ahead,
+                halfSize: ExposureScenes.FillsTheView,
+                radiance: new Vector3(64)
+            );
+            Capture image = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: snapshot,
+                name: "finite extreme bloom strength"
+            );
+
+            image.Color(80, 45).Should().BeEquivalentTo(Vector3.One);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(ToneCurve.AcesFitted)]
+    [InlineData(ToneCurve.Hable)]
+    public void TheSmallestSupportedBloomStrengthShowsTheSameSurfaceAsNoBloom(ToneCurve curve)
+    {
+        Capture[] images = new Capture[2];
+        BloomSetting[] settings = [new NoBloom(), Bloom.Default with { Strength = float.Epsilon }];
+        for (int i = 0; i < settings.Length; i++)
+        {
+            var renderer = VulkanRenderer.CreateHeadless(
+                new()
+                {
+                    Validation = true,
+                    Width = 160,
+                    Height = 90,
+                    ToneCurve = curve,
+                    Exposure = new FixedExposure(0),
+                    Bloom = settings[i],
+                    Upscaling = new NoUpscaling(),
+                    ScreenTrace = new NoScreenTrace(),
+                    EnvironmentMap = new NoEnvironmentMap(),
+                    Impostors = false,
+                }
+            );
+            try
+            {
+                RenderSnapshot snapshot = ExposureScenes.Sunlit();
+                ExposureScenes.AddGlowingSquare(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    position: ExposureScenes.Ahead,
+                    halfSize: ExposureScenes.FillsTheView,
+                    radiance: new Vector3(0.25f)
+                );
+                images[i] = Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    name: "weakest bloom strength"
+                );
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+        images[1].Color(80, 45).Should().BeEquivalentTo(images[0].Color(80, 45));
+    }
+
     /// <summary>
     /// The linear color that Stephen Hill's ACES fitted curve gives a linear HDR color: into ACES AP1 with the RRT's
     /// saturation, the rational fit of the RRT and ODT, and back to linear sRGB, clamped to [0, 1].

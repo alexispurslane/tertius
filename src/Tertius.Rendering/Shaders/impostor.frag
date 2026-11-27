@@ -59,8 +59,8 @@ void main()
     outBaseColor = vec4(0.0);
     outNormal = vec4(octEncode(toward), octEncode(toward));
     outSpecular = uvec4(0u);
-    // The atlas holds radiance, which the billboard pre-exposes with this frame's exposure.
-    outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);
+    // The atlas and this emission target both hold scene radiance.
+    outEmissive = vec4(color.rgb / coverage, 1.0);
     outDistance = length(world - draw.eye.xyz);
     // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand. Its light mark
     // is its instance's, so that a lamp's billboard sends no glow to a tracer's hit beside its light

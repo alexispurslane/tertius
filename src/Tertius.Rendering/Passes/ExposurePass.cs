@@ -81,9 +81,6 @@ internal sealed unsafe class ExposurePass : RenderPass
             groupCountY: MeterGroups(extent.Height),
             groupCountZ: 1
         );
-
-        if (context.Targets.Upscale is null)
-            Adapt(context);
     }
 
     public void Adapt(FrameContext context)

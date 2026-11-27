@@ -67,7 +67,7 @@ public sealed class ExposureShaderTests
             // The histogram and the HDR image are both of the frame that read the still's exposure a moment after it,
             // which used that exposure, so the two meters read one image.
             uint[] metered = renderer.ReadExposureHistogram();
-            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdr());
+            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdr(), used);
 
             float meteredTarget = Target(metered, setting, used);
             float everyPixelTarget = Target(everyPixel, setting, used);
@@ -289,11 +289,16 @@ public sealed class ExposureShaderTests
     /// <see cref="VulkanRenderer.ReadHdr"/> read. Every pixel counts as a surface pixel, so the scene must fill the
     /// view.
     /// </summary>
-    private static uint[] HistogramOfEveryPixel(float[] rgba)
+    private static uint[] HistogramOfEveryPixel(float[] rgba, float usedStops)
     {
         uint[] bins = new uint[ExposureMeter.Bins];
+        float scale = MathF.Pow(2, usedStops);
         for (int i = 0; i < rgba.Length; i += 4)
-            bins[ExposureMeter.BinOf(ExposureMeter.Luminance(new(x: rgba[i], y: rgba[i + 1], z: rgba[i + 2])))]++;
+        {
+            Vector3 scene = new(x: rgba[i], y: rgba[i + 1], z: rgba[i + 2]);
+            Vector3 exposed = Vector3.Min(scene, new Vector3(ShaderInput.MaxRadiance / scale)) * scale;
+            bins[ExposureMeter.BinOf(ExposureMeter.Luminance(exposed))]++;
+        }
         return bins;
     }
 

@@ -110,7 +110,7 @@ public sealed class DirectLightRenderTests
     }
 
     [Fact]
-    public void TheDirectLightIsPreExposedSoOneStopMoreDoublesEveryLitPixel()
+    public void ChangingDisplayExposureKeepsEveryLitPixelsSceneRadianceUnchanged()
     {
         float[] atZero = LitWall(stops: 0);
         float[] atOne = LitWall(stops: 1);
@@ -121,7 +121,7 @@ public sealed class DirectLightRenderTests
             if (i % 4 == 3 || atZero[i] < 1e-3f)
                 continue;
             lit++;
-            atOne[i].Should().BeApproximately(2 * atZero[i], 2e-3f * atZero[i], $"channel {i} of the HDR image");
+            atOne[i].Should().BeApproximately(atZero[i], 2e-3f * atZero[i], $"channel {i} of the HDR image");
         }
 
         lit.Should().BeGreaterThan(Width * Height, "the lamps light the whole wall");

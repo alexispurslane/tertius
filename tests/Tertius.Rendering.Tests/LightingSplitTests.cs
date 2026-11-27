@@ -22,6 +22,24 @@ public sealed class LightingSplitTests
     private static Vector3 RandomBelow(Random random, float most) =>
         new(x: random.NextSingle() * most, y: random.NextSingle() * most, z: random.NextSingle() * most);
 
+    [Theory]
+    [InlineData(float.MaxValue, 0f, 0f)]
+    [InlineData(1f, float.Epsilon, float.Epsilon)]
+    [InlineData(float.MaxValue, float.Epsilon, 4.7683713e-7f)]
+    [InlineData(16f, 0.5f, 8f)]
+    [InlineData(32256f, 1f, 32256f)]
+    [InlineData(float.MaxValue, 0.5f, 32256f)]
+    [InlineData(float.MaxValue, float.MaxValue, 32256f)]
+    public void BoundedExposureKeepsTheCappedProductForEveryScale(float value, float scale, float expected)
+    {
+        Vector3 actual = ShaderInput.Exposed(new(value), scale);
+
+        ShaderInput.IsFinite(actual).Should().BeTrue();
+        actual.X.Should().BeApproximately(expected, MathF.Max(float.Epsilon, MathF.Abs(expected) * 1e-6f));
+        actual.Y.Should().Be(actual.X);
+        actual.Z.Should().Be(actual.X);
+    }
+
     [Fact]
     public void ExposedLightIsTheRadianceTimesTheExposureBelowTheCap() =>
         ShaderInput.Exposed(new(1, 2, 3), 4).Should().Be(new Vector3(4, 8, 12));

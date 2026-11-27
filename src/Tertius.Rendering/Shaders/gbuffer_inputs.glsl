@@ -17,7 +17,7 @@ layout(set = 2, binding = 1) uniform texture2D gbufferNormal;          // RGBA16
 layout(set = 2, binding = 2) uniform utexture2D gbufferSpecular;       // RGBA8 UINT: the codes of metallic, roughness
                                                                        // r₀, reflectance, the lobe's sky share
                                                                        // (specularAt)
-layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16F: emitted radiance, the normal's sky
+layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA32F: emitted scene radiance, the normal's sky
                                                                        // share
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
 layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: one layer per cascade of each set, reversed depth

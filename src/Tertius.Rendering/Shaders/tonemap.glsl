@@ -1,14 +1,15 @@
+#include "exposure.glsl"
 // The tone map pass (ARCHITECTURE.md, "Tone mapping"). tonemap.frag reads the HDR image alone. tonemap_bloom.frag
 // defines BLOOM and adds the summed bloom levels, so that a renderer without bloom runs the shader that never reads them.
 
-layout(set = 0, binding = 0) uniform texture2D hdrImage;
+layout(set = 1, binding = 0) uniform texture2D hdrImage;
 // The blue-noise mask of the output's dither (DescriptorLayouts.PostMaskBinding).
-layout(set = 0, binding = 3) uniform utexture2D blueNoiseMask;
+layout(set = 1, binding = 3) uniform utexture2D blueNoiseMask;
 #include "blue_noise.glsl"
 #ifdef BLOOM
 #include "tent.glsl"
-layout(set = 0, binding = 1) uniform texture2D glowImage;   // bloom level 0, which holds every level summed
-layout(set = 0, binding = 2) uniform sampler linearClamp;
+layout(set = 1, binding = 1) uniform texture2D glowImage;   // bloom level 0, which holds every level summed
+layout(set = 1, binding = 2) uniform sampler linearClamp;
 #endif
 
 layout(push_constant, std430) uniform TonemapPush
@@ -18,6 +19,7 @@ layout(push_constant, std430) uniform TonemapPush
     float glowStrength; // the bloom's strength; unread without bloom
     uint drawIndex;    // the frame's draw index, which picks the dither's frame of the blue-noise mask
     float code;        // one code of the output's encoding, as a share of 1: 1/255 at 8 bits; 0 turns the dither off
+    uint sceneReferred;
 } tonemap;
 
 const uint toneCurveAcesFitted = 0u;
@@ -80,11 +82,14 @@ vec3 dithered(vec3 encoded, ivec2 pixel, uint drawIndex, float code)
 void main()
 {
     vec3 light = texelFetch(hdrImage, ivec2(gl_FragCoord.xy), 0).rgb;
+    if (tonemap.sceneReferred != 0u)
+        light = displayExposed(light, exposureStops);
 #ifdef BLOOM
     // The glow joins the light before the tone curve, so the curve shapes both alike.
-    light += tonemap.glowStrength * tent(glowImage, linearClamp);
+    vec3 glow = tent(glowImage, linearClamp);
+    light += exposed(glow, tonemap.glowStrength, SceneDisplayLimit);
 #endif
-    // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+    // The base and glow are in display units before the curve.
     vec3 hdr = max(light, vec3(0.0));
     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
     // The dither works on the encoded value, whose codes the target rounds. An sRGB target encodes what the shader writes,

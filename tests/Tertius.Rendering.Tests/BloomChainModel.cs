@@ -89,7 +89,7 @@ internal static class BloomChainModel
     }
 
     /// <summary>Unity's quadratic soft threshold on the largest channel of <paramref name="color"/>.</summary>
-    private static Vector3 Thresholded(Vector3 color, Bloom bloom)
+    public static Vector3 Thresholded(Vector3 color, Bloom bloom)
     {
         float brightness = MathF.Max(color.X, MathF.Max(color.Y, color.Z));
         float width = bloom.Threshold * bloom.Knee;

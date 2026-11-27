@@ -16,6 +16,8 @@
 // lightIrradiance.
 vec3 fillResponse(uint shape, ShadingInput s, SurfaceLobes lobes, LightPath p)
 {
+    if (shape == RectShape && !rectShadesAsPoint(s.normal, p))
+        return rectResponse(false, s, lobes, -normalize(s.position), p).diffuse;
     float cosine = max(dot(s.normal, shape == TubeShape ? p.cosine : p.L), 0.0);
     if (shape == RectShape)
     {

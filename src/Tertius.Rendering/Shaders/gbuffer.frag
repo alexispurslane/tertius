@@ -58,7 +58,7 @@ void main()
     float lobeSky = environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     float normalSky = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
     outSpecular = unorm8Codes(vec4(s.metallic, s.roughness, s.reflectance, lobeSky));
-    outEmissive = vec4(preExposed(s.emissive), normalSky);
+    outEmissive = vec4(s.emissive, normalSky);
     // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);

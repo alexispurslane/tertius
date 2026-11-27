@@ -8,6 +8,7 @@ internal sealed class UpscaleTargets : IDisposable
 {
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
+    public GpuImage Color { get; private set; }
     public GpuImage OpaqueOnly { get; private set; }
     public GpuImage Reactive { get; private set; }
     public GpuImage Output { get; private set; }
@@ -24,11 +25,12 @@ internal sealed class UpscaleTargets : IDisposable
         Resize(largestRenderSize, outputSize);
     }
 
-    [MemberNotNull(nameof(OpaqueOnly), nameof(Reactive), nameof(Output))]
+    [MemberNotNull(nameof(Color), nameof(OpaqueOnly), nameof(Reactive), nameof(Output))]
     public void Resize(Extent2D largestRenderSize, Extent2D outputSize)
     {
         if (
-            OpaqueOnly is { } opaque
+            Color is not null
+            && OpaqueOnly is { } opaque
             && Reactive is not null
             && Output is { } output
             && opaque.Extent.Equals(largestRenderSize)
@@ -36,9 +38,10 @@ internal sealed class UpscaleTargets : IDisposable
         )
             return;
         Dispose();
+        Color = Create(largestRenderSize, Format.R16G16B16A16Sfloat, "FSR exposed color");
         OpaqueOnly = Create(largestRenderSize, RenderTargets.HdrFormat, "opaque color");
         Reactive = Create(largestRenderSize, Format.R8Unorm, "FSR reactive mask");
-        Output = Create(outputSize, RenderTargets.HdrFormat, "upscaled HDR");
+        Output = Create(outputSize, Format.R16G16B16A16Sfloat, "upscaled HDR");
     }
 
     private GpuImage Create(Extent2D extent, Format format, string name) =>
@@ -57,6 +60,7 @@ internal sealed class UpscaleTargets : IDisposable
 
     public void Dispose()
     {
+        Color?.Dispose();
         OpaqueOnly?.Dispose();
         Reactive?.Dispose();
         Output?.Dispose();

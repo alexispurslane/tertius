@@ -3,24 +3,47 @@
 #extension GL_GOOGLE_include_directive : require
 #include "bloom.glsl"
 
-// The first downsample, from the HDR image into level 0, of the thresholded light. The threshold applies to each HDR
-// texel before any averaging, so a source of one pixel glows by its own brightness. Each bilinear tap of Jimenez's
-// filter lies on a texel corner and averages the four texels around it, so the filter of a thresholded image is a fixed
-// weight for each of the 6x6 texels under its 13 taps: the sum of a quarter of the weight of each tap that holds the
-// texel. The draw sums the 36 weighted texels itself, so no draw has to write the thresholded image.
+#include "frame.glsl"
+#include "exposure.glsl"
 
-// Unity's quadratic soft threshold (PostProcessing v2, QuadraticThreshold in Colors.hlsl): the brightness is the
-// largest channel of the HDR image, which the shading passes pre-exposed. Below threshold - knee width nothing glows, above threshold + knee width the light
-// above the threshold glows, and between them a quadratic joins the two, so the glow fades in.
-// The HDR image holds finite light from 0 to 64,512, MaxRadiance for the surfaces and as much again for the rounded sum
-// of the puffs (exposure.glsl), so the color needs no clamp.
-vec3 thresholded(vec3 color)
+// Threshold each original scene texel before interpolation. Exposure affects only this derived response.
+// Ordinary excess light keeps its amplitude. Above 8192, a C1 rational response approaches 16384.
+// This is an artistic extreme-glare response, separate from the optical reference for normal glow.
+vec3 thresholded(vec3 sourceColor)
 {
+    vec3 color = displayExposed(sourceColor, exposureStops);
     float brightness = max(color.r, max(color.g, color.b));
     float width = bloom.threshold * bloom.knee;
-    float soft = clamp(brightness - bloom.threshold + width, 0.0, 2.0 * width);
-    soft = soft * soft / (4.0 * width + 1e-5);
-    return color * max(soft, brightness - bloom.threshold) / max(brightness, 1e-5);
+    float delta = brightness - bloom.threshold;
+    float excess = max(delta, 0.0);
+    if (width > 0.0 && delta > -width && delta < width)
+    {
+        float normalized = delta / width + 1.0;
+        float soft = (width / (4.0 + 1e-5 / width)) * normalized * normalized;
+        excess = max(excess, min(soft, brightness));
+    }
+    if (excess > 8192.0)
+    {
+        float extreme = excess - 8192.0;
+        excess = 8192.0 + 8192.0 * (extreme / (8192.0 + extreme));
+    }
+    return (color / max(brightness, 1e-5)) * excess;
+}
+
+// Bilinear interpolation of already thresholded source texels. Clamp each fetch to the active rectangle,
+// which can be smaller than the source allocation after a render-scale change.
+vec4 mappedTap(vec2 outputPosition)
+{
+    vec2 sourcePosition = outputPosition * vec2(bloom.scaleX, bloom.scaleY)
+        - vec2(bloom.jitterX, bloom.jitterY) - 0.5;
+    ivec2 first = ivec2(floor(sourcePosition));
+    vec2 fraction = fract(sourcePosition);
+    ivec2 last = ivec2(bloom.sourceWidth, bloom.sourceHeight) - 1;
+    vec3 a = thresholded(texelFetch(source, clamp(first, ivec2(0), last), 0).rgb);
+    vec3 b = thresholded(texelFetch(source, clamp(first + ivec2(1, 0), ivec2(0), last), 0).rgb);
+    vec3 c = thresholded(texelFetch(source, clamp(first + ivec2(0, 1), ivec2(0), last), 0).rgb);
+    vec3 d = thresholded(texelFetch(source, clamp(first + ivec2(1, 1), ivec2(0), last), 0).rgb);
+    return vec4(mix(mix(a, b, fraction.x), mix(c, d, fraction.x), fraction.y), 1.0);
 }
 
 // The weights of the 6x6 texels, times 128, row by row. They sum to 128.
@@ -34,7 +57,19 @@ const float texelWeights[36] = float[36](
 
 void main()
 {
-    ivec2 last = textureSize(source, 0) - 1;
+    if (bloom.scaleX != 1.0 || bloom.scaleY != 1.0 || bloom.jitterX != 0.0 || bloom.jitterY != 0.0)
+    {
+        vec2 center = 2.0 * gl_FragCoord.xy;
+        outColor = vec4(jimenez13(
+            mappedTap(center + vec2(-2, -2)), mappedTap(center + vec2(0, -2)), mappedTap(center + vec2(2, -2)),
+            mappedTap(center + vec2(-1, -1)), mappedTap(center + vec2(1, -1)),
+            mappedTap(center + vec2(-2, 0)), mappedTap(center), mappedTap(center + vec2(2, 0)),
+            mappedTap(center + vec2(-1, 1)), mappedTap(center + vec2(1, 1)),
+            mappedTap(center + vec2(-2, 2)), mappedTap(center + vec2(0, 2)), mappedTap(center + vec2(2, 2))).rgb
+            / float(bloom.levels), 1.0);
+        return;
+    }
+    ivec2 last = ivec2(bloom.sourceWidth, bloom.sourceHeight) - 1;
     // The output pixel's center lies between source texels 2p and 2p + 1, so its taps cover texels 2p - 2 to 2p + 3.
     ivec2 first = ivec2(gl_FragCoord.xy) * 2 - 2;
     vec3 sum = vec3(0.0);
@@ -44,7 +79,6 @@ void main()
             vec3 texel = texelFetch(source, clamp(first + ivec2(x, y), ivec2(0), last), 0).rgb;
             sum += texelWeights[y * 6 + x] * thresholded(texel);
         }
-    // Each level holds at most 64,512 over the levels, so their sum in level 0 stays at most 64,512, with the rounding
-    // of each level's half floats inside the room that it leaves below 65,504.
+    // The response is at most 16384. Divide before the additive up chain; half-float rounding leaves ample room.
     outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
 }
