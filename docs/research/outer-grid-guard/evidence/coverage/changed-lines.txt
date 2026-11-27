@@ -1,0 +1,2 @@
+changed lines covered: 24/24 = 100.0%; changed branches covered: 6/6 = 100.0%
+src/Tertius.Rendering/Passes/LightVolumePass.cs: lines 24/24 (100%), branches 6/6; uncovered ; partial branches 

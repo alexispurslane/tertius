@@ -1,0 +1,27 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera (868ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be less than 0.90625F because the shell's walls, edges and corners hold the sky out, but found 7.515625F (difference of 6.609375).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeLessThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.WallsInTheOuterGridsShellCloseTheSkyFromAReceiverNearTheCamera() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:464
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera (1s 613ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be greater than 0.0001F because a sunlit reflector inside the old outer cube lights the receiver, but found 0F (difference of -0.0001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.ASunlitReflectorInTheOuterGridsShellLightsAReceiverNearTheCamera() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:483
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 2 error(s) [+18/x2/?0] (23s 552ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 20
+  failed: 2
+  succeeded: 18
+  skipped: 0
+  duration: 23s 853ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)
