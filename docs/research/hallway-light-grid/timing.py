@@ -12,6 +12,11 @@ with its own median and 95th percentile over the run's frames. The tool prints M
    other.
 2. Per tree: the median over runs of each key pass's median.
 3. The card's mean SM clock and temperature over the job, from out/clocks.csv.
+tools/runpod/ab_report.py reads the same files, but it takes the span without the capture as the median frame span
+minus the median of the capture pass. A difference of medians gives no 95th percentile, and #21 asks for one. So this
+tool reads the per-frame sum of --gpu-run instead, whose median and p95 come from the same frames. Over the 51 runs of
+jobs 1 to 3 the two medians differ by -0.010 to +0.015 ms. The report of #21 uses this tool's numbers. If later A/B
+work needs the p95 too, ab_report.py is the place to add it, so that one tool defines the span.
 The standard library only.
 """
 
