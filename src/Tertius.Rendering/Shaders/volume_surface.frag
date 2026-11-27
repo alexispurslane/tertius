@@ -32,6 +32,12 @@ void main()
         if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))
             return;
     }
+    // A level with fewer than MaxSide cells covers only part of the raster (volume_surface.vert): leave before the
+    // material's reads.
+    vec4 g = draw.grid;
+    ivec3 c = ivec3(floor((world - g.xyz) / g.w));
+    if (!withinGrid(finest, c))
+        return;
     GpuMaterial m = materials[draw.words.y];
     vec4 base =
         m.baseColor * textureGrad(sampler2D(textures[nonuniformEXT(m.baseColorMap)], materialSampler), uv, uvDx, uvDy);
@@ -42,10 +48,6 @@ void main()
         textureGrad(sampler2D(textures[nonuniformEXT(m.metallicRoughnessMap)], materialSampler), uv, uvDx, uvDy).b;
     vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
     vec3 glow = restrainNeutral(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
-    vec4 g = draw.grid;
-    ivec3 c = ivec3(floor((world - g.xyz) / g.w));
-    if (!withinGrid(finest, c))
-        return;
     float area = length(crossArea) / (g.w * g.w) * 4096.0;
     int k = (firstCellOf(finest) + cellIndex(finest, c)) * 6 + side;
     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
