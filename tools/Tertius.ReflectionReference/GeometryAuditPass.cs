@@ -54,7 +54,7 @@ internal sealed unsafe class GeometryAuditPass : Rendering.RenderPass
         );
         device = context.Device;
         shaders = new ShaderLibrary(device, typeof(GeometryAuditPass).Assembly);
-        ShaderConstants constants = renderer.ShadingConstants with { WritesMotion = true, MainView = true };
+        ShaderConstants constants = renderer.ShadingConstants with { MainView = true };
         var desc = new GraphicsPipelineDesc
         {
             Name = Name,
@@ -168,7 +168,6 @@ internal sealed unsafe class GeometryAuditPass : Rendering.RenderPass
                 Depth = "owned D32Sfloat, Greater reversed-Z, depth test/write; original per-range clears",
                 Constants = new
                 {
-                    WritesMotion = true,
                     MainView = true,
                     SolidCutoutAlpha = false,
                     CutoutCutoutAlpha = true,
