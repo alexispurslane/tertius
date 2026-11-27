@@ -177,4 +177,4 @@ python3 -I docs/research/hallway-light-grid/timing.py docs/research/hallway-ligh
 
 `tests/Tertius.Host.Tests/HallwayWalkTests.cs` pins the film's frame counts. Its explicit test pins the camera path that `analyze.py` and `compose.sh` assume: `dotnet test --project tests/Tertius.Host.Tests -c Checked --filter-class '*HallwayWalkPathTests' --explicit only`, about 5 minutes.
 
-The Runpod jobs used the commands in each job's `result.json`. The trees were the prototype branches `issue-21-outer-grid-prototype`, `issue-21-four-level-prototype` and `issue-21-fine-tile-diagnostic`, which hold the same commits as the patches.
+The Runpod jobs used the commands in each job's `result.json`. The prototype trees were the commits 3dded7d23 (outer), fe0cd24e1 (four) and a0ed6aece (tiles), the same commits as the patches. `tools/runpod/gpu_job.py` published them under hidden refs, which it deletes after three days, so the patches are the lasting record.
