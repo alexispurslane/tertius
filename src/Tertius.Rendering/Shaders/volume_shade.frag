@@ -19,12 +19,18 @@ void main()
         volume.whiteLight[patchIndex] = vec4(0);
         return;
     }
-    ivec3 origin = 2 * ivec3(tile % 8, (tile / 8) % 8, tile / 64);
+    int s = patchSide(level), n = GridSide / s;
+    if (tile >= n * n * n)
+    {
+        volume.whiteLight[patchIndex] = vec4(0);
+        return;
+    }
+    ivec3 origin = s * ivec3(tile % n, (tile / n) % n, tile / (n * n));
     vec3 normal = vec3(0), position = vec3(0);
     float sum = 0;
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < s * s * s; ++i)
     {
-        ivec3 c = origin + ivec3(i % 2, (i / 2) % 2, i / 4);
+        ivec3 c = origin + ivec3(i % s, (i / s) % s, i / (s * s));
         int k = (level * Cells + cellIndex(c)) * 6 + side;
         if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
             continue;

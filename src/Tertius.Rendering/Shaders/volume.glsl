@@ -39,9 +39,15 @@ ivec3 coordinates(int i)
 {
     return ivec3(i % 16, (i / 16) % 16, i / 256);
 }
-int tileIndex(ivec3 c)
+// Diagnostic (issue #21): the cells per axis of one light patch, 2 at the coarsest level and 4 below it.
+int patchSide(int level)
 {
-    return c.x / 2 + 8 * (c.y / 2 + 8 * (c.z / 2));
+    return level == Levels - 1 ? 2 : 4;
+}
+int tileIndex(ivec3 c, int level)
+{
+    int s = patchSide(level), n = GridSide / s;
+    return c.x / s + n * (c.y / s + n * (c.z / s));
 }
 bool withinGrid(ivec3 c)
 {

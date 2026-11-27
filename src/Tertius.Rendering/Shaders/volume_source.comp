@@ -29,7 +29,7 @@ void main()
         if (area <= 0)
             continue;
         front += area;
-        vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c)) * 6 + side].rgb;
+        vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c, level)) * 6 + side].rgb;
         if (pass.bounceNumber != 0u)
             light += volume.bounce[k].rgb;
         vec3 diffuse = restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / float(an.w));
