@@ -848,8 +848,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Graph.Prepare(context);
         frame.Write(LastScene);
 
-        // Before every pass, so the reading is the exposure that all of this frame's passes use.
-        Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
+        // Auto exposure records the shown value after its early cut adjustment; fixed exposure is already final.
+        if (exposureSetting is FixedExposure)
+            Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
         output.FinishRecording(barriers, context.CommandBuffer);
         device.Vk.EndCommandBuffer(context.CommandBuffer).Check("vkEndCommandBuffer");

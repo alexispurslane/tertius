@@ -1,0 +1,64 @@
+#version 460
+// Test tool: checks the production volume layout at every cell, one grid level per output channel.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+#include "volume_layout.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+
+bool cellKeepsItsStorageAndGroup(int level, int local)
+{
+    int side = sideOf(level);
+    ivec3 c = coordinates(level, local);
+    if (!withinGrid(level, c) || cellIndex(level, c) != local || levelOfCell(firstCellOf(level) + local) != level)
+        return false;
+    int first = Directions * firstCellOf(level);
+    for (int direction = 0; direction < Directions; ++direction)
+    {
+        int index = fieldIndex(level, direction, local) - first;
+        // Each direction owns one disjoint contiguous interval, and each cell owns its place in that interval.
+        if (index / cellsOf(level) != direction || index % cellsOf(level) != local)
+            return false;
+    }
+    int tile = tileIndex(level, c) - firstTileOf(level);
+    if (tile < 0 || tile >= tilesOf(level))
+        return false;
+    ivec3 low = tileOrigin(level, tile);
+    if (any(lessThan(c, low)) || any(greaterThanEqual(c, low + 4)))
+        return false;
+    // A lighting group's lower faces lie on the same four-cell lattice about every grid's center.
+    if (any(notEqual((low - side / 2) % 4, ivec3(0))))
+        return false;
+    return true;
+}
+
+bool openSkyReachesCell(int level, int local)
+{
+    for (int direction = 0; direction < Directions; ++direction)
+    {
+        uvec4 value = volume.field[fieldIndex(level, direction, local)];
+        if (incomingOf(value).a != 1.0 || outgoingOf(value).a != 1.0)
+            return false;
+    }
+    int first = (firstCellOf(level) + local) * 12;
+    for (int lobe = 0; lobe < 12; ++lobe)
+        if (volume.filtered[first + lobe].a != 1.0)
+            return false;
+    return true;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    int local = pixel.x + int(frame.viewport.x) * pixel.y;
+    vec4 result = vec4(1);
+    for (int level = 0; level < Levels; ++level)
+        if (local < cellsOf(level))
+        {
+            result[level] = cellKeepsItsStorageAndGroup(level, local) ? 1.0 : 0.0;
+            if (!openSkyReachesCell(level, local))
+                result.a = 0.0;
+        }
+    imageStore(specularSample, pixel, result);
+}

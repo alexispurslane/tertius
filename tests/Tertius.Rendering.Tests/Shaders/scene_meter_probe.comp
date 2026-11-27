@@ -1,0 +1,16 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+#include "meter.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    uint words[8] = uint[](0u, 1u, 0x00400000u, 0x007fffffu, 0x00800000u, 0x17800000u, 0x67800000u, 0x7f7fffffu);
+    uint expected[8] = uint[](0u, 0u, 0u, 0u, 272u, 640u, 1920u, 2303u);
+    uint i = uint(pixel.x) % 8u;
+    uint actual = binOf(uintBitsToFloat(words[i]));
+    imageStore(specularSample, pixel, vec4(actual == expected[i] ? 1.0 : 0.0));
+}

@@ -764,6 +764,9 @@ internal struct ExposureAdaptPushConstants
 
     /// <summary>f(Δt, IntoLightSeconds): the share when it falls.</summary>
     public float IntoLightFactor;
+
+    /// <summary>0 adapts an ordinary frame, 1 exposes a new view before display, 2 finishes that display.</summary>
+    public uint Phase;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

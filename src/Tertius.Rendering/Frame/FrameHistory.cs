@@ -219,12 +219,17 @@ internal sealed class FrameHistory
     {
         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
         bool still = IsStill(step);
+        bool metersNewView = drawn is null || CutsFrom(snapshot);
+        float exposureStep = still ? StillExposureStep(step, draw) : step;
+        if (metersNewView)
+            exposureStep = float.PositiveInfinity;
         long drawIndex = DrawIndexOf(snapshot: snapshot, step: step, draw: draw, outputSize: outputSize);
         derived = new(
             // Only a reset gives the index 0: a continued draw's index is at least 1.
             Reset: drawIndex == 0,
+            MetersNewView: metersNewView,
             DrawIndex: drawIndex,
-            ExposureStep: still ? StillExposureStep(step, draw) : step,
+            ExposureStep: exposureStep,
             FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
             // A map is captured at the eye, so the maps must hear of the eye's jump from the same source as the histories.
             RefreshesEveryFace: (still && draw == 0) || JumpsTheEye(snapshot),
@@ -263,6 +268,7 @@ internal sealed class FrameHistory
     private bool Resets(RenderSnapshot snapshot, Extent2D outputSize, bool firstOfAStill) =>
         drawn is not { } last
         || CutsFrom(snapshot)
+        || !KeepsTheFrame(snapshot)
         || last.OutputSize.Width != outputSize.Width
         || last.OutputSize.Height != outputSize.Height
         || firstOfAStill;
@@ -282,7 +288,7 @@ internal sealed class FrameHistory
     /// Whether the eye jumped inside the camera's frame since the last drawn frame: a cut that keeps the camera's frame.
     /// Every map is captured at the eye (ARCHITECTURE.md, "The frame history").
     /// </summary>
-    private bool JumpsTheEye(RenderSnapshot snapshot) => CutsFrom(snapshot) && KeepsTheFrame(snapshot);
+    private bool JumpsTheEye(RenderSnapshot snapshot) => CutsFrom(snapshot);
 
     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
     private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
@@ -356,6 +362,7 @@ internal sealed class FrameHistory
     /// <param name="RefreshesEveryFace">Whether the draw refreshes every face of every environment map.</param>
     private readonly record struct Derivation(
         bool Reset,
+        bool MetersNewView,
         long DrawIndex,
         float ExposureStep,
         float FsrFrameMilliseconds,
@@ -384,6 +391,9 @@ internal sealed class FrameHistory
 
         /// <summary>Whether the draw resets every history (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Resets").</summary>
         public bool Reset => history.derived.Reset;
+
+        /// <summary>Whether this draw is the first view or follows a camera discontinuity, requiring its own exposure before display.</summary>
+        public bool MetersNewView => history.derived.MetersNewView;
 
         /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
         public long DrawIndex => history.derived.DrawIndex;

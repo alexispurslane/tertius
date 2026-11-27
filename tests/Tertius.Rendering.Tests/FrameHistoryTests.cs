@@ -187,7 +187,26 @@ public sealed class FrameHistoryTests
     [Fact]
     public void AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain()
     {
-        // The simulation counts one more cut when the camera's frame changes, as it does at a doorway.
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
+
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: Snapshot(cuts: 1, frameId: 8),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        pending.Reset.Should().BeTrue();
+        pending
+            .RefreshesEveryFace.Should()
+            .BeFalse("the chain's Keeps refreshes the maps whose frames changed, and a doorway hides no extra cost");
+    }
+
+    [Fact]
+    public void ASwitchToACameraInAnotherFrameRefreshesEveryFaceOfTheMaps()
+    {
         var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1, frameId: 7));
 
@@ -199,10 +218,7 @@ public sealed class FrameHistoryTests
             renderSize: Output
         );
 
-        pending.Reset.Should().BeTrue();
-        pending
-            .RefreshesEveryFace.Should()
-            .BeFalse("the chain's Keeps refreshes the maps whose frames changed, and a doorway hides no extra cost");
+        pending.RefreshesEveryFace.Should().BeTrue("a different camera jumps the eye even across a frame boundary");
     }
 
     [Fact]
@@ -243,8 +259,7 @@ public sealed class FrameHistoryTests
     [Fact]
     public void AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize()
     {
-        // A change of the camera's frame resets nothing, so the next draw still reads the images that the last draw wrote,
-        // at the size it wrote them. The region's test then sees a change of the render size (region_drift.glsl).
+        // Reset readers still need the previous images' actual extent for their resource accesses.
         var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(frameId: 7), renderSize: new(1280, 720));
 
@@ -256,7 +271,7 @@ public sealed class FrameHistoryTests
             renderSize: new(960, 540)
         );
 
-        pending.Reset.Should().BeFalse("a change of the camera's frame is no reset");
+        pending.Reset.Should().BeTrue("a frame handoff invalidates motion in the previous frame's coordinates");
         pending.PreviousRenderSize.Should().Be(new Extent2D(1280, 720));
     }
 

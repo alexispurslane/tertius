@@ -1,0 +1,60 @@
+    at InvokeStub_LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(x: 0, y: 0, z: 1) (1s 788ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected shell to be greater than 0.0007604599F because the shell carries the emitter's light like any other cell, but found 0F (difference of -0.0007604599).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(Single x, Single y, Single z) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:405
+    at InvokeStub_LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(x: -1, y: -1, z: 1) (1s 788ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected inside to be greater than 1E-05F because an emitter inside the old outer cube lights the receiver, but found 3.516674E-06F (difference of -6.4833257E-06).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(Single x, Single y, Single z) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:404
+    at InvokeStub_LightVolumeRenderTests.AnEmitterInTheOuterGridsShellLightsAReceiverNearTheCamera(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(distance: 6.69999981) (904ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be greater than 0.0001F because the emitter lights the wall through the outer grid, but found 0F (difference of -0.0001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:334
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(distance: 7) (904ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be greater than 0.0001F because the emitter lights the wall through the outer grid, but found 0F (difference of -0.0001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:334
+    at InvokeStub_LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(distance: 7.30000019) (902ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be greater than 0.0001F because the emitter lights the wall through the outer grid, but found 0F (difference of -0.0001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:334
+    at InvokeStub_LightVolumeRenderTests.AWallInTheOuterFadeKeepsItsLightWhenTheCameraStepsAcrossAWholeCell(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.ASunlitReflectorInACornerOfTheOuterGridsShellLightsAReceiverNearTheCamera (1s 811ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected value to be greater than 1E-05F because a sunlit reflector inside the old outer cube lights the receiver, but found 0F (difference of -1E-05).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.ASunlitReflectorInACornerOfTheOuterGridsShellLightsAReceiverNearTheCamera() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:416
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 12 error(s) [+10/x12/?0] (39s 588ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 22
+  failed: 12
+  succeeded: 10
+  skipped: 0
+  duration: 40s 074ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

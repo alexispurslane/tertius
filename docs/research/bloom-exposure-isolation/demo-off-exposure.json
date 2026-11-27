@@ -1,0 +1,17 @@
+[
+  {
+    "frame": 0,
+    "capture": "cabin",
+    "stops": -1.4052811
+  },
+  {
+    "frame": 1,
+    "capture": "canopy",
+    "stops": -7.3871803
+  },
+  {
+    "frame": 2,
+    "capture": "port-window",
+    "stops": -6.1752253
+  }
+]

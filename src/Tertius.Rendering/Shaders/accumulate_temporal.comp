@@ -307,7 +307,7 @@ void main()
         // Both histories hold pre-exposed light: the ratio 2^(S − S_last) keeps them in this frame's scale. A rise of more
         // than about one stop takes a history at MaxRadiance past the largest half float, so `exposed` caps the product at
         // MaxRadiance before it. Its bounds hold for a ratio of at most 2^64, and two exposures can lie 128 stops apart.
-        float ratio = historyRatio(exposureStops, previousStops);
+        float ratio = historyRatio(exposureStops, historyStops);
         // A length above this pixel's cap, from a neighbor of another roughness, is cut to it.
         historyLength = min(slow.a, cap);
         slow.rgb = exposed(slow.rgb, ratio);

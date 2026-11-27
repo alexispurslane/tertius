@@ -1,0 +1,13 @@
+uptime-start:  15:57:34  up 63 days  3:31,  2 users,  load average: 7.71, 8.13, 8.52
+waited: 0s
+mode: shared, with up to 3 shared runs at once
+timed-start
+timed-end
+/tmp/tertius-25-sol/final-film/aft-wall.json
+/tmp/tertius-25-sol/final-film/nose-wall.json
+/tmp/tertius-25-sol/final-film/stream.mkv
+/tmp/tertius-25-sol/final-film/gpu-timings.json
+On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, "GPU trace").
+GPU frame span: mean 12.793 ms, median 12.744 ms, p95 15.469 ms over 1190 frames
+/tmp/tertius-25-sol/final-film/exposure.json
+uptime-end:  15:58:08  up 63 days  3:32,  2 users,  load average: 21.00, 11.31, 9.66

@@ -41,6 +41,7 @@ internal sealed class LightPyramidPass(
     public override void Record(FrameContext context)
     {
         ScreenTraceKernel.DeclareSurfaces(context);
+        context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         context.Barriers.Image(context.Targets.DirectDiffuse, ImageUse.SampledComputeGeneral);
         // Read at each record: a resize recreates the surface test image and the motion target.
         context.Barriers.Image(images.SurfaceTest, ImageUse.StorageCompute);

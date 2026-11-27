@@ -1,0 +1,41 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 2) (1s 661ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected Enumerable.Range(0, level == 2 ? 5832 : 4096).Where(cell => values[4 * cell + level] != 1) to be empty because every cell must address its own storage and a group anchored to the grid's center, but found at least one item {0}.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass10_0.<BeEmpty>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.BeEmpty(String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(Int32 level) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeLayoutTests.cs:20
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(level: 1) (805ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected Enumerable.Range(0, level == 2 ? 5832 : 4096).Where(cell => values[4 * cell + level] != 1) to be empty because every cell must address its own storage and a group anchored to the grid's center, but found at least one item {0}.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass10_0.<BeEmpty>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.BeEmpty(String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(Int32 level) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeLayoutTests.cs:20
+    at InvokeStub_LightVolumeLayoutTests.EveryCellHasItsOwnTransportStorageAndALightingGroupOnTheSameLattice(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells (812ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected Enumerable.Range(0, 5832).Where(cell => values[4 * cell + 3] != 1) to be empty because an empty volume transmits the whole sky through every cell, including the final dispatch tail, but found at least one item {0}.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass10_0.<BeEmpty>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.BeEmpty(String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeLayoutTests.OpenSkyReachesEveryTransportDirectionAndFilteredLobeIncludingTheLastDispatchCells() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeLayoutTests.cs:32
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 3 error(s) [+25/x3/?0] (28s 080ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 28
+  failed: 3
+  succeeded: 25
+  skipped: 0
+  duration: 28s 420ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

@@ -1,0 +1,175 @@
+{
+ "scene": "orbit",
+ "window": {
+  "width": 1280,
+  "height": 720
+ },
+ "steps": [
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "run",
+   "ticks": 30
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     -1256.637,
+     0
+    ]
+   }
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyDown",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 450
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyUp",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 30
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "mouseMove",
+    "delta": [
+     -1256.637,
+     0
+    ]
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyDown",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 1100
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyUp",
+    "code": 87
+   }
+  },
+  {
+   "do": "run",
+   "ticks": 60
+  },
+  {
+   "do": "film",
+   "name": "hold",
+   "frames": 30,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyDown",
+    "code": 83
+   }
+  },
+  {
+   "do": "film",
+   "name": "back",
+   "frames": 100,
+   "every": 1
+  },
+  {
+   "do": "post",
+   "to": {
+    "kind": "topic",
+    "name": "input"
+   },
+   "event": "InputEvent",
+   "payload": {
+    "kind": "keyUp",
+    "code": 83
+   }
+  },
+  {
+   "do": "film",
+   "name": "stop",
+   "frames": 10,
+   "every": 1
+  },
+  {
+   "do": "camera",
+   "entity": "far"
+  },
+  {
+   "do": "run",
+   "ticks": 30
+  },
+  {
+   "do": "camera",
+   "entity": "person"
+  },
+  {
+   "do": "film",
+   "name": "cut",
+   "frames": 30,
+   "every": 1
+  }
+ ]
+}

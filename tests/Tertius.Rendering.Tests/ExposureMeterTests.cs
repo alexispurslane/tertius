@@ -22,44 +22,44 @@ public sealed class ExposureMeterTests
         return bins;
     }
 
-    /// <summary>The histogram of surface luminances in radiance, metered at the exposure <paramref name="stops"/>.</summary>
-    private static uint[] Metered(float[] radianceLuminances, float stops)
+    /// <summary>The histogram of scene surface luminance before display exposure.</summary>
+    private static uint[] Metered(float[] radianceLuminances)
     {
         uint[] bins = new uint[ExposureMeter.Bins];
         foreach (float luminance in radianceLuminances)
-            bins[ExposureMeter.BinOf(luminance * MathF.Pow(2, stops))]++;
+            bins[ExposureMeter.BinOf(luminance)]++;
         return bins;
     }
 
     [Fact]
     public void ALuminanceOfZeroFallsInTheFirstBin() => ExposureMeter.BinOf(0).Should().Be(0);
 
-    [Fact]
-    public void ALuminanceAtTheLowestEdgeFallsInTheFirstBinAndOneEighthOfAStopAboveItInTheSecond()
+    [Theory]
+    [InlineData(-120f, 320)]
+    [InlineData(-40f, 960)]
+    [InlineData(0f, 1280)]
+    [InlineData(80f, 1920)]
+    [InlineData(120f, 2240)]
+    public void NormalSceneLuminanceStopsKeepTheirEighthStopBins(float stops, int expectedBin)
     {
-        float lowestEdge = MathF.Pow(2, ExposureMeter.LowestStops);
-        float secondEdge = MathF.Pow(2, ExposureMeter.LowestStops + BinWidth);
-
-        ExposureMeter.BinOf(lowestEdge).Should().Be(0);
-        ExposureMeter.BinOf(secondEdge).Should().Be(1);
+        ExposureMeter.BinOf(MathF.Pow(2, stops)).Should().Be(expectedBin);
+        ExposureMeter.BinOf(MathF.Pow(2, stops + 0.125f)).Should().Be(expectedBin + 1);
     }
 
     [Fact]
-    public void TheLargestHalfFloatFallsInTheLastBin() =>
-        ExposureMeter
-            .BinOf(65_504)
-            .Should()
-            .Be(ExposureMeter.Bins - 1, "the clamp keeps a pre-exposed value at or below the largest half float");
+    public void TheLargestHalfFloatKeepsItsPhysicalSceneLuminance() =>
+        ExposureMeter.BinCenterStops(ExposureMeter.BinOf(65_504)).Should().Be(15.9375f);
 
     [Fact]
-    public void ALuminanceAboveTheHighestEdgeFallsInTheLastBin() =>
-        ExposureMeter.BinOf(MathF.Pow(2, 20)).Should().Be(ExposureMeter.Bins - 1);
+    public void TheLargestFiniteSceneLuminanceFallsInTheLastBin() =>
+        ExposureMeter.BinOf(float.MaxValue).Should().Be(ExposureMeter.Bins - 1);
 
     [Fact]
-    public void EachBinsCenterLiesHalfAnEighthOfAStopAboveItsLowerEdge()
+    public void EachNormalBinsCenterLiesHalfAnEighthOfAStopAboveItsLowerEdge()
     {
         const float justInside = 1f / 256;
-        for (int bin = 1; bin < ExposureMeter.Bins; bin++)
+        // Subnormal floats cannot resolve every eighth-stop edge; bin 273 starts above the minimum normal value.
+        for (int bin = 273; bin < ExposureMeter.Bins; bin++)
         {
             float lowerEdge = ExposureMeter.BinCenterStops(bin) - BinWidth / 2;
 
@@ -79,10 +79,10 @@ public sealed class ExposureMeterTests
     [Fact]
     public void TheTrimmedMeanDropsTheDarkestAndTheBrightestShares() =>
         ExposureMeter
-            .TrimmedMeanStops(Histogram((10, 10), (100, 80), (200, 10)), darkShare: 0.1f, brightShare: 0.1f)
+            .TrimmedMeanStops(Histogram((1162, 10), (1252, 80), (1352, 10)), darkShare: 0.1f, brightShare: 0.1f)
             .Should()
             .BeApproximately(
-                ExposureMeter.BinCenterStops(100),
+                ExposureMeter.BinCenterStops(1252),
                 1e-5f,
                 "the darkest tenth fills bin 10 and the brightest tenth fills bin 200"
             );
@@ -90,10 +90,10 @@ public sealed class ExposureMeterTests
     [Fact]
     public void ABinThatStraddlesATrimEdgeCountsOnlyItsShareInside()
     {
-        float expected = (10 * ExposureMeter.BinCenterStops(10) + 80 * ExposureMeter.BinCenterStops(100)) / 90;
+        float expected = (10 * ExposureMeter.BinCenterStops(1162) + 80 * ExposureMeter.BinCenterStops(1252)) / 90;
 
         ExposureMeter
-            .TrimmedMeanStops(Histogram((10, 20), (100, 80)), darkShare: 0.1f, brightShare: 0)
+            .TrimmedMeanStops(Histogram((1162, 20), (1252, 80)), darkShare: 0.1f, brightShare: 0)
             .Should()
             .BeApproximately(expected, 1e-5f, "the darkest 10 of the 20 pixels of bin 10 are dropped");
     }
@@ -105,10 +105,10 @@ public sealed class ExposureMeterTests
     [Fact]
     public void TheBrightEdgeLiesInsideItsBinByTheShareOfTheBinBelowTheEdge() =>
         ExposureMeter
-            .BrightEdgeStops(Histogram((100, 80), (120, 20)), brightShare: 0.15f)
+            .BrightEdgeStops(Histogram((1252, 80), (1272, 20)), brightShare: 0.15f)
             .Should()
             .BeApproximately(
-                ExposureMeter.BinCenterStops(120) - BinWidth / 2 + BinWidth / 4,
+                ExposureMeter.BinCenterStops(1272) - BinWidth / 2 + BinWidth / 4,
                 1e-5f,
                 "the edge at 85 of the 100 pixels lies 5 of the 20 pixels of bin 120 up from its lower edge"
             );
@@ -116,9 +116,9 @@ public sealed class ExposureMeterTests
     [Fact]
     public void WithNoBrightShareTheBrightEdgeIsTheTopOfTheBrightestBin() =>
         ExposureMeter
-            .BrightEdgeStops(Histogram((100, 80), (120, 20)), brightShare: 0)
+            .BrightEdgeStops(Histogram((1252, 80), (1272, 20)), brightShare: 0)
             .Should()
-            .BeApproximately(ExposureMeter.BinCenterStops(120) + BinWidth / 2, 1e-5f);
+            .BeApproximately(ExposureMeter.BinCenterStops(1272) + BinWidth / 2, 1e-5f);
 
     [Fact]
     public void AHistogramWithNoCountHasNoReading() =>
@@ -130,7 +130,7 @@ public sealed class ExposureMeterTests
         const float used = 1.5f;
         // The bright 15 % lie 10 stops above the rest, so their edge lies far more than 2.47 stops above the mean.
         (float TrimmedMeanStops, float BrightEdgeStops) reading = ExposureMeter
-            .Reading(Histogram((100, 85), (180, 15)), darkShare: 0.1f, brightShare: 0.1f)!
+            .Reading(Histogram((1252, 85), (1332, 15)), darkShare: 0.1f, brightShare: 0.1f)!
             .Value;
 
         float target = ExposureMeter.TargetStops(
@@ -142,11 +142,11 @@ public sealed class ExposureMeterTests
         );
 
         MathF
-            .Pow(2, reading.BrightEdgeStops - used + target)
+            .Pow(2, reading.BrightEdgeStops + target)
             .Should()
             .BeApproximately(1, 1e-5f, "the bright area sits at the start of the tone curve's shoulder");
         MathF
-            .Pow(2, reading.TrimmedMeanStops - used + target)
+            .Pow(2, reading.TrimmedMeanStops + target)
             .Should()
             .BeLessThan(
                 ExposureMeter.MiddleGray,
@@ -169,7 +169,7 @@ public sealed class ExposureMeterTests
         );
 
         MathF
-            .Pow(2, mean - used + target)
+            .Pow(2, mean + target)
             .Should()
             .BeApproximately(
                 ExposureMeter.MiddleGray,
@@ -184,7 +184,7 @@ public sealed class ExposureMeterTests
         const float used = 4;
         // A dim view whose luminances spread over 2 stops, about 7 stops below middle gray in radiance.
         float[] view = [.. Enumerable.Range(0, 17).Select(step => MathF.Pow(2, -10 + step / 8f))];
-        uint[] histogram = Metered(view, used);
+        uint[] histogram = Metered(view);
 
         float target = ExposureMeter.TargetStops(
             reading: ExposureMeter.Reading(histogram, darkShare: 0.1f, brightShare: 0.1f),
@@ -195,16 +195,16 @@ public sealed class ExposureMeterTests
         );
 
         float mean = ExposureMeter.TrimmedMeanStops(histogram, darkShare: 0.1f, brightShare: 0.1f)!.Value;
-        MathF.Pow(2, mean - used + target).Should().BeApproximately(ExposureMeter.MiddleGray, 1e-6f);
+        MathF.Pow(2, mean + target).Should().BeApproximately(ExposureMeter.MiddleGray, 1e-6f);
     }
 
     [Fact]
     public void TheTargetDoesNotDependOnTheExposureThatTheFrameUsed()
     {
-        float[] view = [.. Enumerable.Range(40, 60).Select(bin => MathF.Pow(2, ExposureMeter.BinCenterStops(bin)))];
+        float[] view = [.. Enumerable.Range(0, 60).Select(step => MathF.Pow(2, -8 + step / 8f))];
         float TargetAt(float used) =>
             ExposureMeter.TargetStops(
-                reading: ExposureMeter.Reading(Metered(view, used), darkShare: 0.1f, brightShare: 0.1f),
+                reading: ExposureMeter.Reading(Metered(view), darkShare: 0.1f, brightShare: 0.1f),
                 usedStops: used,
                 compensationStops: 0,
                 minStops: -8,

@@ -452,15 +452,19 @@ public sealed class RenderSnapshotInterpolationTests
     }
 
     [Fact]
-    public void WhenTheCameraChangesFrameTheSnapshotCountsOneMoreCut()
+    public void AContinuousCameraHandoffKeepsTheCameraCutCount()
     {
         using var scene = new HandOffScene();
         scene.Test.Run(2);
-        long before = scene.Test.World.Latest().CameraCuts;
+        RenderSnapshot before = scene.Test.World.Latest();
+        long sourceFrame = before.OriginFrameId;
+        long sourceCuts = before.CameraCuts;
 
         scene.Test.Run(1);
 
-        scene.Test.World.Latest().CameraCuts.Should().Be(before + 1);
+        RenderSnapshot after = scene.Test.World.Latest();
+        after.OriginFrameId.Should().NotBe(sourceFrame, "the camera crossed the frame boundary");
+        after.CameraCuts.Should().Be(sourceCuts, "the same eye moved continuously through the doorway");
     }
 
     [Fact]

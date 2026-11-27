@@ -247,7 +247,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             shaders: shaders,
             shader: "fsr_exposure.comp",
             bindings: ExposureBindings,
-            pushConstantBytes: sizeof(uint)
+            pushConstantBytes: 2 * sizeof(uint)
         );
         // The clear step's push constant is the count of the luminance pyramid's levels.
         clearPipeline = CreatePipeline(
@@ -1003,14 +1003,14 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         frame.Barriers.Buffer(Constants, BufferUse.ComputeWrite);
         frame.Barriers.Flush(vk, commandBuffer);
         exposurePipeline.Bind(vk, commandBuffer, frame.Set);
-        uint word = DeltaPreExposureWord;
+        uint* push = stackalloc uint[] { DeltaPreExposureWord, frame.Inputs.Frame.Reset || executions == 0 ? 1u : 0u };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: exposurePipeline.Layout,
             stageFlags: ShaderStageFlags.ComputeBit,
             offset: 0,
-            size: sizeof(uint),
-            pValues: &word
+            size: 2 * sizeof(uint),
+            pValues: push
         );
         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);
     }

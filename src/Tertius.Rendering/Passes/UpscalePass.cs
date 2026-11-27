@@ -39,17 +39,18 @@ internal sealed unsafe class UpscalePass : RenderPass
         this.allocator = allocator;
         this.shaders = shaders;
         this.layouts = layouts;
+        this.targets = targets;
+        this.surfaces = surfaces;
+        this.screenTrace = screenTrace;
+        this.framesInFlight = framesInFlight;
+        this.sharpness = sharpness;
+
         input = new ComputePipelineDesc
         {
             Name = "FSR exposed input",
             Shader = "fsr_input.comp",
             Layout = layouts.FsrInputLayout,
         }.Create(device, shaders);
-        this.targets = targets;
-        this.surfaces = surfaces;
-        this.screenTrace = screenTrace;
-        this.framesInFlight = framesInFlight;
-        this.sharpness = sharpness;
         upscaler = Create();
     }
 
@@ -118,6 +119,7 @@ internal sealed unsafe class UpscalePass : RenderPass
         context.Barriers.Image(images.OpaqueOnly, ImageUse.StorageCompute);
         context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
+
         context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Compute, input);
         DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, targets.MeterSet };
         context.Vk.CmdBindDescriptorSets(
@@ -130,6 +132,7 @@ internal sealed unsafe class UpscalePass : RenderPass
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
+
         Extent2D extent = context.Extent;
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,

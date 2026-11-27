@@ -332,7 +332,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(targets.Emissive, ImageUse.SampledCompute);
         barriers.Image(surfaces.Last(parity), ImageUse.SampledCompute);
         barriers.Image(surfaces.LastDepth(parity), ImageUse.SampledCompute);
-        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         for (int part = 0; part < parts.Length; part++)
         {
             BeforeTemporal(barriers: barriers, part: part, parity: parity);

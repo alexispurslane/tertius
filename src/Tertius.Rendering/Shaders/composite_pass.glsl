@@ -1,6 +1,7 @@
 // The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): at each lit pixel, the light of section 1
 // into the scene-referred HDR image. Direct radiance and emission are already in scene units. Only the bounded
-// indirect terms restore their material factors and remove their producing exposure. Glossy surfaces blend their reflection history with the environment.
+// history samples restore their material factors and remove their producing exposure. The environment and volume stay
+// in scene units. Glossy surfaces blend their reflection history with the environment.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
 // skin, and 0 elsewhere (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D"). composite.frag and composite_scatter.frag,
 // which defines SCATTER_OUTPUT, include it: the diffuse image is a second color attachment only then. A test's probe
@@ -86,7 +87,7 @@ void main()
     outColor = vec4(directDiffuse + directSpecular + emissive, 1.0);
     return;
 #endif
-    IndirectLight indirect = closedForm(withAmbientFootprint(s, pixel), V);
+    IndirectLight indirect = closedFormScene(withAmbientFootprint(s, pixel), V);
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
 #ifdef LIGHT_VOLUME
@@ -96,11 +97,9 @@ void main()
     if (screenTraceOn && share > 0.0)
     {
         vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;
-        indirectSpecular = mix(indirectSpecular, reflectionSharedAt(pixel, glossy), share);
+        vec3 sceneGlossy = reflectionSharedAt(pixel, glossy) / exposureScale();
+        indirectSpecular = mix(indirectSpecular, sceneGlossy, share);
     }
-    // Histories remain bounded and pre-exposed. Convert only their result; direct light and emission stay scene-referred.
-    indirectDiffuse /= exposureScale();
-    indirectSpecular /= exposureScale();
     outColor = vec4(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, 1.0);
     // Scene-referred diffuse radiance and the mask of skin pixels that the scatter passes spread.
     bool skin = s.model == ShadingSkin;

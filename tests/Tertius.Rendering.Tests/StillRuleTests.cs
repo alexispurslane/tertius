@@ -115,11 +115,13 @@ public sealed class StillRuleTests
     }
 
     [Fact]
-    public void EachWarmUpDrawAdaptsTheExposureByTheStillsStepOverTheWarmUpCountAndTheShownDrawByNone() =>
-        DrawAll(Headless(warmUpDraws: 4), step: 2f)
-            .Select(d => d.ExposureStep)
-            .Should()
-            .Equal(0.5f, 0.5f, 0.5f, 0.5f, 0f);
+    public void EachWarmUpDrawAdaptsTheExposureByTheStillsStepOverTheWarmUpCountAndTheShownDrawByNone()
+    {
+        FrameHistory history = Headless(warmUpDraws: 4);
+        DrawAll(history, step: FrameHistoryTesting.FilmStep);
+
+        DrawAll(history, step: 2f).Select(d => d.ExposureStep).Should().Equal(0.5f, 0.5f, 0.5f, 0.5f, 0f);
+    }
 
     [Theory]
     [InlineData(0f)]

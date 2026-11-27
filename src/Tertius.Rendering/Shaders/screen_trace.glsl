@@ -425,7 +425,7 @@ vec3 lastLightOf(Reprojection r)
 {
     vec3 light = lastFastSpecularAt(r).rgb;
     // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
-    return exposed(light, historyRatio(exposureStops, previousStops));
+    return exposed(light, historyRatio(exposureStops, historyStops));
 }
 
 // Whether the pixel's surface moved since the last draw, as the surface test pass found it (signals.glsl, SurfaceMoved).
@@ -458,11 +458,14 @@ SignalReprojections reprojectionsAt(ivec2 pixel)
 vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
-    IndirectLight closedLight = closedForm(withAmbientFootprint(s, q), V);
+    IndirectLight closedLight = closedFormScene(withAmbientFootprint(s, q), V);
     vec3 indirectDiffuse = factors.diffuse * closedLight.diffuse;
     vec3 indirectSpecular = factors.specular * closedLight.specular;
     if (lightVolumeOn)
         applyLightVolume(s, V, factors, holdsHistory(r.specular), indirectDiffuse, indirectSpecular);
+    // Only the tracer's estimator crosses into the bounded, pre-exposed encoding.
+    indirectDiffuse = preExposed(indirectDiffuse);
+    indirectSpecular = preExposed(indirectSpecular);
     vec3 light = sentDiffuseLight(q, preExposed(imageLoad(directDiffuseLight, q).rgb), r.diffuse)
         + indirectDiffuse;
     float share = glossyShare(s.roughness);

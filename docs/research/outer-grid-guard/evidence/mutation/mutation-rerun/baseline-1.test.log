@@ -1,0 +1,9 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+28/x0/?0] (28s 452ms)
+
+Test run summary: Passed!
+  total: 28
+  failed: 0
+  succeeded: 28
+  skipped: 0
+  duration: 28s 821ms

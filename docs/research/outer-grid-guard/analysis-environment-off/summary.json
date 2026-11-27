@@ -1,0 +1,487 @@
+{
+  "steps": {
+    "wall_base": {
+      "frames_measured": 1086,
+      "largest": 35.09,
+      "p95": 0.035,
+      "p99": 0.247,
+      "over_0.6": 3,
+      "over_2": 1,
+      "ten_largest": [
+        {
+          "frame": 1065,
+          "distance": 6.98,
+          "before": 229.59,
+          "change": -35.09
+        },
+        {
+          "frame": 1105,
+          "distance": 4.98,
+          "before": 188.21,
+          "change": 1.51
+        },
+        {
+          "frame": 1085,
+          "distance": 5.98,
+          "before": 190.48,
+          "change": 1.07
+        },
+        {
+          "frame": 1067,
+          "distance": 6.88,
+          "before": 193.98,
+          "change": -0.53
+        },
+        {
+          "frame": 1066,
+          "distance": 6.93,
+          "before": 194.5,
+          "change": -0.52
+        },
+        {
+          "frame": 1069,
+          "distance": 6.78,
+          "before": 193.25,
+          "change": -0.4
+        },
+        {
+          "frame": 1081,
+          "distance": 6.18,
+          "before": 191.51,
+          "change": -0.33
+        },
+        {
+          "frame": 1091,
+          "distance": 5.68,
+          "before": 190.69,
+          "change": -0.32
+        },
+        {
+          "frame": 1111,
+          "distance": 4.68,
+          "before": 189.17,
+          "change": -0.29
+        },
+        {
+          "frame": 1079,
+          "distance": 6.28,
+          "before": 191.94,
+          "change": -0.27
+        }
+      ],
+      "anchors": {
+        "38": {
+          "distance": 58.33,
+          "change": 0.02
+        },
+        "975": {
+          "distance": 11.48,
+          "change": 0.0
+        },
+        "1065": {
+          "distance": 6.98,
+          "change": -35.09
+        }
+      }
+    },
+    "wall_guard": {
+      "frames_measured": 1086,
+      "largest": 4.51,
+      "p95": 0.104,
+      "p99": 1.906,
+      "over_0.6": 22,
+      "over_2": 11,
+      "ten_largest": [
+        {
+          "frame": 1074,
+          "distance": 6.53,
+          "before": 190.46,
+          "change": -4.51
+        },
+        {
+          "frame": 1073,
+          "distance": 6.58,
+          "before": 194.72,
+          "change": -4.26
+        },
+        {
+          "frame": 1072,
+          "distance": 6.63,
+          "before": 198.35,
+          "change": -3.63
+        },
+        {
+          "frame": 1071,
+          "distance": 6.68,
+          "before": 201.81,
+          "change": -3.45
+        },
+        {
+          "frame": 1070,
+          "distance": 6.73,
+          "before": 204.83,
+          "change": -3.02
+        },
+        {
+          "frame": 1075,
+          "distance": 6.48,
+          "before": 185.95,
+          "change": -3.01
+        },
+        {
+          "frame": 1069,
+          "distance": 6.78,
+          "before": 207.7,
+          "change": -2.87
+        },
+        {
+          "frame": 1068,
+          "distance": 6.83,
+          "before": 210.22,
+          "change": -2.52
+        },
+        {
+          "frame": 1067,
+          "distance": 6.88,
+          "before": 212.57,
+          "change": -2.35
+        },
+        {
+          "frame": 1066,
+          "distance": 6.93,
+          "before": 214.74,
+          "change": -2.17
+        }
+      ],
+      "anchors": {
+        "38": {
+          "distance": 58.33,
+          "change": 0.02
+        },
+        "975": {
+          "distance": 11.48,
+          "change": 0.0
+        },
+        "1065": {
+          "distance": 6.98,
+          "change": -1.75
+        }
+      }
+    },
+    "floor_base": {
+      "frames_measured": 225,
+      "largest": 31.64,
+      "p95": 19.044,
+      "p99": 26.555,
+      "over_0.6": 48,
+      "over_2": 31,
+      "ten_largest": [
+        {
+          "frame": 1100,
+          "distance": 5.23,
+          "before": 165.21,
+          "change": -31.64
+        },
+        {
+          "frame": 1045,
+          "distance": 7.98,
+          "before": 214.46,
+          "change": -28.46
+        },
+        {
+          "frame": 1111,
+          "distance": 4.68,
+          "before": 140.48,
+          "change": 26.68
+        },
+        {
+          "frame": 1098,
+          "distance": 5.33,
+          "before": 139.96,
+          "change": 26.16
+        },
+        {
+          "frame": 1096,
+          "distance": 5.43,
+          "before": 139.31,
+          "change": 24.9
+        },
+        {
+          "frame": 1097,
+          "distance": 5.38,
+          "before": 164.2,
+          "change": -24.24
+        },
+        {
+          "frame": 1106,
+          "distance": 4.93,
+          "before": 136.31,
+          "change": 23.36
+        },
+        {
+          "frame": 1110,
+          "distance": 4.73,
+          "before": 163.59,
+          "change": -23.11
+        },
+        {
+          "frame": 1095,
+          "distance": 5.48,
+          "before": 160.48,
+          "change": -21.17
+        },
+        {
+          "frame": 1105,
+          "distance": 4.98,
+          "before": 157.49,
+          "change": -21.17
+        }
+      ],
+      "anchors": {
+        "38": null,
+        "975": {
+          "distance": 11.48,
+          "change": -0.0
+        },
+        "1065": {
+          "distance": 6.98,
+          "change": -14.42
+        }
+      }
+    },
+    "floor_guard": {
+      "frames_measured": 225,
+      "largest": 36.48,
+      "p95": 16.135,
+      "p99": 27.011,
+      "over_0.6": 71,
+      "over_2": 43,
+      "ten_largest": [
+        {
+          "frame": 1100,
+          "distance": 5.23,
+          "before": 160.38,
+          "change": -36.48
+        },
+        {
+          "frame": 1111,
+          "distance": 4.68,
+          "before": 129.23,
+          "change": 30.6
+        },
+        {
+          "frame": 1096,
+          "distance": 5.43,
+          "before": 132.42,
+          "change": 27.09
+        },
+        {
+          "frame": 1110,
+          "distance": 4.73,
+          "before": 156.0,
+          "change": -26.77
+        },
+        {
+          "frame": 1106,
+          "distance": 4.93,
+          "before": 125.91,
+          "change": 26.23
+        },
+        {
+          "frame": 1105,
+          "distance": 4.98,
+          "before": 150.26,
+          "change": -24.35
+        },
+        {
+          "frame": 1095,
+          "distance": 5.48,
+          "before": 155.82,
+          "change": -23.41
+        },
+        {
+          "frame": 1101,
+          "distance": 5.18,
+          "before": 123.9,
+          "change": 21.33
+        },
+        {
+          "frame": 1080,
+          "distance": 6.23,
+          "before": 159.5,
+          "change": -20.74
+        },
+        {
+          "frame": 1091,
+          "distance": 5.68,
+          "before": 130.97,
+          "change": 19.99
+        }
+      ],
+      "anchors": {
+        "38": null,
+        "975": {
+          "distance": 11.48,
+          "change": -0.0
+        },
+        "1065": {
+          "distance": 6.98,
+          "change": -11.36
+        }
+      }
+    }
+  },
+  "floor_track": {
+    "base": {
+      "changes": 2135,
+      "largest": 12.65,
+      "p95": 0.949,
+      "over_0.6": 146,
+      "over_2": 86,
+      "largest_6_to_8_m_ahead": 12.65,
+      "over_0.6_6_to_8_m_ahead": 37,
+      "ten_largest": [
+        {
+          "frame": 85,
+          "patch": 1,
+          "ahead": 6.48,
+          "change": -12.65
+        },
+        {
+          "frame": 245,
+          "patch": 3,
+          "ahead": 6.48,
+          "change": -12.11
+        },
+        {
+          "frame": 965,
+          "patch": 12,
+          "ahead": 6.48,
+          "change": -12.03
+        },
+        {
+          "frame": 325,
+          "patch": 4,
+          "ahead": 6.48,
+          "change": -12.02
+        },
+        {
+          "frame": 165,
+          "patch": 2,
+          "ahead": 6.48,
+          "change": -11.92
+        },
+        {
+          "frame": 485,
+          "patch": 6,
+          "ahead": 6.48,
+          "change": -11.61
+        },
+        {
+          "frame": 725,
+          "patch": 9,
+          "ahead": 6.48,
+          "change": -11.56
+        },
+        {
+          "frame": 805,
+          "patch": 10,
+          "ahead": 6.48,
+          "change": -11.32
+        },
+        {
+          "frame": 565,
+          "patch": 7,
+          "ahead": 6.48,
+          "change": -11.29
+        },
+        {
+          "frame": 405,
+          "patch": 5,
+          "ahead": 6.48,
+          "change": -10.96
+        }
+      ]
+    },
+    "guard": {
+      "changes": 2135,
+      "largest": 39.65,
+      "p95": 2.0,
+      "over_0.6": 319,
+      "over_2": 106,
+      "largest_6_to_8_m_ahead": 5.57,
+      "over_0.6_6_to_8_m_ahead": 167,
+      "ten_largest": [
+        {
+          "frame": 1025,
+          "patch": 12,
+          "ahead": 3.48,
+          "change": -39.65
+        },
+        {
+          "frame": 225,
+          "patch": 2,
+          "ahead": 3.48,
+          "change": -7.0
+        },
+        {
+          "frame": 65,
+          "patch": 0,
+          "ahead": 3.48,
+          "change": -6.47
+        },
+        {
+          "frame": 305,
+          "patch": 3,
+          "ahead": 3.48,
+          "change": -5.81
+        },
+        {
+          "frame": 145,
+          "patch": 1,
+          "ahead": 3.48,
+          "change": -5.78
+        },
+        {
+          "frame": 965,
+          "patch": 12,
+          "ahead": 6.48,
+          "change": -5.57
+        },
+        {
+          "frame": 245,
+          "patch": 3,
+          "ahead": 6.48,
+          "change": -5.53
+        },
+        {
+          "frame": 785,
+          "patch": 9,
+          "ahead": 3.48,
+          "change": -5.5
+        },
+        {
+          "frame": 1030,
+          "patch": 12,
+          "ahead": 3.23,
+          "change": -5.28
+        },
+        {
+          "frame": 545,
+          "patch": 6,
+          "ahead": 3.48,
+          "change": -5.18
+        }
+      ]
+    }
+  },
+  "mean_abs_diff_8bit": {
+    "guard_vs_base": {
+      "walk": 2.2556,
+      "40-60 m": 1.7963,
+      "17-40 m": 1.4653,
+      "9-17 m": 1.5174,
+      "0-9 m": 6.3022
+    }
+  }
+}

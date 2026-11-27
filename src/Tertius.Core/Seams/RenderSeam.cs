@@ -297,9 +297,9 @@ public sealed class RenderSnapshot
     public AmbientLight Ambient;
 
     /// <summary>
-    /// How many builds so far did not interpolate the camera: a first build, another camera, or another frame of the
-    /// camera. A count, not a flag, so that a renderer that skips the snapshot of a cut still sees it
-    /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Resets"). A build without a camera keeps the count.
+    /// How many camera discontinuities occurred: a first build, another camera entity, or a camera after a missing build.
+    /// A count preserves cuts across skipped snapshots. Continuous reference-frame handoffs keep the count and change
+    /// <see cref="OriginFrameId"/>. A build without a camera keeps the count.
     /// </summary>
     public long CameraCuts;
 
