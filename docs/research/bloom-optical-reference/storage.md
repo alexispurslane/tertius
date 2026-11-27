@@ -1,6 +1,6 @@
 # Source-radiance storage audit
 
-This audit records the source representation for [#3](https://github.com/alexispurslane/tertius/issues/3) and its shared contract with analytic exposure in #4. The initial proposal is retained below as design history. The settled source model supersedes it. Integrated tests and visual acceptance are still pending.
+This audit records the source representation for [#3](https://github.com/alexispurslane/tertius/issues/3) and its shared contract with analytic exposure in #4. The initial proposal is retained below as design history. The settled source model supersedes it. The measured 128/256 candidate and its inspected scene controls are recorded in [candidate-2026-11-27.md](candidate-2026-11-27.md). Common integration and final hardening remain pending.
 
 ## Ownership
 
@@ -256,3 +256,15 @@ Ordinary exposure adaptation must run after both bloom and tone mapping:
 it writes the next frame's exposure, while those consumers read the current
 frame's exposure. The companion owns this ordering fix and the corresponding
 buffer barriers. No implementation scene capture ran before these findings.
+
+## Measured candidate after recovery
+
+The source suite passed 19 cases, including both direct-light paths and the moving highlight under no upscaling, native-size FSR and half-size FSR. The separate source-report run passed 16 cases and retained per-path reports. The normal lamp energy and three ring means exactly match the saved baseline. The original thousandfold source assertions are unchanged.
+
+The current artistic response is linear through excess brightness 128 and approaches 256. The earlier 8192/16384 and 1024/2048 candidates produced an unacceptable white veil over the hull. This tuning acts downstream of the original scene and meter. It does not change the source storage proof.
+
+The clean 800-frame candidate and the bloom-off control apply identical float32 exposure bits on every frame. The fixed-exposure helmet capture and both same-tick settled exterior controls also passed with no validation messages. The coordinator independently inspected continuous frames 500 and 600, the helmet and the settled pair. Those inspected images preserve recognizable hull structure and normal helmet glow. This is scoped visual evidence, not approval of every frame.
+
+The 22-case bloom class passed after the extreme-square probe's strength changed from 1/65536 to 1/256. The old probe showed zero at the tested halo pixel after the new bounded artistic response. Its visible-halo interval [0.05,0.95] is unchanged, and its finite level bound tightened from 32768 to 512. A separate static fix skips subnormal knee widths before division. Their soft contribution cannot survive the half-float store, which occurs before Strength multiplication, so even float.MaxValue Strength cannot recover it.
+
+Ten scripted bloom mutants completed through tools/mutate.py with its staged-input checks. Nine were killed after a scoped regression-test rerun; the subnormal guard survivor has an explicit portability judgment. The detailed table is in [candidate-2026-11-27.md](candidate-2026-11-27.md). The common owner is separately correcting the near-field rectangle approximation and consumer unit conversions before its required full Rendering run. The final source arithmetic evidence must include that rectangle fix; no generic source cap substitutes for it.

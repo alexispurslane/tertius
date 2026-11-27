@@ -1,0 +1,200 @@
+{
+  "baseline_head": "b8f84b193",
+  "scope": "Staged bloom_prefilter.frag and BloomPass.cs only; remaining common source integration pending",
+  "input_files": {
+    "src/Tertius.Rendering/Passes/BloomPass.cs": {
+      "sha256": "dce23967456104ca204944dae68bbc1ebe64ef45aa3af50f55469749cdbfbc79",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/bloom_prefilter.frag": {
+      "sha256": "50132ac25c26c541aec903cdae86c51d0e2a4cc5820ec6aee15d2fecfeba3739",
+      "executable": false
+    }
+  },
+  "rows": [
+    {
+      "id": "B01",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 29,
+      "change": "Remove artistic extreme response",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests.ExtremeHighlightsKeepGrowingWithoutSpreadingTenTimesTheGlare"
+      ],
+      "seconds": 26.38254066556692,
+      "original": "excess = 128.0 + 128.0 * (extreme / (128.0 + extreme));",
+      "replacement": "excess = excess;",
+      "classes": [
+        "BloomSourceLightTests"
+      ]
+    },
+    {
+      "id": "B02",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 29,
+      "change": "Hard saturation loses distinct extreme halos",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests.TwoExtremeWhiteSourcesRetainDistinguishableHaloEnergy",
+        "BloomSourceLightTests.ExtremeHighlightsKeepGrowingWithoutSpreadingTenTimesTheGlare"
+      ],
+      "seconds": 26.05596916656941,
+      "original": "excess = 128.0 + 128.0 * (extreme / (128.0 + extreme));",
+      "replacement": "excess = 256.0;",
+      "classes": [
+        "BloomSourceLightTests"
+      ]
+    },
+    {
+      "id": "B03",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 14,
+      "change": "Reintroduce source clipping before bloom",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests.TwoExtremeWhiteSourcesRetainDistinguishableHaloEnergy"
+      ],
+      "seconds": 29.094625250436366,
+      "original": "vec3 color = displayExposed(sourceColor, exposureStops);",
+      "replacement": "vec3 color = displayExposed(min(sourceColor, vec3(32256.0)), exposureStops);",
+      "classes": [
+        "BloomSourceLightTests"
+      ]
+    },
+    {
+      "id": "B04",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 31,
+      "change": "Remove the soft knee and extreme response",
+      "result": "killed",
+      "killed_by": [
+        "BloomTests.LightAtTheThresholdGlowsByAQuarterOfTheKneesWidth",
+        "BloomTests.ALargeExtremeSquareKeepsItsHaloFinite(levels: 4)",
+        "BloomTests.ALargeExtremeSquareKeepsItsHaloFinite(levels: 3)"
+      ],
+      "seconds": 39.0056921672076,
+      "original": "return (color / max(brightness, 1e-5)) * excess;",
+      "replacement": "return (color / max(brightness, 1e-5)) * max(brightness - bloom.threshold, 0.0);",
+      "classes": [
+        "BloomTests"
+      ]
+    },
+    {
+      "id": "B05",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 39,
+      "change": "Reverse jitter compensation",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests+MovingHighlights.ASourceOfConstantAreaKeepsItsHaloEnergyDuringSubpixelMotion(temporal: True, scale: 0.5)"
+      ],
+      "seconds": 10.04555108398199,
+      "original": "- vec2(bloom.jitterX, bloom.jitterY) - 0.5;",
+      "replacement": "+ vec2(bloom.jitterX, bloom.jitterY) - 0.5;",
+      "classes": [
+        "*MovingHighlights*"
+      ]
+    },
+    {
+      "id": "B06",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 43,
+      "change": "Lose one mapped bilinear source corner",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests+MovingHighlights.ASourceOfConstantAreaKeepsItsHaloEnergyDuringSubpixelMotion(temporal: True, scale: 0.5)",
+        "BloomSourceLightTests+MovingHighlights.ASourceOfConstantAreaKeepsItsHaloEnergyDuringSubpixelMotion(temporal: True, scale: 1)"
+      ],
+      "seconds": 10.284564833156765,
+      "original": "vec3 a = thresholded(texelFetch(source, clamp(first, ivec2(0), last), 0).rgb);",
+      "replacement": "vec3 a = vec3(0.0);",
+      "classes": [
+        "*MovingHighlights*"
+      ]
+    },
+    {
+      "id": "B07",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 84,
+      "change": "Lose per-level energy normalization",
+      "result": "killed",
+      "killed_by": [
+        "BloomTests.EveryBloomLevelHoldsTheDesignsChainOverTheHdrImage(width: 637, height: 355)",
+        "BloomTests.EveryBloomLevelHoldsTheDesignsChainOverTheHdrImage(width: 640, height: 360)",
+        "BloomTests.ALargeSquareGlowsOntoItsMiddleByTheStrengthTimesItsLightWhateverTheLevels(levels: 2)"
+      ],
+      "seconds": 38.693731125444174,
+      "original": "sum / (128.0 * float(bloom.levels))",
+      "replacement": "sum / 128.0",
+      "classes": [
+        "BloomTests"
+      ]
+    },
+    {
+      "id": "B08",
+      "file": "src/Tertius.Rendering/Shaders/bloom_prefilter.frag",
+      "line": 20,
+      "change": "Restore subnormal denominator; static portability judgment",
+      "result": "survived",
+      "killed_by": [],
+      "seconds": 38.672847082838416,
+      "original": "if (width >= 1.17549435e-38 && delta > -width && delta < width)",
+      "replacement": "if (width > 0.0 && delta > -width && delta < width)",
+      "classes": [
+        "BloomTests"
+      ],
+      "judgment": "Judgment call: output-only tests on this Mac do not expose subnormal intermediate arithmetic; retain the normal-divisor proof and the half-float store before Strength. This is not an equivalent-mutant classification."
+    },
+    {
+      "id": "B09",
+      "file": "src/Tertius.Rendering/Passes/BloomPass.cs",
+      "line": 42,
+      "change": "Use output coordinates as source coordinates under FSR",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests+MovingHighlights.TemporalUpscalingKeepsTheHaloCenteredOnItsSource(scale: 0.5)"
+      ],
+      "seconds": 12.351559584029019,
+      "original": "ScaleX = context.Extent.Width / (float)targets.OutputExtent.Width,",
+      "replacement": "ScaleX = 1,",
+      "classes": [
+        "*MovingHighlights*"
+      ]
+    },
+    {
+      "id": "B10",
+      "file": "src/Tertius.Rendering/Passes/BloomPass.cs",
+      "line": 44,
+      "change": "Omit horizontal source jitter",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests+MovingHighlights.ASourceOfConstantAreaKeepsItsHaloEnergyDuringSubpixelMotion(temporal: True, scale: 0.5)"
+      ],
+      "seconds": 11.827070917002857,
+      "original": "JitterX = context.Scene.Constants.RenderParams.Y,",
+      "replacement": "JitterX = 0,",
+      "classes": [
+        "*MovingHighlights*"
+      ]
+    }
+  ],
+  "original_run": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-3-mutants",
+  "scoped_B09_rerun": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-3-mutants-B09-regression",
+  "B09_provenance": {
+    "initial_result": "survived",
+    "new_test": "TemporalUpscalingKeepsTheHaloCenteredOnItsSource",
+    "baseline_passed": 5,
+    "expected_output_x": 320.25,
+    "tolerance_output_pixels": 2,
+    "mutated_output_x": 160.34312314056598,
+    "final_result": "killed"
+  },
+  "counts": {
+    "killed": 9,
+    "survived": 1,
+    "timeout": 0,
+    "build_failed": 0,
+    "no_tests": 0,
+    "equivalent": 0
+  }
+}
