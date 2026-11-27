@@ -335,7 +335,7 @@ public sealed class GlassRenderTests
         Double3 transmitted =
             glass.Transmittance(opacity: opacity, normal: NormalOf(0), toView: ToView, tables: BrdfTables.Shared)
             * backdrop;
-        Vector3 expected = (reflected + transmitted).ToVector3();
+        var expected = (reflected + transmitted).ToVector3();
         expected
             .X.Should()
             .BeGreaterThan(

@@ -57,8 +57,8 @@ internal static class BloomHalo
     )
     {
         (int width, int height) = LevelSize(outputWidth, outputHeight);
-        var sums = new double[rings];
-        var counts = new int[rings];
+        double[] sums = new double[rings];
+        int[] counts = new int[rings];
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {

@@ -79,7 +79,7 @@ public sealed class ToneCurveTests
     [InlineData(ToneCurve.Hable)]
     public void TheSmallestSupportedBloomStrengthShowsTheSameSurfaceAsNoBloom(ToneCurve curve)
     {
-        Capture[] images = new Capture[2];
+        var images = new Capture[2];
         BloomSetting[] settings = [new NoBloom(), Bloom.Default with { Strength = float.Epsilon }];
         for (int i = 0; i < settings.Length; i++)
         {

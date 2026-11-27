@@ -213,7 +213,7 @@ public sealed class BloomSourceLightTests
     [InlineData(64)]
     public void TheOriginalSceneRetainsRadianceAtBothExposureEndpoints(float stops)
     {
-        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+        var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
                 Validation = true,
@@ -264,7 +264,7 @@ public sealed class BloomSourceLightTests
                 var energies = new List<double>();
                 for (int frame = 0; frame < 40; frame++)
                 {
-                    float offset = (frame % 8) * 0.25f;
+                    float offset = frame % 8 * 0.25f;
                     (_, _, float[] glow) = Render(
                         renderer: renderer,
                         source: Source.Lamp,
@@ -459,7 +459,7 @@ public sealed class BloomSourceLightTests
         if (Environment.GetEnvironmentVariable("TERTIUS_BLOOM_SOURCE_REPORT") is not { Length: > 0 } folder)
             return;
         Directory.CreateDirectory(folder);
-        double[] Rings(float[] glow) =>
+        static double[] Rings(float[] glow) =>
             BloomHalo.RingMeans(
                 level0: glow,
                 outputWidth: Width,
