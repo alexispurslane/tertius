@@ -37,22 +37,20 @@ public sealed class LightVolumeLayoutTests
     }
 
     [Theory]
-    [InlineData(3.75f)]
-    [InlineData(8.5f)]
-    public void ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(float distance)
+    [InlineData(0.125f, 3.625f, 3.75f)]
+    [InlineData(0.125f, 0.125f, 8.5f)]
+    public void ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(float x, float y, float z)
     {
-        float[] values = Probe(
-            shader: "volume_surface_probe.comp",
-            surface: (new(0.125f, 0.125f, distance), new(0.25f))
-        );
+        float[] values = Probe(shader: "volume_surface_probe.comp", surface: (new(x, y, z), new(0.25f)));
 
         Enumerable
             .Range(0, 5832)
             .Sum(cell => values[4 * cell])
             .Should()
-            .BeGreaterThan(
-                0,
-                "the outer grid keeps inherited coverage at 3.75 m and directly captured coverage at 8.5 m"
+            .BeApproximately(
+                1536f,
+                24f,
+                "six faces of a 0.25 m cube cover 0.375 square metres, at 4096 units per outer-cell face"
             );
     }
 

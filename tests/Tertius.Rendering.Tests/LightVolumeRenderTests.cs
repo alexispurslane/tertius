@@ -531,6 +531,44 @@ public sealed class LightVolumeRenderTests
         }
     }
 
+    [Fact]
+    public void OppositeFacesOfTheOuterFadeReceiveTheSameLightFromMirroredScenes()
+    {
+        VulkanRenderer renderer = CreateVolumeRenderer();
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId matte = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, 1));
+            MaterialId red = renderer.CreateMaterial(
+                new(BaseColor: Vector4.UnitW, Roughness: 1, Emissive: new(8, 0, 0))
+            );
+            var lights = new List<float>();
+            foreach (float sign in new[] { -1f, 1f })
+            {
+                RenderSnapshot scene = DarkSnapshot(Vector3.UnitZ);
+                scene.Camera.Rotation =
+                    sign < 0 ? Quaternion.Identity : Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
+                scene.Camera.PreviousRotation = scene.Camera.Rotation;
+                scene.Instances.Add(BoxPanel(box, matte, new(new(0, 0, sign * 7.3f), new(6, 6, 0.08f), 1)));
+                scene.Instances.Add(BoxPanel(box, red, new(new(0, 0, -sign * 2), new(6, 6, 0.08f), 2)));
+                lights.Add(RenderCenterRedFrom(renderer, scene, Vector3.Zero));
+            }
+
+            lights[0].Should().BeGreaterThan(1e-3f, "the finite emitter lights the wall through the outer grid");
+            lights[1]
+                .Should()
+                .BeApproximately(
+                    lights[0],
+                    lights[0] * 0.02f,
+                    "opposite outer faces have the same interpolation support, including cells beyond index 15"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     private static RenderSnapshot WallBeforeAWideEmitter(VulkanRenderer renderer, float wall, float emitter)
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
