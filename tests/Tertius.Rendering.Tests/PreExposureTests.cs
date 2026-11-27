@@ -5,9 +5,8 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Pre-exposure (https://github.com/alexispurslane/tertius/wiki/auto-exposure, "Pre-exposure"): every pass that writes the HDR image or the emissive
-/// target multiplies its light by 2^S, the impostor atlas keeps radiance, and the tone map multiplies by nothing. Each
-/// test fixes the exposure. The camera is at the render origin with identity rotation, so it looks down −Z.
+/// Display exposure of every source: four times the scene light at 0 stops shows the same image as the original
+/// scene light at 2 stops. The impostor atlas keeps scene radiance. Each test fixes the exposure. The camera is at the render origin with identity rotation, so it looks down −Z.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class PreExposureTests
@@ -221,7 +220,7 @@ public sealed class PreExposureTests
     [InlineData(Writer.LitPuff)]
     [InlineData(Writer.ImpostorBillboard)]
     [InlineData(Writer.MapLitSurface)]
-    public void EachWriterOfTheHdrImageMultipliesItsLightByTheExposure(Writer writer)
+    public void EachSourceIsDisplayedAtTheConfiguredExposure(Writer writer)
     {
         Vector3 exposed = ShownInTheMiddle(
             writer: writer,

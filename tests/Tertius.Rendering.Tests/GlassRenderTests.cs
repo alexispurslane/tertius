@@ -318,60 +318,51 @@ public sealed class GlassRenderTests
     }
 
     [Fact]
-    public void APaneWhoseHighlightFillsTheTargetLeavesRoomForWhatItLetsThrough()
+    public void ABrightPaneRetainsItsReflectionAndTransmittedSceneRadiance()
     {
-        const float cap = ShaderInput.MaxRadiance;
         const float opacity = 0.2f;
         var backdrop = new Vector3(1000);
         var glass = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0.3, Reflectance: 1);
-        Double3 transmittance = glass.Transmittance(
-            opacity: opacity,
-            normal: NormalOf(0),
-            toView: ToView,
-            tables: BrdfTables.Shared
-        );
-        // The pane's own light fills what the target holds beyond the share that the glow behind may take, so the sum
-        // stays at most the cap. Past the largest half float, a device may store infinity, which the tone curve turns to NaN.
-        Double3 stored = cap * (new Double3(1, 1, 1) - transmittance) + transmittance * backdrop;
-        int expectedBin = ExposureMeter.BinOf(ExposureMeter.Luminance(stored.ToVector3()));
-
-        // The shading passes write pre-exposed light, and the tone curve shows anything this bright as white, so the
-        // meter's histogram reads the stored value. A clamp of 0 to 0 holds the exposure at 0 stops, so the stored
-        // value is the radiance.
-        VulkanRenderer renderer = Gpu.Headless(
-            width: Width,
-            height: Height,
-            framesInFlight: 1,
-            exposure: AutoExposure.Default with
-            {
-                MinStops = 0,
-                MaxStops = 0,
-            }
-        );
+        RenderSnapshot snapshot = Unlit(Vector3.UnitZ, starIrradiance: 1e6f);
+        Double3 reflected =
+            glass.Reflected(
+                normal: NormalOf(0),
+                toView: ToView,
+                toLight: Double3.UnitZ,
+                tables: BrdfTables.Shared,
+                lightSine: Gpu.StarSine
+            ) * Gpu.StarIrradianceRgb(snapshot);
+        Double3 transmitted =
+            glass.Transmittance(opacity: opacity, normal: NormalOf(0), toView: ToView, tables: BrdfTables.Shared)
+            * backdrop;
+        var expected = (reflected + transmitted).ToVector3();
+        expected
+            .X.Should()
+            .BeGreaterThan(
+                ShaderInput.MaxRadiance,
+                "this fixture must detect the former half-float cap before the glass blend"
+            );
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 32,256 over
-            // the whole pane, so the cap binds on every pixel of the pane.
             ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 1e6f),
+                snapshot: snapshot,
                 pane: BlackGlass(opacity: opacity, roughness: 0.3f),
                 tilt: 0,
                 backdrop: backdrop,
-                name: "glass-saturated"
+                name: "glass-bright-scene"
             );
-            uint[] histogram = renderer.ReadExposureHistogram();
-            int brightestBin = Array.FindLastIndex(histogram, count => count > 0);
+            float[] hdr = renderer.ReadHdr();
+            int index = 4 * ((int)PanePixel.Y * Width + (int)PanePixel.X);
+            Vector3 actual = new(hdr[index], hdr[index + 1], hdr[index + 2]);
 
-            // One bin either way: the pane's transmittance varies a little with the view angle across it.
-            brightestBin
+            ShaderInput.IsFinite(actual).Should().BeTrue();
+            LargestChannelDifference(actual, expected)
                 .Should()
-                .BeInRange(
-                    expectedBin - 1,
-                    expectedBin + 1,
-                    "the target holds {0}, at most {1}, not the highlight of the uncapped pane",
-                    stored,
-                    cap
+                .BeLessThan(
+                    expected.X * 0.02f,
+                    "the scene stores the physical reflection plus transmitted background before display exposure"
                 );
         }
         finally

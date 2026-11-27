@@ -724,6 +724,9 @@ internal struct ToneMapPushConstants
 
     /// <summary>One code of the output's encoding as a share of 1 (<see cref="ToneMapPass.DitherCodeOf"/>), or 0 for no dither.</summary>
     public float Code;
+
+    /// <summary>1 when the base image holds scene radiance, 0 when FSR already applied exposure.</summary>
+    public uint SceneReferred;
 }
 
 /// <summary>The push constants of the bloom pass (Shaders/bloom_*.frag). Only its first draw reads them.</summary>
@@ -738,6 +741,12 @@ internal struct BloomPushConstants
 
     /// <summary><see cref="Bloom.Levels"/>, which the prefilter divides the light by, so that the sum of the levels stays finite.</summary>
     public uint Levels;
+    public uint SourceWidth;
+    public uint SourceHeight;
+    public float ScaleX;
+    public float ScaleY;
+    public float JitterX;
+    public float JitterY;
 }
 
 /// <summary>The push constants of exposure_adapt.comp: the setting and the two approach factors of this draw, padded to 32 bytes.</summary>

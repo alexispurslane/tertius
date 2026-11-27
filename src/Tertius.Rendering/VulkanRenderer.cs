@@ -1238,6 +1238,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The emission and demodulated direct-light images after the last frame, RGBA per pixel from the top.
+    /// A diagnostic hook that waits for the device before each copy.
+    /// </summary>
+    internal (float[] Emission, float[] Diffuse, float[] Specular) ReadSourceLight() =>
+        (
+            ReadLevel(image: targets.Emissive, layer: 0, mip: 0).Values,
+            ReadLevel(image: targets.DirectDiffuse, layer: 0, mip: 0).Values,
+            ReadLevel(image: targets.DirectSpecular, layer: 0, mip: 0).Values
+        );
+
+    /// <summary>
     /// The HDR image after the upscale, RGBA per pixel, row by row from the top: FSR's output at the output size, or the
     /// HDR image without an upscale. Pre-exposed radiance before bloom and tone mapping. A test hook for the capture tool:
     /// it waits for the device to be idle and submits its own copy.
@@ -2305,6 +2316,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             device: device,
             allocator: Allocator,
             shaders: shaders,
+            layouts: layouts,
             targets: targets,
             surfaces: surfaceHistory,
             screenTrace: tracer,
@@ -2525,6 +2537,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         var composite = new CompositePass(
             device: device,
+            allocator: Allocator,
             shaders: shaders,
             layouts: layouts,
             constants: ShadingConstants,
@@ -2558,8 +2571,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             var exposure = new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto);
             Graph.Add(FrameGraph.Stage.Exposure, exposure);
-            if (upscaling is Fsr3Upscaling)
-                Graph.Add(FrameGraph.Stage.ExposureAdapt, new ExposureAdaptPass(exposure));
+            Graph.Add(FrameGraph.Stage.ExposureAdapt, new ExposureAdaptPass(exposure));
         }
         if (options.Bloom is Bloom on)
             Graph.Add(

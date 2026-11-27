@@ -10,9 +10,9 @@
 #include "screen.glsl"
 #include "subsurface.glsl"
 
-layout(set = 3, binding = 0, rgba16f) uniform readonly image2D diffuseImage;  // a 1 at skin, else 0; rgb D at skin
-layout(set = 3, binding = 1, rgba16f) uniform image2D rowImage;               // the rows pass's sum at skin, else 0
-layout(set = 3, binding = 2, rgba16f) uniform image2D hdrImage;               // the lit image, at the pixel only
+layout(set = 3, binding = 0, rgba32f) uniform readonly image2D diffuseImage;  // a 1 at skin, else 0; rgb D at skin
+layout(set = 3, binding = 1, rgba32f) uniform image2D rowImage;               // the rows pass's sum at skin, else 0
+layout(set = 3, binding = 2, rgba32f) uniform image2D hdrImage;               // the lit image, at the pixel only
 layout(set = 3, binding = 3) uniform ScatterKernel
 {
     // Tap i of 0 to 2n: rgb its weight per channel, a its offset in m. Tap n is the center, with offset 0

@@ -5,10 +5,9 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): one fullscreen pass over all depth ranges
-/// that writes the HDR image. At each lit pixel it multiplies the direct light's two images and the two indirect terms back
-/// by their material factors (decision 18), adds the emission, and caps the sum at the surfaces' share. The indirect terms
-/// are the screen tracer's slow histories, or under <see cref="NoScreenTrace"/> the environment's closed forms. Sky pixels get the sky and the stars, and an impostor's pixels its baked light.
-/// Under the scatter it also writes the diffuse image, D and the skin mask at skin pixels and 0 elsewhere.
+/// that writes scene radiance to the HDR image. It adds raw direct light and emission to the converted indirect estimates.
+/// The indirect estimates come from the environment's closed forms and the tracer's specular history. Sky and impostor
+/// pixels retain their scene radiance. Under skin scatter it also writes the skin's scene diffuse radiance and mask.
 /// </summary>
 internal sealed unsafe class CompositePass : RenderPass
 {
@@ -19,11 +18,13 @@ internal sealed unsafe class CompositePass : RenderPass
     private readonly ScreenTraceImages? tracer;
     private readonly GpuBuffer? volumeBuffer;
     private readonly Pipeline pipeline;
+    private readonly GpuImage emptyHistory;
 
     /// <param name="scatter">True under <see cref="SeparableSubsurface"/>, whose targets hold the diffuse image.</param>
     /// <param name="tracer">The screen tracer, whose signals' slow histories the composite reads, or null under <see cref="NoScreenTrace"/>.</param>
     public CompositePass(
         VulkanDevice device,
+        DeviceAllocator allocator,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ShaderConstants constants,
@@ -39,24 +40,48 @@ internal sealed unsafe class CompositePass : RenderPass
         sharing = constants.ReflectionSharingPrototype;
         this.tracer = tracer;
         LightSet = layouts.AllocateLightSet();
-        Resize(targets);
-        string fragmentShader = scatter ? "composite_scatter.frag" : "composite.frag";
-        if (volume is not null)
+        emptyHistory = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            format: Format.R16G16B16A16Sfloat,
+            extent: new(1, 1),
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
+            mipLevels: 1,
+            name: "unused indirect history"
+        );
+        try
         {
-            volumeBuffer = volume.Buffer;
-            layouts.WriteBuffer(set: LightSet, binding: 5, type: DescriptorType.StorageBuffer, buffer: volume.Buffer);
-            fragmentShader = scatter ? "composite_volume_scatter.frag" : "composite_volume.frag";
+            Resize(targets);
+            string fragmentShader = scatter ? "composite_scatter.frag" : "composite.frag";
+            if (volume is not null)
+            {
+                volumeBuffer = volume.Buffer;
+                layouts.WriteBuffer(
+                    set: LightSet,
+                    binding: 5,
+                    type: DescriptorType.StorageBuffer,
+                    buffer: volume.Buffer
+                );
+                fragmentShader = scatter ? "composite_volume_scatter.frag" : "composite_volume.frag";
+            }
+            pipeline = new GraphicsPipelineDesc
+            {
+                Name = "composite",
+                VertexShader = "lighting.vert",
+                FragmentShader = tracer is null ? fragmentShader : tracer.Specular.HistoryShader(fragmentShader),
+                Layout = layouts.CompositeLayout,
+                ColorFormats = scatter
+                    ? [RenderTargets.HdrFormat, RenderTargets.DiffuseFormat]
+                    : [RenderTargets.HdrFormat],
+                CullMode = CullModeFlags.None,
+                Constants = constants,
+            }.Create(device, shaders);
         }
-        pipeline = new GraphicsPipelineDesc
+        catch
         {
-            Name = "composite",
-            VertexShader = "lighting.vert",
-            FragmentShader = tracer is null ? fragmentShader : tracer.Specular.HistoryShader(fragmentShader),
-            Layout = layouts.CompositeLayout,
-            ColorFormats = scatter ? [RenderTargets.HdrFormat, RenderTargets.DiffuseFormat] : [RenderTargets.HdrFormat],
-            CullMode = CullModeFlags.None,
-            Constants = constants,
-        }.Create(device, shaders);
+            emptyHistory.Dispose();
+            throw;
+        }
     }
 
     public override string Name => "composite";
@@ -70,16 +95,44 @@ internal sealed unsafe class CompositePass : RenderPass
         [
             targets.DirectDiffuse,
             targets.DirectSpecular,
-            tracer?.Specular.Slow(0) ?? targets.DirectSpecular,
-            sharing && tracer is { } sampleTracer ? sampleTracer.Specular.Sample(0) : targets.DirectSpecular,
-            sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : targets.DirectSpecular,
+            tracer?.Specular.Slow(0) ?? emptyHistory,
+            sharing && tracer is { } sampleTracer ? sampleTracer.Specular.Sample(0) : emptyHistory,
+            sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyHistory,
         ];
         for (int binding = 0; binding < light.Length; binding++)
             layouts.WriteStorageImage(set: LightSet, binding: (uint)binding, image: light[binding]);
     }
 
+    /// <summary>Defines the zero history bound by disabled indirect paths, independently of mutable scene targets.</summary>
+    public override void Prepare(FrameContext context)
+    {
+        if (emptyHistory.State.Layout != ImageLayout.Undefined)
+            return;
+        context.Barriers.Image(emptyHistory, ImageUse.TransferDestination);
+        context.Barriers.Flush(context.Vk, context.CommandBuffer);
+        ClearColorValue zero = default;
+        var range = new ImageSubresourceRange(
+            aspectMask: ImageAspectFlags.ColorBit,
+            baseMipLevel: 0,
+            levelCount: 1,
+            baseArrayLayer: 0,
+            layerCount: 1
+        );
+        context.Vk.CmdClearColorImage(
+            commandBuffer: context.CommandBuffer,
+            image: emptyHistory.Handle,
+            imageLayout: ImageLayout.TransferDstOptimal,
+            pColor: &zero,
+            rangeCount: 1,
+            pRanges: &range
+        );
+        context.Barriers.Image(emptyHistory, ImageUse.StorageFragment);
+        context.Barriers.Flush(context.Vk, context.CommandBuffer);
+    }
+
     public override void Record(FrameContext context)
     {
+        Prepare(context);
         RenderTargets targets = context.Targets;
         BarrierBatch barriers = context.Barriers;
         foreach (GpuImage image in targets.GBuffer)
@@ -126,5 +179,9 @@ internal sealed unsafe class CompositePass : RenderPass
         );
     }
 
-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+    public override void Dispose()
+    {
+        device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        emptyHistory.Dispose();
+    }
 }

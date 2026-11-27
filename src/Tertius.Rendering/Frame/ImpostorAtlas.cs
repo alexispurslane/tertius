@@ -10,7 +10,7 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para>Each tile is one layer of two 2D array images with full mip chains:</para>
 /// <list type="table">
-/// <item><term>color</term><description>R16G16B16A16_SFLOAT: the lit HDR color premultiplied by coverage, and the
+/// <item><term>color</term><description>R32G32B32A32_SFLOAT: the scene color premultiplied by coverage, and the
 /// coverage (1 inside the silhouette, 0 outside). Premultiplied, so that the mip chain and bilinear filtering
 /// average color only over covered texels; the billboard divides by coverage again.</description></item>
 /// <item><term>depth offset</term><description>R16_SFLOAT: the surface's offset from the bounding sphere's center
@@ -19,13 +19,13 @@ namespace Tertius.Rendering;
 /// </list>
 /// <para>Layers instead of one large 2D image: a capture renders straight into its tile with the 512 × 512 depth
 /// buffer (attachments must cover the render area), and filtering at low mip levels never mixes neighboring
-/// tiles. 64 tiles take as much memory as a 4096 × 4096 atlas: 512² × 10 bytes × 4/3 for the mips ≈ 3.3 MB each,
-/// about 213 MB in all.</para>
+/// tiles. 64 tiles take as much memory as a 4096 × 4096 atlas: 512² × 18 bytes × 4/3 for the mips ≈ 6.3 MB each,
+/// about 403 MB in all.</para>
 /// </remarks>
 internal sealed unsafe class ImpostorAtlas : IDisposable
 {
     public const int TileSize = ImpostorManager.TileSize;
-    public const Format ColorFormat = Format.R16G16B16A16Sfloat;
+    public const Format ColorFormat = Format.R32G32B32A32Sfloat;
     public const Format DepthOffsetFormat = Format.R16Sfloat;
     public const Format CaptureDepthFormat = Format.D32Sfloat;
 

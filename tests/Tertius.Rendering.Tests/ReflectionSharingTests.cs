@@ -558,6 +558,7 @@ public sealed class ReflectionSharingTests
         private VulkanDevice? device;
         private ShaderLibrary? shaders;
         private Pipeline pipeline;
+        private DescriptorSet fixtureSet;
         public GpuImage Target => target;
         public float[] Uploaded { get; } = new float[Width * Height * 4];
         public override string Name => "reflection sharing test pulse";
@@ -576,6 +577,18 @@ public sealed class ReflectionSharingTests
                 CullMode = CullModeFlags.None,
                 Constants = renderer.ShadingConstants,
             }.Create(device, shaders);
+            fixtureSet = context.Layouts.AllocateLightSet();
+            context.Layouts.WriteStorageImage(set: fixtureSet, binding: 2, image: target);
+            context.Layouts.WriteStorageImage(
+                set: fixtureSet,
+                binding: 3,
+                image: renderer.ScreenTraceImages.Specular.Sample(0)
+            );
+            context.Layouts.WriteStorageImage(
+                set: fixtureSet,
+                binding: 4,
+                image: renderer.ScreenTraceImages.Specular.ReflectionGuide(0)
+            );
             int center = 4 * (Height / 2 * Width + Width / 2);
             for (int pixel = 0; pixel < Width * Height; pixel++)
                 Uploaded[4 * pixel + 3] = 1;
@@ -610,7 +623,7 @@ public sealed class ReflectionSharingTests
             context.DrawSceneFullScreen(
                 pipeline: pipeline,
                 layout: context.Layouts.CompositeLayout,
-                passSet: renderer.CompositeLightSet,
+                passSet: fixtureSet,
                 targets: [(distance, AttachmentLoadOp.DontCare), (normal, AttachmentLoadOp.DontCare)]
             );
             context.Barriers.Image(sample, ImageUse.StorageFragment);

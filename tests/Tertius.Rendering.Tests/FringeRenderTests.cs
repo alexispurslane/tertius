@@ -352,7 +352,7 @@ public sealed class FringeRenderTests
     }
 
     [Fact]
-    public void AFringeAtTheCapKeepsTheSurfacesShareOfTheHdrImage()
+    public void AFringePremultipliesItsSceneRadianceAndPreservesAnEquallyBrightBackground()
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -368,7 +368,7 @@ public sealed class FringeRenderTests
                 ),
                 center: new(0, 0, -3)
             );
-            const float cap = ShaderInput.MaxRadiance;
+            const float radiance = 1e6f;
 
             Vector3 overBlack = AheadIn(
                 renderer,
@@ -383,15 +383,17 @@ public sealed class FringeRenderTests
                 fringe
             );
 
-            ShouldBeNear(overBlack, new(FringeAlpha * cap), "the fringe's light is its share of the cap");
-            float largest = MathF.Max(overCapped.X, MathF.Max(overCapped.Y, overCapped.Z));
-            float.IsFinite(largest).Should().BeTrue();
-            largest
-                .Should()
-                .BeLessThanOrEqualTo(
-                    cap * (1 + HalfRounding),
-                    "over a surface at the cap, the pixel stays within the surfaces' share"
-                );
+            ShouldBeNear(
+                overBlack,
+                new(FringeAlpha * radiance),
+                "the fringe premultiplies its actual scene radiance by coverage"
+            );
+            ShaderInput.IsFinite(overCapped).Should().BeTrue();
+            ShouldBeNear(
+                overCapped,
+                new(radiance),
+                "coverage and transmission preserve a background with the same scene radiance"
+            );
         }
         finally
         {

@@ -1,6 +1,6 @@
 # Source-radiance storage audit
 
-This audit records the source representation for [#3](https://github.com/alexispurslane/tertius/issues/3) and its shared contract with analytic exposure in #4. The initial proposal is retained below as design history. The settled source model supersedes it. The measured 128/256 candidate and its inspected scene controls are recorded in [candidate-2026-11-27.md](candidate-2026-11-27.md). Common integration and final hardening remain pending.
+This audit records the source representation for [#3](https://github.com/alexispurslane/tertius/issues/3) and its shared contract with analytic exposure in #4. The initial proposal is retained below as design history. The settled source model supersedes it. The measured 128/256 candidate and its inspected scene controls are recorded in [candidate-2026-11-27.md](candidate-2026-11-27.md). The verified common source commit is adopted. Final integration checks, independent review and Linux cost measurements remain pending.
 
 ## Ownership
 
@@ -154,7 +154,7 @@ meter, adaptation, exposure resources, FSR handoff, tone mapping and conversions
 at the screen tracer's history boundary. A mixed-units intermediate tree is
 not a shippable change. The first published step must contain both boundaries.
 
-## Extreme-response bound and mapping implementation
+## Earlier 8192/16384 candidate, superseded by the measured 128/256 response
 
 The candidate implementation keeps excess pre-exposed brightness unchanged through
 8192. Above 8192, with x = excess - 8192, the response is
@@ -267,4 +267,17 @@ The clean 800-frame candidate and the bloom-off control apply identical float32 
 
 The 22-case bloom class passed after the extreme-square probe's strength changed from 1/65536 to 1/256. The old probe showed zero at the tested halo pixel after the new bounded artistic response. Its visible-halo interval [0.05,0.95] is unchanged, and its finite level bound tightened from 32768 to 512. A separate static fix skips subnormal knee widths before division. Their soft contribution cannot survive the half-float store, which occurs before Strength multiplication, so even float.MaxValue Strength cannot recover it.
 
-Ten scripted bloom mutants completed through tools/mutate.py with its staged-input checks. Nine were killed after a scoped regression-test rerun; the subnormal guard survivor has an explicit portability judgment. The detailed table is in [candidate-2026-11-27.md](candidate-2026-11-27.md). The common owner is separately correcting the near-field rectangle approximation and consumer unit conversions before its required full Rendering run. The final source arithmetic evidence must include that rectangle fix; no generic source cap substitutes for it.
+Ten scripted bloom mutants completed through tools/mutate.py with its staged-input checks. Nine were killed after a scoped regression-test rerun; the subnormal guard survivor has an explicit portability judgment. The detailed table is in [candidate-2026-11-27.md](candidate-2026-11-27.md). The common commit includes the near-field rectangle correction and consumer unit conversions. Its full Rendering run passed 3,645 cases with 12 skipped and none failed. The final source arithmetic evidence below includes that correction.
+
+
+## Verified common source adopted on 2026-11-27
+
+The source/consumer prerequisite is commit `4da7acd35eada358715ce22ee1e914264ac393c7`. Its normal commit hook passed. The five-file cleanup in `9d6c5295a0952e896ac7165ea2bcfd2ec0a2b3a5` changes formatting and type inference only. This branch retains the common shader and consumer bytes, with the separate measured 128/256 response in the bloom prefilter. The common commit's 8192/16384 response is an earlier candidate.
+
+The adopted rectangle light uses the existing angular integral for near diffuse light. A point approximation applies only at distances of at least eight half diagonals, with the face above the receiving horizon. The projected far solid angle is at most 4ab / [64(a²+b²)] ≤ 1/32 sr, where a and b are the half-side lengths in metres. The exact near integral bounds diffuse reflection by the face radiance times the diffuse color factor. This restores the physical premise of the conservative light-loop bound above.
+
+The rectangle's center and both half-side vectors share the reciprocal of max(center distance, largest half-side length, 1e-6 m). Every normalized vector has length at most one. Corner components have magnitude at most three, so squared corner lengths are at most 27. This common scale preserves the angular integral. Separately normalized axes define the face direction, and separately computed half-side lengths define its area. A large cross product is never squared to obtain that area. The far predicate divides distance by eight before squaring. The supported input bounds remain `ShaderInput.PositionLimit = 2^62` m and rectangle half-side length at most `2^61` m.
+
+The common `exposed(value, scale, cap)` helper keeps each finite nonnegative multiplication finite. For scale at most one, multiplication precedes the cap. For larger scale, division of cap by scale precedes multiplication. This covers light falloff, display exposure, retained estimators and every valid positive bloom strength. The final tone consumer uses this helper, including subnormal strength, rather than the earlier temporary branch.
+
+Ambient-only exposure independence remains a separate integration concern. The retained closed-form ambient estimate still applies its producing exposure before its estimator cap. Dividing that bounded estimate afterward cannot restore a clipped ambient value. A proposed scene-unit closed-form helper waits for issue #4's actual ambient-only extreme-history cut regression. This stage does not claim analytic camera-cut completion.

@@ -8,7 +8,8 @@ public sealed class MeshVertexShaderTests
     {
         byte[] shader = ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, "mesh_nomotion.vert");
 
-        Spirv.BindingNumbersOfSet(shader, 0)
+        Spirv
+            .BindingNumbersOfSet(shader, 0)
             .Should()
             .NotContain([DescriptorLayouts.MotionsBinding, DescriptorLayouts.KeptPositionsBinding]);
     }
@@ -18,7 +19,8 @@ public sealed class MeshVertexShaderTests
     {
         byte[] shader = ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, "mesh.vert");
 
-        Spirv.BindingNumbersOfSet(shader, 0)
+        Spirv
+            .BindingNumbersOfSet(shader, 0)
             .Should()
             .Contain([DescriptorLayouts.MotionsBinding, DescriptorLayouts.KeptPositionsBinding]);
     }

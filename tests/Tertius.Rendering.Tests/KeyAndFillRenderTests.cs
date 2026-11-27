@@ -18,6 +18,68 @@ public sealed class KeyAndFillRenderTests
     private const int Width = 320,
         Height = 180;
 
+    [Theory]
+    [InlineData(20000f)]
+    [InlineData(2305843009213693952f)]
+    public void ANearRectangleKeepsItsDiffuseFillWithinItsFaceRadiance(float side)
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = 1,
+                Height = 1,
+                Impostors = false,
+                ScreenTrace = new NoScreenTrace(),
+                Bloom = new NoBloom(),
+                Exposure = new FixedExposure(0),
+                Upscaling = new NoUpscaling(),
+                EnvironmentMap = new NoEnvironmentMap(),
+                LightPairs = new KeyAndFill(1),
+            }
+        );
+        try
+        {
+            RenderSnapshot scene = Scene(
+                renderer: renderer,
+                desc: new(BaseColor: new(x: 0.06f, y: 0.06f, z: 0.06f, w: 1), Roughness: 1, Reflectance: 0),
+                bulbs: [],
+                shadows: false,
+                squares: [Square.Wall]
+            );
+            var panel = new RectRenderLight(
+                EntityIndex: Gpu.LampEntity,
+                EntityGeneration: 0,
+                Position: new(0, 0, -3 + 1e-6f),
+                PreviousPosition: new(0, 0, -3 + 1e-6f),
+                Rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
+                PreviousRotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
+                Color: Vector3.One,
+                Power: 1e34f,
+                Width: side,
+                Height: side,
+                CastsShadow: false,
+                ChainDepth: TestChains.CamerasFrame
+            );
+            scene.Lights.Add(panel);
+            scene.Lights.Add(panel with { EntityIndex = Gpu.LampEntity + 1 });
+
+            renderer.Render(scene, 0);
+
+            float[] hdr = renderer.ReadHdr();
+            hdr.Take(3)
+                .Should()
+                .OnlyContain(
+                    value => float.IsFinite(value) && value > 0 && value <= 2 * ShaderInput.IrradianceLimit,
+                    "a rectangle's diffuse response cannot exceed its face radiance times the bounded hemisphere integral"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>The bulbs in front of the square: the place of each on the plane 1 m in front of it, in m, and its power in W.</summary>
     private static readonly (float X, float Y, float Power)[] Bulbs =
     [

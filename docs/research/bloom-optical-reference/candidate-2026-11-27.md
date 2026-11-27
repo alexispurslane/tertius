@@ -1,6 +1,6 @@
 # Measured bloom candidate
 
-The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. Common source-unit integration, final hardening and Linux cost measurements remain pending.
+The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. The verified common source-unit commit is adopted. Final integration checks, independent review and Linux cost measurements remain pending.
 
 ## Source and halo measurements
 
@@ -54,7 +54,7 @@ Evidence lives under `/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-re
 - The continuous candidate, fixed-exposure helmet and each settled control passed their explicit fixture with no Vulkan validation messages.
 - The 22-case bloom class passed after rescaling the extreme-square probe strength to 1/256. Its visible-halo assertion is unchanged, and its finite-level bound tightened to 512.
 
-The source and bloom work remains uncommitted until the common source/exposure boundary is verified. C# coverage is retained, but a changed-line percentage is not yet meaningful against the committed base. Shader branches require the scripted mutants and arithmetic proofs; C# coverage does not instrument GLSL. No Mac timing is a performance result.
+The final runtime change adopts the verified common source/exposure boundary. C# coverage is retained, but a changed-line percentage is not yet meaningful against the committed base. Shader branches require the scripted mutants and arithmetic proofs; C# coverage does not instrument GLSL. No Mac timing is a performance result.
 
 ## Scripted mutation results
 

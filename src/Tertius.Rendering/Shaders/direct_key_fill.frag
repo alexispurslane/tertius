@@ -26,8 +26,6 @@ void main()
     vec3 V = -normalize(s.position);
     SurfaceLobes lobes = lobesOf(s, V);
     DirectTerms direct = keyFillLight(s, lobes, V, pixel);
-    MaterialFactors factors = materialFactors(s, lobes);
-    float k = exposureScale();
-    outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
-    outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
+    outDiffuse = vec4(direct.diffuse, 1.0);
+    outSpecular = vec4(direct.specular, 1.0);
 }

@@ -4,11 +4,14 @@
 
 #include "frame.glsl"
 
-// The most light per channel that the surfaces write into a pixel of the HDR target, the emissive target or the impostor
-// atlas (ARCHITECTURE.md, "Portable Vulkan"). The puffs over a pixel add at most half as much, ShaderInput.PuffBudget,
-// which a rounded blend at most doubles. So a pixel stays at or below 64,512, below the largest finite half float,
-// 65,504, past which a GPU that is not Metal stores infinity. ShaderInput.MaxRadiance is the C# copy.
+// The retained half-float indirect-estimator budget per channel. Original scene radiance uses RGBA32F,
+// without this cap. ShaderInput.MaxRadiance is the CPU copy for the retained estimator helpers.
 const float MaxRadiance = 32256.0;
+
+// Raw source bound, above the supported light-buffer sum (storage.md). No exposure enters this bound.
+const float SceneRadianceLimit = 1329227995784915872903807060280344576.0; // 2^120
+// Downstream only: the meter and bloom keep the original scene source.
+const float SceneDisplayLimit = 281474976710656.0; // 2^48
 
 // R_cut = 2^−13: a pre-exposed radiance that both tone curves show below half an 8-bit step, so a light below it changes no
 // pixel. LightUnits.CutoffRadiance is the C# copy.
@@ -20,13 +23,14 @@ float exposureScale()
     return exp2(exposureStops);
 }
 
-// Radiance times `exposure`, at most `cap` per channel. The cap applies before the product: the brightest radiance that
-// the renderer reads, 2^64, times the largest exposure, 2^64, is past the largest single float, and a driver may assume
-// that no operand of min is an infinity. The caps lie from the puffs' budget, 16,128, over 2^31 puffs to MaxRadiance, so
-// cap / exposure lies between 2^-82 and 2^79, a normal single float.
-vec3 exposed(vec3 radiance, float exposure, float cap)
+// A finite nonnegative value times a finite nonnegative scale, bounded before any overflowing product or quotient.
+// Scale at most 1 permits the product first; a larger scale permits cap / scale first. Shared by display exposure,
+// bounded estimators, light falloff and bloom strength (ARCHITECTURE.md, "Portable Vulkan").
+vec3 exposed(vec3 value, float scale, float cap)
 {
-    return min(radiance, vec3(cap / exposure)) * exposure;
+    if (scale <= 1.0)
+        return min(value * scale, vec3(cap));
+    return min(value, vec3(cap / scale)) * scale;
 }
 
 // Radiance times `exposure`, at most MaxRadiance per channel.
@@ -39,6 +43,12 @@ vec3 exposed(vec3 radiance, float exposure)
 vec3 preExposed(vec3 radiance)
 {
     return exposed(radiance, exposureScale());
+}
+
+// Apply display exposure after metering, bounding the operand before its potentially overflowing product.
+vec3 displayExposed(vec3 sceneRadiance, float stops)
+{
+    return exposed(sceneRadiance, exp2(stops), SceneDisplayLimit);
 }
 
 #endif

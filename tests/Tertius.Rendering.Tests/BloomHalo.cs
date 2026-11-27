@@ -13,8 +13,15 @@ internal static class BloomHalo
     /// output pixels. Its unit is pre-exposed radiance times one output pixel. The square is <paramref name="side"/> px
     /// across and centered on the output pixel corner (<paramref name="centerX"/>, <paramref name="centerY"/>).
     /// </summary>
-    public static double OutsideEnergy(float[] level0, int outputWidth, int outputHeight, int centerX, int centerY,
-        int side, int margin)
+    public static double OutsideEnergy(
+        float[] level0,
+        int outputWidth,
+        int outputHeight,
+        int centerX,
+        int centerY,
+        int side,
+        int margin
+    )
     {
         (int width, int height) = LevelSize(outputWidth, outputHeight);
         int left = centerX - side / 2 - margin,
@@ -23,13 +30,13 @@ internal static class BloomHalo
             bottom = centerY + side / 2 + margin;
         double sum = 0;
         for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-            {
-                // The texel covers output pixels 2x to 2x + 1 and 2y to 2y + 1.
-                bool inside = 2 * x + 2 > left && 2 * x < right && 2 * y + 2 > top && 2 * y < bottom;
-                if (!inside)
-                    sum += 4 * Luminance(rgba: level0, width: width, x: x, y: y);
-            }
+        for (int x = 0; x < width; x++)
+        {
+            // The texel covers output pixels 2x to 2x + 1 and 2y to 2y + 1.
+            bool inside = 2 * x + 2 > left && 2 * x < right && 2 * y + 2 > top && 2 * y < bottom;
+            if (!inside)
+                sum += 4 * Luminance(rgba: level0, width: width, x: x, y: y);
+        }
 
         return sum;
     }
@@ -39,24 +46,31 @@ internal static class BloomHalo
     /// (<paramref name="centerX"/>, <paramref name="centerY"/>): ring i holds the texels of level 0 whose centers lie from
     /// <paramref name="firstRadius"/> × 2^i to twice that, in output pixels.
     /// </summary>
-    public static double[] RingMeans(float[] level0, int outputWidth, int outputHeight, int centerX, int centerY,
-        double firstRadius, int rings)
+    public static double[] RingMeans(
+        float[] level0,
+        int outputWidth,
+        int outputHeight,
+        int centerX,
+        int centerY,
+        double firstRadius,
+        int rings
+    )
     {
         (int width, int height) = LevelSize(outputWidth, outputHeight);
-        var sums = new double[rings];
-        var counts = new int[rings];
+        double[] sums = new double[rings];
+        int[] counts = new int[rings];
         for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-            {
-                double r = Math.Sqrt(Math.Pow(2 * x + 1 - centerX, 2) + Math.Pow(2 * y + 1 - centerY, 2));
-                if (r < firstRadius)
-                    continue;
-                int ring = (int)Math.Floor(Math.Log2(r / firstRadius));
-                if (ring >= rings)
-                    continue;
-                sums[ring] += Luminance(rgba: level0, width: width, x: x, y: y);
-                counts[ring]++;
-            }
+        for (int x = 0; x < width; x++)
+        {
+            double r = Math.Sqrt(Math.Pow(2 * x + 1 - centerX, 2) + Math.Pow(2 * y + 1 - centerY, 2));
+            if (r < firstRadius)
+                continue;
+            int ring = (int)Math.Floor(Math.Log2(r / firstRadius));
+            if (ring >= rings)
+                continue;
+            sums[ring] += Luminance(rgba: level0, width: width, x: x, y: y);
+            counts[ring]++;
+        }
 
         return [.. sums.Select((sum, i) => counts[i] == 0 ? 0 : sum / counts[i])];
     }

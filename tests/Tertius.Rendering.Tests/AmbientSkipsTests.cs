@@ -108,7 +108,10 @@ public sealed class AmbientSkipsTests
                 renderer.Graph.Skipped.Add("composite");
                 renderer.Graph.Add(
                     FrameGraph.Stage.Composite,
-                    new EveryTermCompositePass(scatter: renderer.ScatterImages is not null)
+                    new EveryTermCompositePass(
+                        scatter: renderer.ScatterImages is not null,
+                        allocator: renderer.Allocator
+                    )
                 );
             }
 
@@ -147,7 +150,7 @@ public sealed class AmbientSkipsTests
     /// <see cref="CompositePass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
     /// <param name="scatter">True under the skin scatter.</param>
-    private sealed class EveryTermCompositePass(bool scatter) : RenderPass
+    private sealed class EveryTermCompositePass(bool scatter, DeviceAllocator allocator) : RenderPass
     {
         private ShaderLibrary? shaders;
         private CompositePass? pass;
@@ -161,6 +164,7 @@ public sealed class AmbientSkipsTests
             shaders = new ShaderLibrary(context.Device, typeof(EveryTermCompositePass).Assembly);
             pass = new CompositePass(
                 device: context.Device,
+                allocator: allocator,
                 shaders: shaders,
                 layouts: context.Layouts,
                 constants: new ShaderConstants(EnvironmentMap: true),
