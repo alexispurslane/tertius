@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using Tertius.Testing;
 using static Tertius.Rendering.Tests.ExposureScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -165,12 +164,12 @@ public sealed class BloomExposureIsolationTests
         {
             RenderSnapshot snapshot = Scene(renderer);
             float sun = Gpu.StarIrradiance(snapshot);
-            var used = new float[Frames];
-            var next = new float[Frames];
+            float[] used = new float[Frames];
+            float[] next = new float[Frames];
             var readings = new ExposureReading?[Frames];
-            var histograms = new uint[Frames][];
-            var hdr = new string[Frames];
-            var postHdr = new string[Frames];
+            uint[][] histograms = new uint[Frames][];
+            string[] hdr = new string[Frames];
+            string[] postHdr = new string[Frames];
             Capture? last = null;
             for (int frame = 0; frame < Frames; frame++)
             {
