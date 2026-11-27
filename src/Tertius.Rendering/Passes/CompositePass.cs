@@ -17,6 +17,7 @@ internal sealed unsafe class CompositePass : RenderPass
     private readonly bool scatter;
     private readonly bool sharing;
     private readonly ScreenTraceImages? tracer;
+    private readonly GpuBuffer? volumeBuffer;
     private readonly Pipeline pipeline;
 
     /// <param name="scatter">True under <see cref="SeparableSubsurface"/>, whose targets hold the diffuse image.</param>
@@ -28,7 +29,8 @@ internal sealed unsafe class CompositePass : RenderPass
         ShaderConstants constants,
         bool scatter,
         ScreenTraceImages? tracer,
-        RenderTargets targets
+        RenderTargets targets,
+        LightVolumePass? volume = null
     )
     {
         this.device = device;
@@ -39,6 +41,12 @@ internal sealed unsafe class CompositePass : RenderPass
         LightSet = layouts.AllocateLightSet();
         Resize(targets);
         string fragmentShader = scatter ? "composite_scatter.frag" : "composite.frag";
+        if (volume is not null)
+        {
+            volumeBuffer = volume.Buffer;
+            layouts.WriteBuffer(set: LightSet, binding: 5, type: DescriptorType.StorageBuffer, buffer: volume.Buffer);
+            fragmentShader = scatter ? "composite_volume_scatter.frag" : "composite_volume.frag";
+        }
         pipeline = new GraphicsPipelineDesc
         {
             Name = "composite",
@@ -91,6 +99,8 @@ internal sealed unsafe class CompositePass : RenderPass
 
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+        if (volumeBuffer is not null)
+            barriers.Buffer(volumeBuffer, BufferUse.ShaderRead);
         if (!scatter)
         {
             barriers.Flush(context.Vk, context.CommandBuffer);

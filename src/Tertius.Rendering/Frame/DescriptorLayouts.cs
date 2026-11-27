@@ -132,6 +132,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the block guide, a storage image after the reflection share.</summary>
     public const uint ScreenTraceBlockGuideBinding = ScreenTraceShareBinding + 1;
 
+    /// <summary>The binding of the directional light volume buffer in a screen tracer set.</summary>
+    public const uint ScreenTraceVolumeBinding = ScreenTraceBlockGuideBinding + 1;
+
+    private const uint ScreenTraceVolumeBuffers = 1;
+
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
     /// list at bindings 15 to 18: the last and this frame's light-age records, the specular sample's age, FSR's
@@ -259,7 +264,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int framesInFlight,
         int glowLevels,
         SpecularHistoryMode historyMode = SpecularHistoryMode.PreciseUncapped,
-        HistoryInstrumentation instrumentation = HistoryInstrumentation.None
+        HistoryInstrumentation instrumentation = HistoryInstrumentation.None,
+        bool lightVolume = false
     )
     {
         if (instrumentation != HistoryInstrumentation.None && !historyMode.KeepsLightAge)
@@ -294,6 +300,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
+        (VolumeSet, VolumeDrawLayout, VolumeSweepLayout) = CreateVolumeLayouts(lightVolume);
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
@@ -317,6 +324,26 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         (SurfaceTestLayout, AccumulateLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
+    }
+
+    /// <summary>
+    /// The directional light volume's descriptor set layout and pipeline layouts, or default handles when the volume is off.
+    /// </summary>
+    private (DescriptorSetLayout Set, PipelineLayout Draw, PipelineLayout Sweep) CreateVolumeLayouts(bool lightVolume)
+    {
+        if (!lightVolume)
+            return default;
+        DescriptorSetLayout volumeSet = CreateLayout(
+            bindings: [StorageBuffer(0, ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit)],
+            name: "light volume set"
+        );
+        PipelineLayout drawLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, volumeSet],
+            push: DrawPush,
+            name: "light volume raster layout"
+        );
+        PipelineLayout sweepLayout = ComputeLayout<uint>(sets: [volumeSet], name: "light volume sweep layout");
+        return (volumeSet, drawLayout, sweepLayout);
     }
 
     /// <summary>
@@ -546,6 +573,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The descriptors of <paramref name="type"/> that the shared pool holds.</summary>
     internal uint SharedPoolSizeOf(DescriptorType type) => pool.SizeOf(type);
+
+    public DescriptorSetLayout VolumeSet { get; }
+    public PipelineLayout VolumeDrawLayout { get; }
+    public PipelineLayout VolumeSweepLayout { get; }
+
+    public DescriptorSet AllocateVolumeSet() => Allocate(pool, VolumeSet, null);
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
@@ -986,7 +1019,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 DescriptorType.StorageBuffer,
                 (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
                     + 2
-                    + ScreenTraceStorageBuffers * ScreenTraceSets
+                    + (ScreenTraceStorageBuffers + ScreenTraceVolumeBuffers) * ScreenTraceSets
+                    + (VolumeSet.Handle == 0 ? 0u : 2u)
                     + 2
             ),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
@@ -1047,6 +1081,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
+                + (VolumeSet.Handle == 0 ? 0u : 1u)
                 + 12
                 + Pyramids
                 + glowSourceSets
@@ -1239,7 +1274,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
             stackalloc DescriptorSetLayoutBinding[
-                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages + ScreenTraceShareImages)
+                beforeLight
+                    + (int)(
+                        ScreenTraceLightImages
+                        + ScreenTraceHitLightImages
+                        + ScreenTraceShareImages
+                        + ScreenTraceVolumeBuffers
+                    )
             ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
@@ -1259,10 +1300,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 binding: ScreenTraceLightBinding + image,
                 stages: ShaderStageFlags.ComputeBit
             );
-        bindings[^3] = StorageImage(ScreenTraceHitLightBinding);
-        bindings[^2] = StorageImage(ScreenTraceShareBinding);
-        bindings[^1] = StorageImage(ScreenTraceBlockGuideBinding);
-        return CreateLayout(bindings: bindings, name: "screen trace set");
+        bindings[^4] = StorageImage(ScreenTraceHitLightBinding);
+        bindings[^3] = StorageImage(ScreenTraceShareBinding);
+        bindings[^2] = StorageImage(ScreenTraceBlockGuideBinding);
+        bindings[^1] = StorageBuffer(ScreenTraceVolumeBinding, ShaderStageFlags.ComputeBit);
+        Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[bindings.Length];
+        flags[^1] = DescriptorBindingFlags.PartiallyBoundBit;
+        return CreateLayout(bindings: bindings, name: "screen trace set", bindingFlags: flags);
     }
 
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
@@ -1276,9 +1320,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 signal[count++] = binding is 7 or 8
                     ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
                     : StorageImage(binding);
-        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
+        Span<DescriptorSetLayoutBinding> light =
+            stackalloc DescriptorSetLayoutBinding[(int)LightSetImages + (VolumeSet.Handle == 0 ? 0 : 1)];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
+        if (VolumeSet.Handle != 0)
+            light[^1] = StorageBuffer(LightSetImages, ShaderStageFlags.FragmentBit);
         return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
     }
 
@@ -1356,7 +1403,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: 4, stages: graphics),
             new(binding: 5, descriptorType: DescriptorType.Sampler, descriptorCount: 1, stageFlags: graphics),
             StorageBuffer(binding: 6, stages: graphics),
-            StorageBuffer(binding: 7, stages: graphics),
+            // Only the puff vertex shader fetches a particle's record.
+            StorageBuffer(binding: 7, stages: ShaderStageFlags.VertexBit),
             // The tables sit in the frame set because the impostor capture binds only sets 0 and 1.
             Image(binding: 8, stages: shading),
             Image(binding: 9, stages: shading),

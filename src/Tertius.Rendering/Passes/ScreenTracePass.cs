@@ -161,6 +161,8 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
         barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageCompute);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        if (images.LightVolume is { } volume)
+            barriers.Buffer(volume, BufferUse.ComputeRead);
         ScreenTraceKernel.DeclareEnvironment(context);
         barriers.Image(images.HitLight, ImageUse.StorageCompute, discard: true);
     }
@@ -195,8 +197,10 @@ internal sealed class ScreenTraceRaysPass(ScreenTraceKernel kernel, ScreenTraceI
         barriers.Image(images.LightPyramidImages.Image, ImageUse.SampledComputeGeneral);
         barriers.Image(images.LightPyramidImages.Finest, ImageUse.SampledComputeGeneral);
 
-        // A miss reads the exposure and the environment map.
+        // A miss reads the exposure, the environment map and the directional light volume when enabled.
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        if (images.LightVolume is { } volume)
+            barriers.Buffer(volume, BufferUse.ComputeRead);
         ScreenTraceKernel.DeclareEnvironment(context);
 
         foreach (GpuImage image in (GpuImage[])[images.BlockLight, images.BlockRay, images.OwnLight, images.OwnRay])

@@ -262,7 +262,10 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
             top = aim.Average(930, 580),
             after = thrown.Average(930, 580);
 
-        (top.b > 60 && top.b > top.g + 20 && top.g > top.r)
+        // Changed on purpose by directional volume specular occlusion (#18): glossy reflections inside the chamber are
+        // now occluded by the chamber ceiling and walls, leaving only the unoccluded fraction of Earth's blue environment
+        // light through the open hatch (about (5, 20, 49) instead of > 60 blue).
+        (top.b > 40 && top.b > top.g + 20 && top.g > top.r)
             .Should()
             .BeTrue($"the copy's top face, blue in Earth's light through the hatch, shows low on the right, not {top}");
         (after.r + after.g + after.b)

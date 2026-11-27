@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Host;
 using Tertius.Simulation;
 
@@ -11,7 +12,12 @@ public static partial class DemoScenes
 
     /// <summary>The scenes of the GPU tests of the bounce light (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "Part 7").</summary>
     private static IEnumerable<Scene> BounceLightScenes =>
-        [new("bounce-red-wall", BounceRedWall), new("bounce-raised-box", BounceRaisedBox)];
+        [
+            new("bounce-red-wall", BounceRedWall),
+            new("bounce-raised-box", BounceRaisedBox),
+            new("bounce-moving-reflector", (world, resources) => MovingPanels(world, resources, emissive: false)),
+            new("bounce-moving-emission", (world, resources) => MovingPanels(world, resources, emissive: true)),
+        ];
 
     /// <summary>
     /// The red wall of <c>BounceLightRenderTests</c> in the root frame <c>room</c>: a white <c>floor</c> with its top 1.5 m
@@ -97,6 +103,147 @@ public static partial class DemoScenes
         world.Ambient = new() { Intensity = 0 };
         AddCamera(world: world, scene: scene, frame: room, pose: new(Double3.Zero, DQuaternion.Identity));
         return scene;
+    }
+
+    /// <summary>Shows the lighting on neutral receivers as colored panels turn behind the camera once in six seconds.</summary>
+    private static SceneInstance MovingPanels(World world, IRenderResources resources, bool emissive)
+    {
+        var scene = new SceneInstance();
+        FrameHandle stage = world.CreateRootFrame(new(FrameBounds.Sphere(100)));
+        scene.Add("stage", stage.Entity);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2), Rate: Math.Tau / 6);
+        var pivot = new Double3(0, 0.35, 0.25);
+        FrameHandle wheel = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = stage,
+                    Pose = new(pivot, spin.RotationAt(world.Time)),
+                    FirstMove = new(spin.Sample(pivot, world.TimeAt(world.TickNumber + 1))),
+                    AsFrame = new(FrameBounds.Sphere(4)),
+                    Components = [new SpinMotion { Spin = spin }],
+                }
+            )
+        );
+        var red = new Vector3(1, 0.008f, 0.003f);
+        SpawnSpinningPanel(
+            world: world,
+            resources: resources,
+            scene: scene,
+            wheel: wheel,
+            name: "red-panel",
+            x: -1.55,
+            color: red,
+            emissive: emissive
+        );
+        if (emissive)
+            SpawnSpinningPanel(
+                world: world,
+                resources: resources,
+                scene: scene,
+                wheel: wheel,
+                name: "blue-panel",
+                x: 1.55,
+                color: new(0.005f, 0.28f, 1),
+                emissive: true
+            );
+        else
+            Star(world: world, scene: scene, frame: stage, center: Double3.Zero, direction: new(0.7, 0.8, -1));
+
+        float fill = emissive ? 0.2f : 8;
+        world.Ambient = new()
+        {
+            SkyColor = new(fill),
+            GroundColor = new(fill * 0.35f),
+            Intensity = 1,
+        };
+        SpawnMovingStage(world: world, resources: resources, scene: scene, stage: stage, emissive: emissive);
+        AddCamera(world: world, scene: scene, frame: stage, pose: LookingAt(new(0, 0.04, 0), new(0, -0.2, -2.6)));
+        scene.Add("source-camera", world.Spawn(ViewIn(stage, LookingAt(new(3.7, 3.1, -2.3), new(0, 0, -1.1)))));
+        scene.AddView("source-camera");
+        return scene;
+    }
+
+    private static void SpawnMovingStage(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle stage,
+        bool emissive
+    )
+    {
+        var neutral = new Vector4(new Vector3(emissive ? 0.15f : 0.78f), 1);
+        BounceSlab(
+            world: world,
+            resources: resources,
+            scene: scene,
+            frame: stage,
+            name: "backdrop",
+            center: new(0, 0, -2.9),
+            size: new(6.8f, 3.2f, 0.12f),
+            color: neutral
+        );
+        BounceSlab(
+            world: world,
+            resources: resources,
+            scene: scene,
+            frame: stage,
+            name: "shelf",
+            center: new(0, -0.88, -2.25),
+            size: new(6.8f, 0.16f, 1.5f),
+            color: neutral
+        );
+        const float radius = 0.48f;
+        MeshId sphere = resources.CreateMesh(Primitives.Sphere(radius, 48, 32));
+        for (int i = 0; i < 3; i++)
+        {
+            MaterialDesc material = emissive
+                ? new(BaseColor: Vector4.One, Roughness: 0.55f + i * 0.18f, Model: new StandardShading(Metallic: 1))
+                : MaterialDesc.Color(Vector4.One, 1);
+            scene.Add(
+                $"ball-{i}",
+                world.Spawn(
+                    DrawnAt(
+                        stage,
+                        new((i - 1) * 1.18, -0.8 + radius, -2.05),
+                        Shaded(sphere, resources.CreateMaterial(material), radius)
+                    )
+                )
+            );
+        }
+    }
+
+    private static void SpawnSpinningPanel(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle wheel,
+        string name,
+        double x,
+        Vector3 color,
+        bool emissive
+    )
+    {
+        var half = new Vector3(0.86f, 0.05f, 1.08f);
+        var material = new MaterialDesc(
+            BaseColor: new(color, 1),
+            Roughness: 1,
+            Emissive: emissive ? 26 * color : Vector3.Zero
+        );
+        scene.Add(
+            name,
+            world.Spawn(
+                DrawnAt(
+                    wheel,
+                    new(x, 0, 0),
+                    Shaded(
+                        resources.CreateMesh(Primitives.Box(half)),
+                        resources.CreateMaterial(material),
+                        half.Length()
+                    )
+                )
+            )
+        );
     }
 
     /// <summary>

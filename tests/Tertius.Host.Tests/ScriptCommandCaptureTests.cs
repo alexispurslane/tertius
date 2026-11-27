@@ -12,8 +12,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     /// <summary>
     /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
     /// shadows after the cascades, the environment map's faces and prefilter after them, the surface test after the
-    /// G-buffer, the back faces, the depth pyramid and key and fill before the direct pass, the screen tracer's passes and its two accumulations between the
-    /// direct pass and the composite, the skin scatter's two passes after the composite, the atmosphere's haze before the
+    /// G-buffer, the back faces, the depth pyramid and key and fill before the direct pass, the directional light volume
+    /// before the screen tracer's passes and its accumulation between the direct pass and the composite, the skin scatter's two passes after the composite, the atmosphere's haze before the
     /// transparent pass, FSR before the output-sized bloom and tone map. A pass that records nothing, such as the haze without an atmosphere, still
     /// takes its timestamps.
     /// </summary>
@@ -30,6 +30,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "depth pyramid",
         "key and fill",
         "direct light",
+        "directional light volume",
         "light pyramid",
         "ray plan",
         "reflection rays",

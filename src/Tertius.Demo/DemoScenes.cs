@@ -76,6 +76,9 @@ public static partial class DemoScenes
     /// <summary>The radiant power of a cabin's lamp, in W: a panel of about 3,000 lumens.</summary>
     private const float CabinLampPower = 10;
 
+    /// <summary>The radiant power of the airlock chamber's dim ceiling lamp, in W: about 300 lumens.</summary>
+    private const float AirlockLampPower = 1;
+
     /// <summary>The radiant power of a floodlight of a station's bay, in W: about 30,000 lumens.</summary>
     private const float FloodlightPower = 100;
 
@@ -196,6 +199,20 @@ public static partial class DemoScenes
             width: 1.2f,
             height: 1.2f,
             power: CabinLampPower
+        );
+
+    /// <summary>
+    /// The light of the airlock chamber's dim ceiling lamp: the lower face, 0.6 m square, of a panel 0.1 m thick, which
+    /// shines down into the chamber so the shut hatch stays visible while the airlock cycles.
+    /// </summary>
+    private static RectLightData AirlockPanelLight =>
+        PanelLight(
+            offset: new(0, -0.05f, 0),
+            front: -Vector3.UnitY,
+            across: Vector3.UnitX,
+            width: 0.6f,
+            height: 0.6f,
+            power: AirlockLampPower
         );
 
     /// <summary>
@@ -466,7 +483,8 @@ public static partial class DemoScenes
     /// wall, transparent, with a slight blue tint, and it casts no shadow. The hull casts shadows, so sunlight comes in
     /// through a window when the sun stands on its side. Physics keeps the walls solid at the windows, so the glass stops a
     /// thrown crate as a wall does. A person, 1.8 m tall, does not fit through a window anyway.</item>
-    /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. The door
+    /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. A dim
+    /// ceiling lamp, <c>airlock-lamp</c>, lights the chamber while both doors shut. The door
     /// <c>airlock-inner</c> leads from the cabin into the chamber, and the door <c>airlock-outer</c> closes a hatch from
     /// the chamber to the outside. Both doorways are 1.2 m wide and 2.1 m tall, with a sill 0.2 m high. The inner door
     /// spawns shut, and the airlock opens it when the scene starts, which takes 1.5 s. A use cycles it: the open door
@@ -602,8 +620,8 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The panes of the ship's windows, and the airlock: its <c>airlock-inner</c> and <c>airlock-outer</c> doors, and the
-    /// <c>airlock</c> that cycles them.
+    /// The panes of the ship's windows, and the airlock: its <c>airlock-inner</c> and <c>airlock-outer</c> doors, its dim
+    /// <c>airlock-lamp</c>, and the <c>airlock</c> that cycles them.
     /// </summary>
     private static void SpawnPanesAndAirlock(
         World world,
@@ -637,6 +655,26 @@ public static partial class DemoScenes
         Entity outerDoor = world.Spawn(DoorIn(shipFrame, Hatch, resources));
         scene.Add("airlock-inner", innerDoor);
         scene.Add("airlock-outer", outerDoor);
+        // A dim ceiling lamp lights the chamber so the shut hatch stays visible while the inner door is closed.
+        RectLightData chamberLight = AirlockPanelLight;
+        scene.Add(
+            "airlock-lamp",
+            world.Spawn(
+                new()
+                {
+                    Frame = shipFrame,
+                    Pose = new(new(Chamber.Center.X, Cabin.Y - 0.05, AirlockZ), DQuaternion.Identity),
+                    Render = new RenderData
+                    {
+                        Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.05f, 0.3f))),
+                        Material = LampPanelMaterial(resources: resources, light: chamberLight),
+                        BoundingRadius = 0.45f,
+                        Flags = RenderFlags.Visible,
+                        Light = chamberLight,
+                    },
+                }
+            )
+        );
         // A person uses the airlock within reach of the chamber's center, at the height of a standing person's center.
         scene.Add(
             "airlock",

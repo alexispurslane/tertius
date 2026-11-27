@@ -148,8 +148,10 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         run.ValidationMessages.Should().BeEmpty();
     }
 
+    // A dim ceiling lamp lights the closed chamber while the inner door keeps the brighter cabin lamps out. Check the
+    // hatch's hue across exposures and require enough red to distinguish the painted door from black space.
     private static void ExpectOrange((int R, int G, int B) color, string what) =>
-        (color.R > color.G + 20 && color.G > color.B + 10)
+        (color.R > 32 && color.R > 1.25 * color.G && color.G > 1.4 * color.B)
             .Should()
             .BeTrue($"{what} is the orange of a door, not {color}");
 
@@ -168,8 +170,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         (space.r + space.g + space.b)
             .Should()
             .BeLessThan(60, $"black space with a few stars shows through the hatch, not {space}");
-        // The exposure follows the dim chamber, whose shut inner door keeps the cabin's lamps out, so sunlit Earth shows
-        // white, not blue, low in the hatch.
+        // The exposure follows the dim chamber, whose shut inner door keeps the bright cabin lamps out, so sunlit Earth
+        // shows white, not blue, low in the hatch.
         (earth.r + earth.g + earth.b)
             .Should()
             .BeGreaterThan(700, $"sunlit Earth shows white low in the hatch beside the dim chamber, not {earth}");
@@ -181,9 +183,9 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         // The person looks back at the hull's port face. The sun stands straight above the ship, so it does not light that
         // face, which looks sideways, but Earth below does. Earth fills the bottom of the image, below the hull. Through
         // the open hatch the person sees the chamber's floor. The lamps cast shadows, so the chamber's walls and its shut
-        // inner door keep their light out, and only the environment map's light, from what lies around the camera, shows
-        // on the floor. Each probe sits well inside its region: the hull ends at row 596, above Earth, and the chamber
-        // floor spans rows 479 to 512 and columns 584 to 695.
+        // inner door keep the bright cabin lamps out, and at the exposure that sunlit Earth sets, the dim 1 W chamber lamp
+        // is far weaker than the blue environment light on the floor. Each probe sits well inside its region: the hull
+        // ends at row 596, above Earth, and the chamber floor spans rows 479 to 512 and columns 584 to 695.
         //
         // Changed on purpose by the move to SI units (https://github.com/alexispurslane/tertius/wiki/local-light-shadows, Part 5): at the exposure that
         // Earth sets the chamber floor shows far darker than the Earth-lit port face. Before, the lamps sent 10 times the

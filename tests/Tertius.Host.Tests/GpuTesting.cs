@@ -98,6 +98,7 @@ public static class GpuTesting
                 Upscaling = new NoUpscaling(),
                 LocalShadows = new NoLocalShadows(),
                 EnvironmentMap = new NoEnvironmentMap(),
+                LightVolume = false,
                 Subsurface = new NoSubsurface(),
                 LightPairs = new EveryLightPair(),
             }

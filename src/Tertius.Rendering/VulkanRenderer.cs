@@ -165,31 +165,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
 
-            layouts = Own(
-                new DescriptorLayouts(
-                    device: device,
-                    framesInFlight: options.FramesInFlight,
-                    glowLevels: GlowLevelsOf(options.Bloom),
-                    historyMode: historyMode,
-                    instrumentation: instrumentation
-                )
-            );
+            layouts = CreateLayouts(options, historyMode, instrumentation);
             output = Own(createOutput(device, Allocator));
-            geometry = Own(new GeometryStore(device, Allocator));
-            deforms = CreateDeformStore();
-            keptPositions = deformation ? Own(new KeptPositions(device, Allocator)) : null;
-            textures = Own(new TextureStore(device, Allocator));
-            materials = Own(new MaterialStore(device, Allocator));
-            BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
-            uploads = CreateUploads();
+            (geometry, deforms, keptPositions, textures, materials, BrdfTableImages, uploads) = CreateAssetStores();
 
             targets = CreateTargets(options);
-            surfaceHistory = Own(
-                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
-            );
-            signalScratch = Own(
-                new SignalScratch(device: device, allocator: Allocator, targets: targets, layouts: layouts)
-            );
+            (surfaceHistory, signalScratch) = CreateHistoryStores();
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -202,14 +183,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Batcher = CreateBatcher(options);
             frames = CreateFrames(options.FramesInFlight);
 
-            (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
-            // Before the composite, which reads the tracer's signals.
-            screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
-            // After the tracer, whose light-change mask FSR reads.
-            upscalePass = AddUpscalePass(shaders, options.FramesInFlight);
-            compositePass = AddPassesAfterGeometry(shaders, options);
-            AddScatterPasses(shaders);
-            Own(Graph);
+            (impostorAtlas, Impostors, localShadows, screenTrace, upscalePass, compositePass) = RegisterPasses(
+                shaders,
+                options
+            );
             timer = Own(new GpuTimer(device, options.FramesInFlight, eachPass: options.PassTimestamps));
             context = CreateContext();
         }
@@ -1334,6 +1311,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
 
+    internal uint ReadVolumeLightEvaluations() =>
+        ReadBufferWords(
+            Graph.Passes.OfType<LightVolumePass>().Single().Buffer,
+            offset: LightVolumePass.CounterOffset,
+            bytes: sizeof(uint)
+        )[0];
+
     internal DescriptorSet CompositeLightSet => compositePass.LightSet;
 
     /// <summary>
@@ -1488,12 +1472,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         targets.Pyramid ?? throw new InvalidOperationException("The screen tracer is off.");
 
     /// <summary>The words of <paramref name="buffer"/>. A test hook: it waits for the device to be idle and submits its own copy.</summary>
-    private uint[] ReadBufferWords(GpuBuffer buffer)
+    private uint[] ReadBufferWords(GpuBuffer buffer, ulong offset = 0, ulong? bytes = null)
     {
+        ulong size = bytes ?? buffer.Size - offset;
         using var readback = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: buffer.Size,
+            size: size,
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: "buffer readback"
@@ -1504,7 +1489,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(buffer, BufferUse.TransferSource);
             local.Buffer(readback, BufferUse.TransferDestination);
             local.Flush(device.Vk, commandBuffer);
-            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: buffer.Size);
+            var region = new BufferCopy(srcOffset: offset, dstOffset: 0, size: size);
             device.Vk.CmdCopyBuffer(
                 commandBuffer: commandBuffer,
                 srcBuffer: buffer.Handle,
@@ -1515,7 +1500,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(readback, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        return new ReadOnlySpan<uint>(readback.Mapped, (int)(buffer.Size / sizeof(uint))).ToArray();
+        return new ReadOnlySpan<uint>(readback.Mapped, (int)(size / sizeof(uint))).ToArray();
     }
 
     /// <summary>
@@ -2192,10 +2177,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 options.LocalShadows is LocalShadowAtlas atlas
                 && TileReadsFor(atlas.Reads, driver) == LocalShadowReads.SixteenCornerMeans,
             ScreenTraceOn = options.ScreenTrace is ScreenTrace,
-            MaxTraceRoughness = options.ScreenTrace is ScreenTrace trace ? trace.MaxRoughness : 0,
+            MaxTraceRoughness = options.ScreenTrace is ScreenTrace trace
+                ? trace.MaxRoughness
+                : ScreenTrace.Default.MaxRoughness,
             ReflectionSharingPrototype =
                 options.ScreenTrace is ScreenTrace
                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
+            LightVolumeOn = options.LightVolume,
         };
 
     /// <summary>
@@ -2285,7 +2273,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         new(
             cascadedLights: options.CascadedLights,
             shadowMapSize: ShadowMap.Size,
-            depthRangeScale: ShadowMap.DepthRangeScale
+            depthRangeScale: ShadowMap.DepthRangeScale,
+            lightVolume: options.LightVolume
         );
 
     /// <summary>The environment map that <paramref name="options"/> ask for, which the renderer owns, or null for none.</summary>
@@ -2308,7 +2297,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// FSR 3.1's pass in <see cref="FrameGraph.Stage.Upscale"/> under <see cref="Fsr3Upscaling"/>, which reads the screen
     /// tracer's light-change mask, so the tracer's images come first. Null under any other upscaling.
     /// </summary>
-    private UpscalePass? AddUpscalePass(ShaderLibrary shaders, int framesInFlight)
+    private UpscalePass? AddUpscalePass(ShaderLibrary shaders, int framesInFlight, ScreenTraceImages? tracer)
     {
         if (upscaling is not Fsr3Upscaling fsr)
             return null;
@@ -2318,7 +2307,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             shaders: shaders,
             targets: targets,
             surfaces: surfaceHistory,
-            screenTrace: screenTrace,
+            screenTrace: tracer,
             framesInFlight: framesInFlight,
             sharpness: fsr.Sharpness
         );
@@ -2326,12 +2315,102 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return pass;
     }
 
+    private DescriptorLayouts CreateLayouts(
+        RendererOptions options,
+        SpecularHistoryMode historyMode,
+        HistoryInstrumentation instrumentation
+    ) =>
+        Own(
+            new DescriptorLayouts(
+                device: device,
+                framesInFlight: options.FramesInFlight,
+                glowLevels: GlowLevelsOf(options.Bloom),
+                historyMode: historyMode,
+                instrumentation: instrumentation,
+                lightVolume: options.LightVolume
+            )
+        );
+
+    private (
+        GeometryStore Geometry,
+        DeformStore Deforms,
+        KeptPositions? Kept,
+        TextureStore Textures,
+        MaterialStore Materials,
+        BrdfTableImages Brdf,
+        UploadQueue Uploads
+    ) CreateAssetStores() =>
+        (
+            Own(new GeometryStore(device, Allocator)),
+            CreateDeformStore(),
+            deformation ? Own(new KeptPositions(device, Allocator)) : null,
+            Own(new TextureStore(device, Allocator)),
+            Own(new MaterialStore(device, Allocator)),
+            Own(new BrdfTableImages(device, Allocator)),
+            CreateUploads()
+        );
+
+    private (SurfaceHistory Surfaces, SignalScratch Scratch) CreateHistoryStores() =>
+        (
+            Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)),
+            Own(new SignalScratch(device: device, allocator: Allocator, targets: targets, layouts: layouts))
+        );
+
+    private (
+        ImpostorAtlas? Atlas,
+        ImpostorManager? Manager,
+        LocalShadowPass? LocalShadows,
+        ScreenTraceImages? ScreenTrace,
+        UpscalePass? Upscale,
+        CompositePass Composite
+    ) RegisterPasses(ShaderLibrary shaders, RendererOptions options)
+    {
+        (ImpostorAtlas? atlas, ImpostorManager? manager, LocalShadowPass? shadows) = AddPassesThroughGeometry(
+            shaders,
+            options
+        );
+        LightVolumePass? lightVolume = CreateLightVolumePass(shaders);
+        // Before the composite, which reads the tracer's signals.
+        ScreenTraceImages? trace = AddScreenTracePasses(shaders, options.ScreenTrace, lightVolume);
+        // After the tracer, whose light-change mask FSR reads.
+        UpscalePass? upscale = AddUpscalePass(shaders, options.FramesInFlight, trace);
+        CompositePass composite = AddPassesAfterGeometry(
+            shaders: shaders,
+            options: options,
+            tracer: trace,
+            volume: lightVolume
+        );
+        AddScatterPasses(shaders);
+        Own(Graph);
+        return (atlas, manager, shadows, trace, upscale, composite);
+    }
+
+    private LightVolumePass? CreateLightVolumePass(ShaderLibrary shaders)
+    {
+        if (layouts.VolumeSet.Handle == 0)
+            return null;
+        var volume = new LightVolumePass(
+            device: device,
+            allocator: Allocator,
+            layouts: layouts,
+            shaders: shaders,
+            constants: ShadingConstants
+        );
+        // After ShadowPass, LocalShadowPass and GeometryPass write shadows and materials, and before ScreenTrace and Composite.
+        Graph.Add(FrameGraph.Stage.ScreenTrace, volume);
+        return volume;
+    }
+
     /// <summary>
     /// The screen tracer's images under <see cref="ScreenTrace"/>, with its reflection history; the depth pyramid's pass after the
     /// G-buffer; and the tracer's four passes and the two accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>. Null
     /// under <see cref="NoScreenTrace"/>. The renderer owns them.
     /// </summary>
-    private ScreenTraceImages? AddScreenTracePasses(ShaderLibrary shaders, ScreenTraceSetting setting)
+    private ScreenTraceImages? AddScreenTracePasses(
+        ShaderLibrary shaders,
+        ScreenTraceSetting setting,
+        LightVolumePass? lightVolume
+    )
     {
         if (setting is not ScreenTrace trace)
             return null;
@@ -2358,7 +2437,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 surfaces: surfaceHistory,
                 pyramid: pyramid,
                 specular: specular,
-                guided: LightPyramidPass.SwitchedOn()
+                guided: LightPyramidPass.SwitchedOn(),
+                lightVolume: lightVolume?.Buffer
             )
         );
         if (images.Guided)
@@ -2419,7 +2499,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Adds the direct pass and the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
     /// </summary>
-    private CompositePass AddLightingPasses(ShaderLibrary shaders)
+    private CompositePass AddLightingPasses(ShaderLibrary shaders, ScreenTraceImages? tracer, LightVolumePass? volume)
     {
         // Before the direct pass, in its stage: it reads the tile records of this frame.
         if (keyFillImages is { } keyFill)
@@ -2449,7 +2529,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             layouts: layouts,
             constants: ShadingConstants,
             scatter: ScatterImages is not null,
-            tracer: screenTrace,
+            tracer: tracer,
+            volume: volume,
             targets: targets
         );
         Graph.Add(FrameGraph.Stage.Composite, composite);
@@ -2460,9 +2541,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// Adds the passes from the direct pass and the composite to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and FSR only under <see cref="Fsr3Upscaling"/>.
     /// </summary>
-    private CompositePass AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
+    private CompositePass AddPassesAfterGeometry(
+        ShaderLibrary shaders,
+        RendererOptions options,
+        ScreenTraceImages? tracer,
+        LightVolumePass? volume
+    )
     {
-        CompositePass composite = AddLightingPasses(shaders);
+        CompositePass composite = AddLightingPasses(shaders, tracer, volume);
         Graph.Add(FrameGraph.Stage.Haze, new HazePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.Transparent,

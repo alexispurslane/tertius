@@ -1,0 +1,10 @@
+{
+  "scene": "bounce-moving-reflector",
+  "window": { "width": 960, "height": 540 },
+  "steps": [
+    { "do": "camera", "entity": "source-camera" },
+    { "do": "film", "name": "source", "frames": 45, "every": 2 },
+    { "do": "camera", "entity": "camera" },
+    { "do": "film", "name": "receiver", "frames": 180, "every": 2 }
+  ]
+}
