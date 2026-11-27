@@ -20,7 +20,7 @@ title_of() {
         merged) echo 'Merged grid: 0.25, 0.5, 1 m levels, 16 m (90a6be90d)' ;;
         outer) echo 'Prototype: 0.25, 0.5, 2 m levels, 32 m' ;;
         four) echo 'Reference: 0.25, 0.5, 1, 2 m levels, 32 m' ;;
-        tiles) echo 'Diagnostic: 4 levels, 32 m, 4 m patches at 2 m' ;;
+        tiles) echo 'Diagnostic: 4 levels, 32 m, 4 m tiles at 2 m' ;;
         *) echo "$1" ;;
     esac
 }

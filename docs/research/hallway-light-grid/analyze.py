@@ -9,7 +9,8 @@ frames). [variants] is a comma-separated list such as legacy,merged,tiles. The t
 - surfaces.csv: per frame, the camera's distance to the nose wall and the mean 8-bit sRGB color of two fixed surfaces
   of the nose end in each film: a wall patch beside the nose window and a floor patch in front of the wall.
 - summary.json: the mean absolute difference of each film from legacy and from merged, over the walk and in bands of
-  the distance to the nose wall, and the temporal noise of the two still holds.
+  the distance to the nose wall; the temporal noise of the two still holds; and, during the walk (frames 32 to 1129),
+  the count of frame-to-frame changes of each surface's luma over 0.6 in two distance bands, with the largest steps.
 - nose-wall.svg and floor.svg: the luma of each surface against the distance to the nose wall.
 
 The camera stands in the ship's frame at x = 0 and y = -1.85 m (eye height 1.65 m over the floor at -3.5 m) and looks
@@ -36,7 +37,7 @@ NAMES = {
     "merged": "Merged grid (16 m)",
     "outer": "Prototype 0.25/0.5/2 m (32 m)",
     "four": "Reference 0.25/0.5/1/2 m (32 m)",
-    "tiles": "Diagnostic: 4 levels, 4 m patches at 2 m (32 m)",
+    "tiles": "Diagnostic: 4 levels, 4 m tiles at 2 m (32 m)",
 }
 COLORS = {"legacy": "#444444", "merged": "#1f77b4", "outer": "#d62728", "four": "#2ca02c", "tiles": "#9467bd"}
 START_HOLD = range(10, 31)  # still frames before the walk, after 10 frames of settling
@@ -88,6 +89,31 @@ def frames(path: Path):
 
 def luma(rgb) -> float:
     return float(0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2])
+
+
+WALK_FRAMES = range(32, 1130)
+STEP = 0.6  # luma: a frame-to-frame change larger than this counts as a step
+
+
+def steps(rows: list[dict], key: str, variant: str) -> dict:
+    """The walk's frame-to-frame luma changes over STEP for one surface: counts by band and the five largest."""
+    changes = []
+    for before, after in zip(rows, rows[1:]):
+        if after["frame"] not in WALK_FRAMES or "" in (before[f"{key}_{variant}_luma"], after[f"{key}_{variant}_luma"]):
+            continue
+        change = after[f"{key}_{variant}_luma"] - before[f"{key}_{variant}_luma"]
+        if abs(change) > STEP:
+            changes.append((after["distance"], after["frame"], before[f"{key}_{variant}_luma"], change))
+    largest = sorted(changes, key=lambda c: -abs(c[3]))[:5]
+    return {
+        "16-60 m": sum(1 for c in changes if c[0] >= 16),
+        "7.1-16 m": sum(1 for c in changes if 7.1 <= c[0] < 16),
+        "below 7.1 m": sum(1 for c in changes if c[0] < 7.1),
+        "largest": [
+            {"distance": d, "frame": f, "before": round(b, 2), "after": round(b + c, 2), "change_percent": round(c / b * 100, 1)}
+            for d, f, b, c in largest
+        ],
+    }
 
 
 def chart(rows: list[dict], key: str, title: str, path: Path, variants: list[str]) -> None:
@@ -188,6 +214,7 @@ def main() -> int:
         summary["temporal_noise_8bit"][v] = {
             hold: round(float(np.std(np.stack(images).astype(np.float32), axis=0).mean()), 3) for hold, images in holds[v].items()
         }
+    summary["walk_steps"] = {f"{key}_{v}": steps(rows, key, v) for key in ("wall", "floor") for v in variants}
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     chart(rows, "wall", "Nose wall beside the window: luma (8-bit sRGB) as the camera approaches", out / "nose-wall.svg", variants)
     chart(rows, "floor", "Floor 1 to 3 m before the nose wall: luma (8-bit sRGB) as the camera approaches", out / "floor.svg", variants)
