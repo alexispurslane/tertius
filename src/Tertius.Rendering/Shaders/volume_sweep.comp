@@ -3,7 +3,7 @@
 #define VOLUME_SET 0
 #define VOLUME_ACCESS
 #include "volume.glsl"
-layout(local_size_x = 8, local_size_y = 8) in;
+layout(local_size_x = 9, local_size_y = 9) in;
 layout(push_constant) uniform Sweep
 {
     uint level;
@@ -30,11 +30,12 @@ void main()
     vec2 shift = vec2(magnitude[u], magnitude[v]) / float(magnitude[axis]);
     for (int slice = 0; slice < side; ++slice)
     {
-        // The 8 × 8 invocations cover a slice in blocks of 8 × 8 cells, 3 × 3 blocks for MaxSide. Each invocation
-        // skips its cells past the slice's side but still reaches the barrier below.
-        for (int j = 0; j < 9; ++j)
+        // The 9 × 9 invocations cover a slice in 2 × 2 blocks of 9 × 9 cells, so a slice of MaxSide cells takes as
+        // many steps as one of 16. The sweep's 32 work groups per level leave the card mostly idle, so its time follows
+        // these steps. Each invocation skips its cells past the slice's side but still reaches the barrier below.
+        for (int j = 0; j < 4; ++j)
         {
-            ivec2 xy = ivec2(gl_LocalInvocationID.xy) + 8 * ivec2(j % 3, j / 3);
+            ivec2 xy = ivec2(gl_LocalInvocationID.xy) + 9 * ivec2(j % 2, j / 2);
             if (any(greaterThanEqual(xy, ivec2(side))))
                 continue;
             ivec3 c;
