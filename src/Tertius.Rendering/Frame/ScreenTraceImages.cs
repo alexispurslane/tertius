@@ -72,6 +72,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="specular">The specular signal, of one part.</param>
     /// <param name="guided">Whether a share of the reflection rays aims at bright pixels (<see cref="LightPyramidPass.SwitchedOn"/>).</param>
+    /// <param name="lightVolume">The directional light volume buffer, or null when the light volume is off.</param>
     public ScreenTraceImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -80,7 +81,8 @@ internal sealed class ScreenTraceImages : IDisposable
         SurfaceHistory surfaces,
         PyramidImages pyramid,
         TemporalSignal specular,
-        bool guided
+        bool guided,
+        GpuBuffer? lightVolume = null
     )
     {
         this.device = device;
@@ -92,6 +94,7 @@ internal sealed class ScreenTraceImages : IDisposable
 
         Specular = specular;
         Guided = guided;
+        LightVolume = lightVolume;
         Sets = [layouts.AllocateScreenTraceSet(), layouts.AllocateScreenTraceSet()];
         LightPyramidImages = new(
             device: device,
@@ -104,6 +107,9 @@ internal sealed class ScreenTraceImages : IDisposable
         );
         Create();
     }
+
+    /// <summary>The directional light volume buffer read on off-screen misses and hits, or null when the volume is off.</summary>
+    public GpuBuffer? LightVolume { get; }
 
     /// <summary>The plan's bits at each pixel.</summary>
     public GpuImage Plan { get; private set; }
@@ -311,6 +317,13 @@ internal sealed class ScreenTraceImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceHitLightBinding, image: HitLight);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceShareBinding, image: ReflectionShare);
         layouts.WriteStorageImage(set: set, binding: DescriptorLayouts.ScreenTraceBlockGuideBinding, image: BlockGuide);
+        if (LightVolume is { } volume)
+            layouts.WriteBuffer(
+                set: set,
+                binding: DescriptorLayouts.ScreenTraceVolumeBinding,
+                type: DescriptorType.StorageBuffer,
+                buffer: volume
+            );
     }
 
     /// <summary>

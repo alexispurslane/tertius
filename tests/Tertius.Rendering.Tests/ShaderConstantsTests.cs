@@ -29,6 +29,7 @@ public sealed class ShaderConstantsTests
         {
             [ShaderConstants.MaxTraceRoughnessId] = new(Type: "float", Default: BitConverter.SingleToUInt32Bits(0.5f)),
             [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.LightVolumeOnId] = False,
         },
         // A face's surfaces only sample their material: the light pass of the face holds the lights' constants.
         ["environment_face.frag"] = new()

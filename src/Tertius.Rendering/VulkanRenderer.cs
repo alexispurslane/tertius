@@ -204,11 +204,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
+            LightVolumePass? lightVolume = CreateLightVolumePass(shaders);
             // Before the composite, which reads the tracer's signals.
-            screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
+            screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace, lightVolume);
             // After the tracer, whose light-change mask FSR reads.
             upscalePass = AddUpscalePass(shaders, options.FramesInFlight);
-            compositePass = AddPassesAfterGeometry(shaders, options);
+            compositePass = AddPassesAfterGeometry(shaders, options, lightVolume);
             AddScatterPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight, eachPass: options.PassTimestamps));
@@ -2207,6 +2208,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ReflectionSharingPrototype =
                 options.ScreenTrace is ScreenTrace
                 && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
+            LightVolumeOn = options.LightVolume,
         };
 
     /// <summary>
@@ -2338,12 +2340,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return pass;
     }
 
+    private LightVolumePass? CreateLightVolumePass(ShaderLibrary shaders)
+    {
+        if (layouts.VolumeSet.Handle == 0)
+            return null;
+        var volume = new LightVolumePass(
+            device: device,
+            allocator: Allocator,
+            layouts: layouts,
+            shaders: shaders,
+            constants: ShadingConstants
+        );
+        // After DirectLightPass (which prepares shadow maps and G-buffer) and before ScreenTrace and Composite.
+        Graph.Add(FrameGraph.Stage.ScreenTrace, volume);
+        return volume;
+    }
+
     /// <summary>
     /// The screen tracer's images under <see cref="ScreenTrace"/>, with its reflection history; the depth pyramid's pass after the
     /// G-buffer; and the tracer's four passes and the two accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>. Null
     /// under <see cref="NoScreenTrace"/>. The renderer owns them.
     /// </summary>
-    private ScreenTraceImages? AddScreenTracePasses(ShaderLibrary shaders, ScreenTraceSetting setting)
+    private ScreenTraceImages? AddScreenTracePasses(
+        ShaderLibrary shaders,
+        ScreenTraceSetting setting,
+        LightVolumePass? lightVolume
+    )
     {
         if (setting is not ScreenTrace trace)
             return null;
@@ -2370,7 +2392,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 surfaces: surfaceHistory,
                 pyramid: pyramid,
                 specular: specular,
-                guided: LightPyramidPass.SwitchedOn()
+                guided: LightPyramidPass.SwitchedOn(),
+                lightVolume: lightVolume?.Buffer
             )
         );
         if (images.Guided)
@@ -2431,7 +2454,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Adds the direct pass and the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
     /// </summary>
-    private CompositePass AddLightingPasses(ShaderLibrary shaders)
+    private CompositePass AddLightingPasses(ShaderLibrary shaders, LightVolumePass? volume)
     {
         // Before the direct pass, in its stage: it reads the tile records of this frame.
         if (keyFillImages is { } keyFill)
@@ -2455,18 +2478,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 keyFill: keyFillImages
             )
         );
-        LightVolumePass? volume = null;
-        if (layouts.VolumeSet.Handle != 0)
-        {
-            volume = new LightVolumePass(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                shaders: shaders,
-                constants: ShadingConstants
-            );
-            Graph.Add(FrameGraph.Stage.Composite, volume);
-        }
         var composite = new CompositePass(
             device: device,
             shaders: shaders,
@@ -2485,9 +2496,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// Adds the passes from the direct pass and the composite to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and FSR only under <see cref="Fsr3Upscaling"/>.
     /// </summary>
-    private CompositePass AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
+    private CompositePass AddPassesAfterGeometry(
+        ShaderLibrary shaders,
+        RendererOptions options,
+        LightVolumePass? volume
+    )
     {
-        CompositePass composite = AddLightingPasses(shaders);
+        CompositePass composite = AddLightingPasses(shaders, volume);
         Graph.Add(FrameGraph.Stage.Haze, new HazePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.Transparent,

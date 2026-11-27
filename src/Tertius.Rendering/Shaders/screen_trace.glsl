@@ -53,6 +53,10 @@ layout(set = 3, binding = 23, r32f) uniform image2D reflectionShare;
 // guided: x its guided density along its direction, y and z its evidence for its tile's share (shareEvidenceOf), and w
 // the share at which it was drawn. The resolve weighs the ray at each pixel of the block by that share's mixture.
 layout(set = 3, binding = 24, rgba32f) uniform image2D blockGuide;
+// ShaderConstants.LightVolumeOn, at ShaderConstants.LightVolumeOnId.
+layout(constant_id = 12) const bool lightVolumeOn = false;
+#define VOLUME_BINDING 25
+#include "volume_receive.glsl"
 // The blocks along each side of a tile of the reflection share (ScreenTraceImages.TileBlocks).
 const int TileBlocks = 8;
 #include "sent_light.glsl"
@@ -401,7 +405,7 @@ vec3 reflectionDirection(TracingPixel p, vec2 u)
     return reflect(-p.V, h.x * tangent + h.y * bitangent + h.z * p.normal);
 }
 
-// On a miss, use the receiver’s environment along the sampled reflection direction.
+// On a miss, use the receiver’s environment along the sampled reflection direction, occluded by the light volume when active.
 vec3 missLightOf(TracingPixel p, ivec2 pixel, vec3 direction)
 {
     vec3 light;
@@ -411,6 +415,8 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, vec3 direction)
     else
         light = mix(frame.ambientGround.rgb, frame.ambientSky.rgb,
             p.s.lobeSkyFraction);
+    if (lightVolumeOn)
+        light *= volumeTransmissionAt(p.s.position, p.s.geometricNormal, direction);
     return exposed(light, exposureScale());
 }
 
@@ -453,14 +459,18 @@ vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
     IndirectLight closedLight = closedForm(withAmbientFootprint(s, q), V);
+    vec3 indirectDiffuse = factors.diffuse * closedLight.diffuse;
+    vec3 indirectSpecular = factors.specular * closedLight.specular;
+    if (lightVolumeOn)
+        applyLightVolume(s, V, factors, indirectDiffuse, indirectSpecular);
     vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
-        + factors.diffuse * closedLight.diffuse;
+        + indirectDiffuse;
     float share = glossyShare(s.roughness);
-    vec3 specularHistory = closedLight.specular;
+    vec3 specular = indirectSpecular;
     if (share > 0.0 && holdsHistory(r.specular))
-        specularHistory = mix(specularHistory, lastLightOf(r.specular), share);
+        specular = mix(specular, factors.specular * lastLightOf(r.specular), share);
     vec3 reflection = light
-        + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb + specularHistory);
+        + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb) + specular;
     return min(reflection, vec3(MaxRadiance));
 }
 

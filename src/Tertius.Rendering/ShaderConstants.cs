@@ -21,6 +21,15 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of tileCornerMeans in shadows.glsl.</summary>
     public const uint TileCornerMeansId = 11;
 
+    /// <summary>The constant_id of lightVolumeOn in screen_trace.glsl.</summary>
+    public const uint LightVolumeOnId = 12;
+
+    /// <summary>
+    /// True when the directional light volume is active so the screen tracer applies its environment transmission on
+    /// off-screen misses and its local indirect light on hits.
+    /// </summary>
+    public bool LightVolumeOn { get; init; }
+
     /// <summary>
     /// True when the filter of a local shadow tile reads sixteen corner means, false when it reads nine gathers
     /// (<see cref="LocalShadowReads"/>). The renderer sets it for every shading pipeline from its atlas's reads on its
@@ -131,6 +140,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
+            (LightVolumeOnId, VkBool(values.LightVolumeOn)),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -162,7 +172,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 12;
+    public const int Count = 13;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

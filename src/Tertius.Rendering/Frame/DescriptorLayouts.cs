@@ -132,6 +132,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the block guide, a storage image after the reflection share.</summary>
     public const uint ScreenTraceBlockGuideBinding = ScreenTraceShareBinding + 1;
 
+    /// <summary>The binding of the directional light volume buffer in a screen tracer set.</summary>
+    public const uint ScreenTraceVolumeBinding = ScreenTraceBlockGuideBinding + 1;
+
+    private const uint ScreenTraceVolumeBuffers = 1;
+
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
     /// list at bindings 15 to 18: the last and this frame's light-age records, the specular sample's age, FSR's
@@ -1006,7 +1011,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 DescriptorType.StorageBuffer,
                 (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
                     + 2
-                    + ScreenTraceStorageBuffers * ScreenTraceSets
+                    + (ScreenTraceStorageBuffers + ScreenTraceVolumeBuffers) * ScreenTraceSets
                     + (VolumeSet.Handle == 0 ? 0u : 2u)
                     + 2
             ),
@@ -1261,7 +1266,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
         Span<DescriptorSetLayoutBinding> bindings =
             stackalloc DescriptorSetLayoutBinding[
-                beforeLight + (int)(ScreenTraceLightImages + ScreenTraceHitLightImages + ScreenTraceShareImages)
+                beforeLight
+                    + (int)(
+                        ScreenTraceLightImages
+                        + ScreenTraceHitLightImages
+                        + ScreenTraceShareImages
+                        + ScreenTraceVolumeBuffers
+                    )
             ];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
@@ -1281,10 +1292,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 binding: ScreenTraceLightBinding + image,
                 stages: ShaderStageFlags.ComputeBit
             );
-        bindings[^3] = StorageImage(ScreenTraceHitLightBinding);
-        bindings[^2] = StorageImage(ScreenTraceShareBinding);
-        bindings[^1] = StorageImage(ScreenTraceBlockGuideBinding);
-        return CreateLayout(bindings: bindings, name: "screen trace set");
+        bindings[^4] = StorageImage(ScreenTraceHitLightBinding);
+        bindings[^3] = StorageImage(ScreenTraceShareBinding);
+        bindings[^2] = StorageImage(ScreenTraceBlockGuideBinding);
+        bindings[^1] = StorageBuffer(ScreenTraceVolumeBinding, ShaderStageFlags.ComputeBit);
+        Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[bindings.Length];
+        flags[^1] = DescriptorBindingFlags.PartiallyBoundBit;
+        return CreateLayout(bindings: bindings, name: "screen trace set", bindingFlags: flags);
     }
 
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>

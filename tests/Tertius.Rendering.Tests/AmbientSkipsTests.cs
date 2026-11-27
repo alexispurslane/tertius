@@ -38,10 +38,11 @@ public sealed class AmbientSkipsTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
-                // A fixed exposure and no tracer, whose still draws once: the test compares the composite's closed form
-                // alone.
+                // A fixed exposure, no tracer and no light volume, whose still draws once: the test compares the
+                // composite's closed form alone.
                 Exposure = new FixedExposure(ExposureStops),
                 ScreenTrace = new NoScreenTrace(),
+                LightVolume = false,
                 Bloom = new NoBloom(),
                 EnvironmentMap = SceneEnvironmentMap.Default with { FaceSize = 64 },
                 // The scene has no skin, so the scatter changes no pixel: under it, the pass draws from

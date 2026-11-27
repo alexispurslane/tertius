@@ -148,4 +148,217 @@ public sealed class LightVolumeRenderTests
             Gpu.DisposeAndAssertClean(renderer);
         }
     }
+
+    [Fact]
+    public void ANeutralOffscreenReflectorAddsFarLessIndirectLightThanAColoredOneOfTheSamePeakAlbedo()
+    {
+        float colored = MeasureOffscreenReflectorRed(baseColor: new(x: 1, y: 0, z: 0, w: 1), exposureStops: 0);
+        float neutral = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 0);
+
+        colored.Should().BeGreaterThan(0.01f, "a saturated red reflector keeps its full indirect bounce");
+        neutral.Should().BeGreaterThan(0.0001f, "neutral bounce is restrained rather than removed");
+        neutral.Should().BeLessThan(colored * 0.1f, "low-saturation diffuse fill is restrained relative to color");
+    }
+
+    [Fact]
+    public void ANeutralOffscreenEmitterAddsFarLessIndirectLightThanAColoredOneOfTheSamePeakRadiance()
+    {
+        float colored = MeasureOffscreenEmitterRed(emissive: new(8, 0, 0), exposureStops: 0);
+        float neutral = MeasureOffscreenEmitterRed(emissive: new(8, 8, 8), exposureStops: 0);
+
+        colored.Should().BeGreaterThan(0.01f, "a saturated red emitter keeps its full indirect contribution");
+        neutral.Should().BeGreaterThan(0.0001f, "neutral emission is restrained rather than removed");
+        neutral.Should().BeLessThan(colored * 0.1f, "low-saturation emission is restrained relative to color");
+    }
+
+    [Fact]
+    public void ChangingExposureScalesTheVolumesIndirectLightWithoutChangingItsWorldRadiance()
+    {
+        float baseReflector = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 0);
+        float boostedReflector = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 4);
+        float baseEmitter = MeasureOffscreenEmitterRed(emissive: new(8, 8, 8), exposureStops: 0);
+        float boostedEmitter = MeasureOffscreenEmitterRed(emissive: new(8, 8, 8), exposureStops: 4);
+
+        (boostedReflector / baseReflector)
+            .Should()
+            .BeApproximately(16f, 0.4f, "four stops of exposure scale neutral diffuse bounce by 16x");
+        (boostedEmitter / baseEmitter)
+            .Should()
+            .BeApproximately(16f, 0.4f, "four stops of exposure scale neutral emission bounce by 16x");
+    }
+
+    [Fact]
+    public void AGlossySurfaceOccludesOffscreenEnvironmentMissesBehindAnOpaqueWall()
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new RendererOptions
+            {
+                Width = 64,
+                Height = 64,
+                WarmUpFrames = 0,
+                Validation = true,
+                Upscaling = new NoUpscaling(),
+                Exposure = new FixedExposure(0),
+                EnvironmentMap = new NoEnvironmentMap(),
+                ScreenTrace = ScreenTrace.Default,
+                LightVolume = true,
+            }
+        );
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId glossy = renderer.CreateMaterial(new(BaseColor: Vector4.UnitW, Roughness: 0.2f, Reflectance: 1));
+            MaterialId black = renderer.CreateMaterial(new(BaseColor: Vector4.UnitW, Roughness: 1, Reflectance: 0));
+            RenderSnapshot scene = Gpu.Snapshot(Vector3.UnitZ);
+            scene.Lights.Clear();
+            scene.Ambient = new AmbientLight
+            {
+                SkyColor = new(10),
+                GroundColor = new(10),
+                Intensity = 1,
+            };
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: glossy,
+                    position: new(0, 0, -1.5f),
+                    scale: new(3, 3, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 1
+                )
+            );
+            renderer.Render(scene, 1f);
+            float open = renderer.ReadHdr()[4 * (32 * 64 + 32)];
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: black,
+                    position: new(0, 0, 1.0f),
+                    scale: new(8, 8, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            scene.CameraCuts++;
+            scene.Time += 1.0 / 60;
+            renderer.Render(scene, 1f);
+            float occluded = renderer.ReadHdr()[4 * (32 * 64 + 32)];
+
+            open.Should().BeGreaterThan(0.1f, "an open room reflects the offscreen environment on a miss");
+            occluded
+                .Should()
+                .BeLessThan(open * 0.25f, "an opaque wall behind the camera occludes offscreen environment misses");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static float MeasureOffscreenReflectorRed(Vector4 baseColor, float exposureStops)
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new RendererOptions
+            {
+                Width = 64,
+                Height = 64,
+                WarmUpFrames = 0,
+                Validation = true,
+                Upscaling = new NoUpscaling(),
+                Exposure = new FixedExposure(exposureStops),
+                EnvironmentMap = new NoEnvironmentMap(),
+                ScreenTrace = new NoScreenTrace(),
+                LightVolume = true,
+            }
+        );
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId receiver = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, 1));
+            MaterialId source = renderer.CreateMaterial(MaterialDesc.Color(baseColor, 1));
+            RenderSnapshot scene = Gpu.Snapshot(-Vector3.UnitZ, starIrradiance: 20);
+            scene.Ambient = default;
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: receiver,
+                    position: new(0, 0, -1.5f),
+                    scale: new(3, 3, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 1
+                )
+            );
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: source,
+                    position: new(0, 0, 0.75f),
+                    scale: new(2, 2, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            renderer.Render(scene, 1f);
+            return renderer.ReadHdr()[4 * (32 * 64 + 32)];
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static float MeasureOffscreenEmitterRed(Vector3 emissive, float exposureStops)
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new RendererOptions
+            {
+                Width = 64,
+                Height = 64,
+                WarmUpFrames = 0,
+                Validation = true,
+                Upscaling = new NoUpscaling(),
+                Exposure = new FixedExposure(exposureStops),
+                EnvironmentMap = new NoEnvironmentMap(),
+                ScreenTrace = new NoScreenTrace(),
+                LightVolume = true,
+            }
+        );
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId receiver = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, 1));
+            MaterialId source = renderer.CreateMaterial(
+                new(BaseColor: Vector4.Zero with { W = 1 }, Roughness: 1, Emissive: emissive)
+            );
+            RenderSnapshot scene = Gpu.Snapshot(Vector3.UnitZ);
+            scene.Lights.Clear();
+            scene.Ambient = default;
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: receiver,
+                    position: new(0, 0, -2),
+                    scale: new(4, 4, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 1
+                )
+            );
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: source,
+                    position: new(0, 0, 1.5f),
+                    scale: new(2, 2, 0.08f),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            renderer.Render(scene, 1f);
+            return renderer.ReadHdr()[4 * (32 * 64 + 32)];
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 }

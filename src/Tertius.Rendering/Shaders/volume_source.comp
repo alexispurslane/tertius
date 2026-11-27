@@ -32,8 +32,9 @@ void main()
         vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c)) * 6 + side].rgb;
         if (pass.bounceNumber != 0u)
             light += volume.bounce[k].rgb;
-        source += area * (vec3(volume.surfaces[k].emission.rgb) * 16.0 + vec3(volume.surfaces[k].color.rgb) * light) /
-                  float(an.w);
+        vec3 diffuse = restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / float(an.w));
+        vec3 emission = vec3(volume.surfaces[k].emission.rgb) * (EmissionScale / float(an.w));
+        source += area * (emission + diffuse);
     }
     float clear = 1.0 - min(1.0, max(front, back));
 

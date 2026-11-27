@@ -152,7 +152,6 @@ internal sealed unsafe class LightVolumePass : RenderPass
                 Dispatch(context: context, pipeline: sweep, index: (uint)level, x: Directions, y: 1);
             Dispatch(context: context, pipeline: filter, index: bounce, x: Cells * Levels / 64, y: 6);
         }
-        Use(context, BufferUse.ShaderRead);
     }
 
     private void Rasterize(FrameContext context, ReadOnlySpan<Vector4> grids)

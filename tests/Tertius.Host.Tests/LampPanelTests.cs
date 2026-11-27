@@ -42,6 +42,25 @@ public sealed class LampPanelTests : IDisposable
     }
 
     [Fact]
+    public void TheAirlockLampIsADimRectangleLightUnderTheChamberRoof()
+    {
+        SceneInstance scene = Build("orbit");
+        RenderData render = world.GetRender(scene["airlock-lamp"]);
+        RectLightData light = render.Light is RectLightData face ? face : default;
+
+        (light.Width, light.Height).Should().Be((0.6f, 0.6f), "the chamber lamp is a 0.6 m square panel");
+        light.Power.Should().Be(1, "the dim chamber lamp sends 1 W, one tenth of a cabin lamp");
+        light.CastsShadow.Should().BeTrue("the chamber walls block its light from reaching the cabin");
+        (light.Offset.Position - new Double3(0, -0.05, 0))
+            .Length.Should()
+            .BeLessThan(1e-6, "the face lies on the panel's lower side, 0.05 m below its middle");
+        (Vector3.Transform(Vector3.UnitZ, light.Offset.Rotation) - new Vector3(0, -1, 0))
+            .Length()
+            .Should()
+            .BeLessThan(1e-6f, "the face shines down into the airlock chamber");
+    }
+
+    [Fact]
     public void TheBayLampsAreRectangleLightsThatFaceIntoTheBay()
     {
         SceneInstance scene = Build("demo-surface");

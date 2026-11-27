@@ -1,4 +1,9 @@
+#ifndef TERTIUS_VOLUME_RECEIVE_GLSL
+#define TERTIUS_VOLUME_RECEIVE_GLSL
+
+#ifndef VOLUME_BINDING
 #define VOLUME_BINDING 5
+#endif
 #define VOLUME_ACCESS readonly
 #include "volume.glsl"
 // The positive and negative axial lobes are weighted continuously on the unit sphere.
@@ -27,11 +32,41 @@ void volumeAt(int level, vec3 p, vec3 n, vec3 reflection, bool specular, out vec
             glossy += weight * volumeLobes(first + 6, reflection);
     }
 }
+// Remaining environment transmission along `direction` at `position`, offset along `geometricNormal`.
+float volumeTransmissionAt(vec3 position, vec3 geometricNormal, vec3 direction)
+{
+    float transmission = 1.0;
+    float remaining = 1.0;
+    for (int level = 0; level < Levels && remaining > 0.0; ++level)
+    {
+        vec4 grid = volume.grids[level];
+        vec3 p = (position - grid.xyz) / grid.w;
+        vec3 edge = min(p, vec3(GridSide) - p);
+        float weight = remaining * clamp(min(edge.x, min(edge.y, edge.z)) - 0.5, 0.0, 1.0);
+        if (weight == 0.0)
+            continue;
+        vec3 local = clamp(p + 0.45 * geometricNormal - 0.5, 0.0, 15.0);
+        ivec3 base = ivec3(floor(local));
+        vec3 f = fract(local);
+        float sampleA = 0.0;
+        for (int i = 0; i < 8; ++i)
+        {
+            ivec3 corner = ivec3(i % 2, (i / 2) % 2, i / 4);
+            vec3 w = mix(1.0 - f, f, vec3(corner));
+            int first = (level * Cells + cellIndex(min(base + corner, ivec3(15)))) * 12;
+            sampleA += w.x * w.y * w.z * volumeLobes(first + 6, direction).a;
+        }
+        transmission += weight * (sampleA - 1.0);
+        remaining -= weight;
+    }
+    return clamp(transmission, 0.0, 1.0);
+}
 void applyLightVolume(ShadingInput s, vec3 view, MaterialFactors factors, inout vec3 diffuse, inout vec3 specular)
 {
     vec4 d = vec4(0, 0, 0, 1), g = d;
     vec3 reflected = normalize(reflect(-view, s.normal));
-    bool rough = glossyShare(s.roughness) < 1.0;
+    float share = glossyShare(s.roughness);
+    bool needsSpecular = share < 1.0 || !screenTraceOn;
     float remaining = 1.0;
     for (int level = 0; level < Levels && remaining > 0.0; ++level)
     {
@@ -42,15 +77,19 @@ void applyLightVolume(ShadingInput s, vec3 view, MaterialFactors factors, inout 
         if (weight == 0.0)
             continue;
         vec4 ld, lg;
-        volumeAt(level, p + 0.45 * s.geometricNormal, s.normal, reflected, rough, ld, lg);
+        volumeAt(level, p + 0.45 * s.geometricNormal, s.normal, reflected, needsSpecular, ld, lg);
         d += weight * (ld - vec4(0, 0, 0, 1));
         g += weight * (lg - vec4(0, 0, 0, 1));
         remaining -= weight;
     }
     diffuse = clamp(d.a, 0.0, 1.0) * diffuse + factors.diffuse * preExposed(max(d.rgb, vec3(0)));
-    if (rough)
+    if (needsSpecular)
     {
-        vec3 local = clamp(g.a, 0.0, 1.0) * specular + factors.specular * preExposed(max(g.rgb, vec3(0)));
-        specular = screenTraceOn ? local : mix(local, specular, glossyShare(s.roughness));
+        float open = clamp(g.a, 0.0, 1.0);
+        vec3 broad = open * specular + factors.specular * preExposed(max(g.rgb, vec3(0)));
+        // Without the screen tracer, glossy surfaces still obey volume transmission without taking coarse volume radiance.
+        specular = screenTraceOn ? broad : mix(broad, open * specular, share);
     }
 }
+
+#endif

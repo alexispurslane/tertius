@@ -41,7 +41,7 @@ void main()
         m.metallic *
         textureGrad(sampler2D(textures[nonuniformEXT(m.metallicRoughnessMap)], materialSampler), uv, uvDx, uvDy).b;
     vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
-    vec3 glow = min(glowSent(m.emissive, draw.words.z), vec3(32256));
+    vec3 glow = restrainNeutral(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
     vec4 g = draw.grid;
     ivec3 c = ivec3(floor((world - g.xyz) / g.w));
     if (!withinGrid(c))
@@ -53,6 +53,6 @@ void main()
     {
         atomicAdd(volume.surfaces[k].areaNormal[i], int(round(area * n[i])));
         atomicAdd(volume.surfaces[k].color[i], uint(round(area * diffuse[i])));
-        atomicAdd(volume.surfaces[k].emission[i], uint(round(area * glow[i] / 16.0)));
+        atomicAdd(volume.surfaces[k].emission[i], uint(round(area * glow[i] / EmissionScale)));
     }
 }

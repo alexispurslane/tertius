@@ -6,6 +6,8 @@ const int Levels = 3;
 const int Directions = 32;
 const int CellCount = Cells * Levels;
 const int Tiles = 64;
+const float EmissionScale = 4.0;
+const float NeutralSourceShare = 0.02;
 struct SurfaceBucket
 {
     ivec4 areaNormal; // xyz oriented area vector, w area
@@ -80,4 +82,16 @@ vec4 parentOutgoing(ivec3 c, int level, int direction)
     vec3 world = grid.xyz + (vec3(c) + 0.5) * grid.w;
     ivec3 coarse = clamp(ivec3(floor((world - larger.xyz) / larger.w)), 0, 15);
     return outgoingOf(volume.field[((level + 1) * Directions + direction) * Cells + cellIndex(coarse)]);
+}
+
+// Low-saturation indirect sources are restrained to NeutralSourceShare so neutral bounce
+// preserves contrast while saturated colors keep their full indirect strength. Scaling all
+// channels by a function of saturation alone preserves hue and keeps the light field
+// independent of camera exposure.
+vec3 restrainNeutral(vec3 radiance)
+{
+    float peak = max(radiance.r, max(radiance.g, radiance.b));
+    float valley = min(radiance.r, min(radiance.g, radiance.b));
+    float chroma = smoothstep(0.58, 0.78, (peak - valley) / max(peak, 1e-12));
+    return radiance * mix(NeutralSourceShare, 1.0, chroma);
 }
