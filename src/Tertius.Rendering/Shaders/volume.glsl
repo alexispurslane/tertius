@@ -5,7 +5,7 @@ const int Cells = 4096;
 const int Levels = 4;
 const int Directions = 32;
 const int CellCount = Cells * Levels;
-const int Tiles = 64;
+const int Tiles = 512; // diagnostic (issue #21): 2³-cell light patches
 const float EmissionScale = 4.0;
 const float NeutralSourceShare = 0.02;
 struct SurfaceBucket
@@ -41,7 +41,7 @@ ivec3 coordinates(int i)
 }
 int tileIndex(ivec3 c)
 {
-    return c.x / 4 + 4 * (c.y / 4 + 4 * (c.z / 4));
+    return c.x / 2 + 8 * (c.y / 2 + 8 * (c.z / 2));
 }
 bool withinGrid(ivec3 c)
 {

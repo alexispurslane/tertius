@@ -12,7 +12,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
     private static ReadOnlySpan<float> Widths => [0.25f, 0.5f, 1f, 2f];
     private const int Cells = Side * Side * Side;
     private const int Directions = 32;
-    private const int Tiles = Cells / 64;
+    private const int Tiles = Cells / 8; // diagnostic (issue #21): 2³-cell light patches
     internal const uint CounterOffset = Levels * 16;
     private const uint HeaderBytes = Levels * 16 + 16;
     private const uint SurfaceBytes = Levels * Cells * 6 * 48;

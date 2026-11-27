@@ -19,12 +19,12 @@ void main()
         volume.whiteLight[patchIndex] = vec4(0);
         return;
     }
-    ivec3 origin = 4 * ivec3(tile % 4, (tile / 4) % 4, tile / 16);
+    ivec3 origin = 2 * ivec3(tile % 8, (tile / 8) % 8, tile / 64);
     vec3 normal = vec3(0), position = vec3(0);
     float sum = 0;
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < 8; ++i)
     {
-        ivec3 c = origin + ivec3(i % 4, (i / 4) % 4, i / 16);
+        ivec3 c = origin + ivec3(i % 2, (i / 2) % 2, i / 4);
         int k = (level * Cells + cellIndex(c)) * 6 + side;
         if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
             continue;
