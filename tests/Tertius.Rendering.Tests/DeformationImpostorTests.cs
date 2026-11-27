@@ -3,7 +3,7 @@ using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
-/// <summary>Impostor captures stay synchronized with deformation across frame slots, without diagnostic readback.</summary>
+/// <summary>Impostor and environment captures stay synchronized with deformation, without diagnostic readback.</summary>
 [Collection(GpuCollection.Name)]
 public sealed class DeformationImpostorTests
 {
@@ -19,6 +19,7 @@ public sealed class DeformationImpostorTests
             height: 180,
             framesInFlight: framesInFlight,
             impostors: true,
+            environmentMap: new SceneEnvironmentMap(FaceSize: 16, FacesPerFrame: 1),
             warmUpFrames: 0
         );
         try
@@ -64,6 +65,7 @@ public sealed class DeformationImpostorTests
 
                 renderer.LastFrameStats.DeformedInstances.Should().Be(1);
                 renderer.LastFrameStats.ImpostorCaptures.Should().Be(1, "each frame captures a new static object");
+                renderer.LastScene.EnvironmentFaces.Should().NotBeEmpty();
             }
         }
         finally
