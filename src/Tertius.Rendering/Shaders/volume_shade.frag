@@ -11,21 +11,24 @@ void main()
     int side = int(gl_FragCoord.x) % 6;
     int tile = int(gl_FragCoord.x) / 6;
     int level = int(gl_FragCoord.y);
-    if (gl_HelperInvocation || level >= Levels || tile >= Tiles)
+    if (gl_HelperInvocation || level >= Levels || tile >= tilesOf(level))
         return;
-    int patchIndex = (level * Tiles + tile) * 6 + side;
+    int patchIndex = (firstTileOf(level) + tile) * 6 + side;
     if (frame.counts.x == 0u)
     {
         volume.whiteLight[patchIndex] = vec4(0);
         return;
     }
-    ivec3 origin = 4 * ivec3(tile % 4, (tile / 4) % 4, tile / 16);
+    ivec3 origin = tileOrigin(level, tile);
     vec3 normal = vec3(0), position = vec3(0);
     float sum = 0;
     for (int i = 0; i < 64; ++i)
     {
         ivec3 c = origin + ivec3(i % 4, (i / 4) % 4, i / 16);
-        int k = (level * Cells + cellIndex(c)) * 6 + side;
+        // A group of the outer grid's guard shell holds only the cells within the grid.
+        if (!withinGrid(level, c))
+            continue;
+        int k = (firstCellOf(level) + cellIndex(level, c)) * 6 + side;
         if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
             continue;
         ivec4 an = volume.surfaces[k].areaNormal;

@@ -9,30 +9,36 @@ layout(push_constant) uniform Sweep
     uint level;
 }
 pass;
-shared vec4 plane[2][256];
+// The last two slices' outgoing light, MaxSide² cells each: 10,368 bytes, within the 16,384 that Vulkan guarantees.
+shared vec4 plane[2][MaxSide * MaxSide];
 
 vec4 upstream(ivec3 c, int u, int v, int slice, int level, int direction)
 {
-    if (withinGrid(c))
-        return plane[(slice + 1) % 2][c[u] + 16 * c[v]];
+    if (withinGrid(level, c))
+        return plane[(slice + 1) % 2][c[u] + MaxSide * c[v]];
     return parentOutgoing(c, level, direction);
 }
 
 void main()
 {
     int level = int(pass.level), direction = int(gl_WorkGroupID.x);
+    int side = sideOf(level);
     ivec3 step = directionStep(direction);
     ivec3 magnitude = abs(step);
     int axis = magnitude.x >= max(magnitude.y, magnitude.z) ? 0 : magnitude.y >= magnitude.z ? 1 : 2;
     int u = (axis + 1) % 3, v = (axis + 2) % 3;
     vec2 shift = vec2(magnitude[u], magnitude[v]) / float(magnitude[axis]);
-    for (int slice = 0; slice < 16; ++slice)
+    for (int slice = 0; slice < side; ++slice)
     {
-        for (int j = 0; j < 4; ++j)
+        // The 8 × 8 invocations cover a slice in blocks of 8 × 8 cells, 3 × 3 blocks for MaxSide. Each invocation
+        // skips its cells past the slice's side but still reaches the barrier below.
+        for (int j = 0; j < 9; ++j)
         {
-            ivec2 xy = ivec2(gl_LocalInvocationID.xy) + 8 * ivec2(j % 2, j / 2);
+            ivec2 xy = ivec2(gl_LocalInvocationID.xy) + 8 * ivec2(j % 3, j / 3);
+            if (any(greaterThanEqual(xy, ivec2(side))))
+                continue;
             ivec3 c;
-            c[axis] = step[axis] > 0 ? slice : 15 - slice;
+            c[axis] = step[axis] > 0 ? slice : side - 1 - slice;
             c[u] = xy.x;
             c[v] = xy.y;
             vec4 incoming = vec4(0);
@@ -49,10 +55,10 @@ void main()
                 q[v] -= corner.y * sign(step[v]);
                 incoming += fraction * upstream(q, u, v, slice, level, direction);
             }
-            int index = (level * Directions + direction) * Cells + cellIndex(c);
+            int index = fieldIndex(level, direction, cellIndex(level, c));
             vec4 transfer = uintBitsToFloat(volume.field[index]);
             vec4 outgoing = min(incoming * transfer.a + vec4(transfer.rgb, 0), vec4(65504));
-            plane[slice % 2][xy.x + 16 * xy.y] = outgoing;
+            plane[slice % 2][xy.x + MaxSide * xy.y] = outgoing;
             volume.field[index] =
                 uvec4(packHalf2x16(vec2(incoming.r, outgoing.r)), packHalf2x16(vec2(incoming.g, outgoing.g)),
                       packHalf2x16(vec2(incoming.b, outgoing.b)), packHalf2x16(vec2(incoming.a, outgoing.a)));
