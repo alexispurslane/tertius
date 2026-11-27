@@ -263,7 +263,7 @@ public sealed class BloomExposureIsolationTests
                     .SingleToInt32Bits(reading.Stops)
                     .Should()
                     .Be(
-                        BitConverter.SingleToInt32Bits(film.Used[frame]),
+                        BitConverter.SingleToInt32Bits(films[0].Used[frame]),
                         "at moving frame {0}, bloom variant {1}",
                         frame,
                         variant
