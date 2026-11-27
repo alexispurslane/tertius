@@ -49,9 +49,6 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of dropsFibers in frame.glsl.</summary>
     public const uint DropsFibersId = 3;
 
-    /// <summary>The constant_id of writesMotion in mesh.vert.</summary>
-    public const uint WritesMotionId = 4;
-
     /// <summary>The constant_id of maxTraceRoughness in temporal.glsl.</summary>
     public const uint MaxTraceRoughnessId = 5;
 
@@ -78,13 +75,6 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// variant.
     /// </summary>
     public bool DropsFibers { get; init; }
-
-    /// <summary>
-    /// True in the G-buffer's pipelines, whose vertex shader reads the motion rows and the kept positions and passes the
-    /// motion target's two places on (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, "Jitter"). The other passes that draw with mesh.vert
-    /// write no motion.
-    /// </summary>
-    public bool WritesMotion { get; init; }
 
     /// <summary>
     /// The skin scatter's taps per side (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The two passes"), which only
@@ -132,7 +122,6 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (CutoutAlphaId, VkBool(values.CutoutAlpha)),
             (ScatterTapsPerSideId, (uint)tapsPerSide),
             (DropsFibersId, VkBool(values.DropsFibers)),
-            (WritesMotionId, VkBool(values.WritesMotion)),
             (MaxTraceRoughnessId, BitConverter.SingleToUInt32Bits(values.MaxTraceRoughness)),
             (ScreenTraceOnId, VkBool(values.ScreenTraceOn)),
             (BothFacesId, VkBool(values.BothFaces)),
@@ -172,7 +161,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 13;
+    public const int Count = 12;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

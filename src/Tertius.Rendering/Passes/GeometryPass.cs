@@ -39,7 +39,7 @@ internal sealed unsafe class GeometryPass : RenderPass
     {
         this.device = device;
         this.kept = kept;
-        ShaderConstants commonConstants = constants with { WritesMotion = true, MainView = true };
+        ShaderConstants commonConstants = constants with { MainView = true };
         var desc = new GraphicsPipelineDesc
         {
             Name = "g-buffer",

@@ -47,7 +47,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         var desc = new GraphicsPipelineDesc
         {
             Name = "environment face surfaces",
-            VertexShader = "mesh.vert",
+            VertexShader = "mesh_nomotion.vert",
             FragmentShader = "environment_face.frag",
             Layout = layouts.SceneLayout,
             ColorFormats = FaceSurface.Formats,
