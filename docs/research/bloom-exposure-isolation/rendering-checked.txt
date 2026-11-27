@@ -1,0 +1,10 @@
+nix develop --command dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build
+TERTIUS_BLOOM_ISOLATION_REPORT was set to enable all 13 issue #2 tests.
+Test file SHA-256: 67e3a6b7a45c02ca1b171499e533e560d6c651b8a287c65e8c8e2f3dcfa519d6
+
+Test run summary: Passed!
+  total: 3620
+  failed: 0
+  succeeded: 3609
+  skipped: 11
+  duration: 19m 56s 393ms
