@@ -8,6 +8,8 @@ internal sealed unsafe class LightVolumePass : RenderPass
 {
     private const int Side = 16;
     private const int Levels = 3;
+    // Prototype (issue #21): the cell width of each level, finest first. A parent spans 2 or 4 children per axis.
+    private static ReadOnlySpan<float> Widths => [0.25f, 0.5f, 2f];
     private const int Cells = Side * Side * Side;
     private const int Directions = 32;
     private const int Tiles = Cells / 64;
@@ -101,7 +103,8 @@ internal sealed unsafe class LightVolumePass : RenderPass
 
     // A grid center lies at most half a cell from the camera along any axis.
     public static bool Intersects(Vector3 center, float radius) =>
-        MathF.Max(MathF.Abs(center.X), MathF.Max(MathF.Abs(center.Y), MathF.Abs(center.Z))) <= 8.5f + radius;
+        MathF.Max(MathF.Abs(center.X), MathF.Max(MathF.Abs(center.Y), MathF.Abs(center.Z)))
+        <= (Side + 1) * 0.5f * Widths[Levels - 1] + radius;
 
     public override void Record(FrameContext context)
     {
@@ -109,7 +112,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
         Double3 anchor = ShadowCascades.Anchor(context.Snapshot.OriginInFrame, context.Scene.Camera.Offset);
         for (int level = 0; level < Levels; level++)
         {
-            float width = 0.25f * (1 << level);
+            float width = Widths[level];
             float Origin(double x) => (float)Math.IEEERemainder(x, width) - Side / 2 * width;
             grids[level] = new(x: Origin(anchor.X), y: Origin(anchor.Y), z: Origin(anchor.Z), w: width);
         }
