@@ -7,9 +7,9 @@ namespace Tertius.Rendering;
 internal sealed unsafe class LightVolumePass : RenderPass
 {
     private const int Side = 16;
-    private const int Levels = 3;
+    private const int Levels = 4;
     // Prototype (issue #21): the cell width of each level, finest first. A parent spans 2 or 4 children per axis.
-    private static ReadOnlySpan<float> Widths => [0.25f, 0.5f, 2f];
+    private static ReadOnlySpan<float> Widths => [0.25f, 0.5f, 1f, 2f];
     private const int Cells = Side * Side * Side;
     private const int Directions = 32;
     private const int Tiles = Cells / 64;

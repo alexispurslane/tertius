@@ -1,8 +1,8 @@
-// Three nested 16³ grids, finest first. World axes are those of the camera's reference frame.
+// Four nested 16³ grids (prototype, issue #21), finest first. World axes are those of the camera's reference frame.
 // Each signed dominant-normal bucket sums geometry in units of 1/4096 of one cell face.
 const int GridSide = 16;
 const int Cells = 4096;
-const int Levels = 3;
+const int Levels = 4;
 const int Directions = 32;
 const int CellCount = Cells * Levels;
 const int Tiles = 64;
