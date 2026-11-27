@@ -9,7 +9,7 @@ namespace Tertius.Rendering;
 /// depth ranges (as an <see cref="IRangeDrawer"/> of <see cref="GeometryPass"/>).
 /// </summary>
 /// <remarks>
-/// <para>A capture is one object alone, drawn with <c>mesh.vert</c> through the same instance and indirect buffers
+/// <para>A capture is one object alone, drawn with <c>mesh_nomotion.vert</c> through the same instance and indirect buffers
 /// as the G-buffer pass: <see cref="Prepare"/> appends its GPU instance and its one indirect command. The camera is
 /// the main view's eye, looking at the center of the bounding sphere with the main view's up axis, and its square
 /// frustum is fitted to the sphere's tangent cone plus two texels of margin (<see cref="CaptureProjection"/>).
@@ -54,7 +54,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         var capture = new GraphicsPipelineDesc
         {
             Name = "impostor capture",
-            VertexShader = "mesh.vert",
+            VertexShader = "mesh_nomotion.vert",
             FragmentShader = "impostor_capture.frag",
             Layout = layouts.SceneLayout,
             ColorFormats = [ImpostorAtlas.ColorFormat, ImpostorAtlas.DepthOffsetFormat],
