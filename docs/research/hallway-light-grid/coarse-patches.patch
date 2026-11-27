@@ -1,0 +1,164 @@
+From e15f939c7f7756d321f4ecb94d8605a9a53dbf44 Mon Sep 17 00:00:00 2001
+From: Alexis Purslane <alexispurslane@pm.me>
+Date: Fri, 27 Nov 2026 10:59:03 -0500
+Subject: [PATCH 1/2] =?UTF-8?q?Diagnose=20the=202=20m=20leak=20with=202?=
+ =?UTF-8?q?=C2=B3-cell=20light=20patches=20(#21)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Shade each light patch over 2 x 2 x 2 cells instead of 4 x 4 x 4, so
+  a 2 m patch spans 4 m and cannot hold both the cabin floor and the
+  roof top.
+- Evidence only: this branch is not for merge.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/Tertius.Rendering/Passes/LightVolumePass.cs | 2 +-
+ src/Tertius.Rendering/Shaders/volume.glsl       | 4 ++--
+ src/Tertius.Rendering/Shaders/volume_shade.frag | 6 +++---
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/Tertius.Rendering/Passes/LightVolumePass.cs b/src/Tertius.Rendering/Passes/LightVolumePass.cs
+index 35f3275e3..93317c765 100644
+--- a/src/Tertius.Rendering/Passes/LightVolumePass.cs
++++ b/src/Tertius.Rendering/Passes/LightVolumePass.cs
+@@ -12,7 +12,7 @@ internal sealed unsafe class LightVolumePass : RenderPass
+     private static ReadOnlySpan<float> Widths => [0.25f, 0.5f, 1f, 2f];
+     private const int Cells = Side * Side * Side;
+     private const int Directions = 32;
+-    private const int Tiles = Cells / 64;
++    private const int Tiles = Cells / 8; // diagnostic (issue #21): 2³-cell light patches
+     internal const uint CounterOffset = Levels * 16;
+     private const uint HeaderBytes = Levels * 16 + 16;
+     private const uint SurfaceBytes = Levels * Cells * 6 * 48;
+diff --git a/src/Tertius.Rendering/Shaders/volume.glsl b/src/Tertius.Rendering/Shaders/volume.glsl
+index 5401488ed..13a56df7c 100644
+--- a/src/Tertius.Rendering/Shaders/volume.glsl
++++ b/src/Tertius.Rendering/Shaders/volume.glsl
+@@ -5,7 +5,7 @@ const int Cells = 4096;
+ const int Levels = 4;
+ const int Directions = 32;
+ const int CellCount = Cells * Levels;
+-const int Tiles = 64;
++const int Tiles = 512; // diagnostic (issue #21): 2³-cell light patches
+ const float EmissionScale = 4.0;
+ const float NeutralSourceShare = 0.02;
+ struct SurfaceBucket
+@@ -41,7 +41,7 @@ ivec3 coordinates(int i)
+ }
+ int tileIndex(ivec3 c)
+ {
+-    return c.x / 4 + 4 * (c.y / 4 + 4 * (c.z / 4));
++    return c.x / 2 + 8 * (c.y / 2 + 8 * (c.z / 2));
+ }
+ bool withinGrid(ivec3 c)
+ {
+diff --git a/src/Tertius.Rendering/Shaders/volume_shade.frag b/src/Tertius.Rendering/Shaders/volume_shade.frag
+index 478f4aff0..07ddedfc1 100644
+--- a/src/Tertius.Rendering/Shaders/volume_shade.frag
++++ b/src/Tertius.Rendering/Shaders/volume_shade.frag
+@@ -19,12 +19,12 @@ void main()
+         volume.whiteLight[patchIndex] = vec4(0);
+         return;
+     }
+-    ivec3 origin = 4 * ivec3(tile % 4, (tile / 4) % 4, tile / 16);
++    ivec3 origin = 2 * ivec3(tile % 8, (tile / 8) % 8, tile / 64);
+     vec3 normal = vec3(0), position = vec3(0);
+     float sum = 0;
+-    for (int i = 0; i < 64; ++i)
++    for (int i = 0; i < 8; ++i)
+     {
+-        ivec3 c = origin + ivec3(i % 4, (i / 4) % 4, i / 16);
++        ivec3 c = origin + ivec3(i % 2, (i / 2) % 2, i / 4);
+         int k = (level * Cells + cellIndex(c)) * 6 + side;
+         if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
+             continue;
+-- 
+2.56.0
+
+
+From a0ed6aece79fdddb37f1f0afe33620c2fc5e2b03 Mon Sep 17 00:00:00 2001
+From: Alexis Purslane <alexispurslane@pm.me>
+Date: Fri, 27 Nov 2026 11:01:46 -0500
+Subject: [PATCH 2/2] =?UTF-8?q?Limit=20the=202=C2=B3-cell=20light=20patche?=
+ =?UTF-8?q?s=20to=20the=202=20m=20level=20(#21)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Keep merged's 4 x 4 x 4 patches at the 0.25, 0.5 and 1 m levels, so
+  the diagnostic changes only the coarsest level.
+- Evidence only: this branch is not for merge.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/Tertius.Rendering/Shaders/volume.glsl        | 10 ++++++++--
+ src/Tertius.Rendering/Shaders/volume_shade.frag  | 12 +++++++++---
+ src/Tertius.Rendering/Shaders/volume_source.comp |  2 +-
+ 3 files changed, 18 insertions(+), 6 deletions(-)
+
+diff --git a/src/Tertius.Rendering/Shaders/volume.glsl b/src/Tertius.Rendering/Shaders/volume.glsl
+index 13a56df7c..0d193ef7a 100644
+--- a/src/Tertius.Rendering/Shaders/volume.glsl
++++ b/src/Tertius.Rendering/Shaders/volume.glsl
+@@ -39,9 +39,15 @@ ivec3 coordinates(int i)
+ {
+     return ivec3(i % 16, (i / 16) % 16, i / 256);
+ }
+-int tileIndex(ivec3 c)
++// Diagnostic (issue #21): the cells per axis of one light patch, 2 at the coarsest level and 4 below it.
++int patchSide(int level)
+ {
+-    return c.x / 2 + 8 * (c.y / 2 + 8 * (c.z / 2));
++    return level == Levels - 1 ? 2 : 4;
++}
++int tileIndex(ivec3 c, int level)
++{
++    int s = patchSide(level), n = GridSide / s;
++    return c.x / s + n * (c.y / s + n * (c.z / s));
+ }
+ bool withinGrid(ivec3 c)
+ {
+diff --git a/src/Tertius.Rendering/Shaders/volume_shade.frag b/src/Tertius.Rendering/Shaders/volume_shade.frag
+index 07ddedfc1..66f782c80 100644
+--- a/src/Tertius.Rendering/Shaders/volume_shade.frag
++++ b/src/Tertius.Rendering/Shaders/volume_shade.frag
+@@ -19,12 +19,18 @@ void main()
+         volume.whiteLight[patchIndex] = vec4(0);
+         return;
+     }
+-    ivec3 origin = 2 * ivec3(tile % 8, (tile / 8) % 8, tile / 64);
++    int s = patchSide(level), n = GridSide / s;
++    if (tile >= n * n * n)
++    {
++        volume.whiteLight[patchIndex] = vec4(0);
++        return;
++    }
++    ivec3 origin = s * ivec3(tile % n, (tile / n) % n, tile / (n * n));
+     vec3 normal = vec3(0), position = vec3(0);
+     float sum = 0;
+-    for (int i = 0; i < 8; ++i)
++    for (int i = 0; i < s * s * s; ++i)
+     {
+-        ivec3 c = origin + ivec3(i % 2, (i / 2) % 2, i / 4);
++        ivec3 c = origin + ivec3(i % s, (i / s) % s, i / (s * s));
+         int k = (level * Cells + cellIndex(c)) * 6 + side;
+         if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
+             continue;
+diff --git a/src/Tertius.Rendering/Shaders/volume_source.comp b/src/Tertius.Rendering/Shaders/volume_source.comp
+index 471ac954a..3f37bf41a 100644
+--- a/src/Tertius.Rendering/Shaders/volume_source.comp
++++ b/src/Tertius.Rendering/Shaders/volume_source.comp
+@@ -29,7 +29,7 @@ void main()
+         if (area <= 0)
+             continue;
+         front += area;
+-        vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c)) * 6 + side].rgb;
++        vec3 light = volume.whiteLight[(level * Tiles + tileIndex(c, level)) * 6 + side].rgb;
+         if (pass.bounceNumber != 0u)
+             light += volume.bounce[k].rgb;
+         vec3 diffuse = restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / float(an.w));
+-- 
+2.56.0
+

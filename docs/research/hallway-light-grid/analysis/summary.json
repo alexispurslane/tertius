@@ -1,0 +1,477 @@
+{
+  "frames": 1190,
+  "mean_abs_diff_8bit": {
+    "merged_vs_legacy": {
+      "walk": 15.794,
+      "40-60 m": 18.111,
+      "17-40 m": 18.027,
+      "9-17 m": 9.374,
+      "0-9 m": 10.109
+    },
+    "outer_vs_legacy": {
+      "walk": 70.718,
+      "40-60 m": 67.464,
+      "17-40 m": 57.493,
+      "9-17 m": 79.628,
+      "0-9 m": 106.933
+    },
+    "four_vs_legacy": {
+      "walk": 36.428,
+      "40-60 m": 44.066,
+      "17-40 m": 28.535,
+      "9-17 m": 47.764,
+      "0-9 m": 28.689
+    },
+    "tiles_vs_legacy": {
+      "walk": 27.811,
+      "40-60 m": 30.225,
+      "17-40 m": 29.739,
+      "9-17 m": 27.152,
+      "0-9 m": 17.148
+    },
+    "legacy_vs_merged": {
+      "walk": 15.794,
+      "40-60 m": 18.111,
+      "17-40 m": 18.027,
+      "9-17 m": 9.374,
+      "0-9 m": 10.109
+    },
+    "outer_vs_merged": {
+      "walk": 74.697,
+      "40-60 m": 71.126,
+      "17-40 m": 58.804,
+      "9-17 m": 85.925,
+      "0-9 m": 116.883
+    },
+    "four_vs_merged": {
+      "walk": 38.503,
+      "40-60 m": 47.156,
+      "17-40 m": 29.633,
+      "9-17 m": 53.8,
+      "0-9 m": 27.156
+    },
+    "tiles_vs_merged": {
+      "walk": 12.833,
+      "40-60 m": 12.895,
+      "17-40 m": 12.609,
+      "9-17 m": 19.127,
+      "0-9 m": 7.205
+    }
+  },
+  "temporal_noise_8bit": {
+    "legacy": {
+      "start": 0.572,
+      "end": 0.544
+    },
+    "merged": {
+      "start": 0.521,
+      "end": 0.505
+    },
+    "outer": {
+      "start": 0.527,
+      "end": 0.525
+    },
+    "four": {
+      "start": 0.538,
+      "end": 0.508
+    },
+    "tiles": {
+      "start": 0.536,
+      "end": 0.505
+    }
+  },
+  "walk_steps": {
+    "wall_legacy": {
+      "16-60 m": 1,
+      "7.1-16 m": 0,
+      "below 7.1 m": 0,
+      "largest": [
+        {
+          "distance": 56.53,
+          "frame": 74,
+          "before": 86.06,
+          "after": 86.74,
+          "change_percent": 0.8
+        }
+      ]
+    },
+    "wall_merged": {
+      "16-60 m": 30,
+      "7.1-16 m": 4,
+      "below 7.1 m": 4,
+      "largest": [
+        {
+          "distance": 6.98,
+          "frame": 1065,
+          "before": 62.87,
+          "after": 46.74,
+          "change_percent": -25.7
+        },
+        {
+          "distance": 58.33,
+          "frame": 38,
+          "before": 59.63,
+          "after": 68.88,
+          "change_percent": 15.5
+        },
+        {
+          "distance": 17.83,
+          "frame": 848,
+          "before": 64.56,
+          "after": 66.62,
+          "change_percent": 3.2
+        },
+        {
+          "distance": 29.53,
+          "frame": 614,
+          "before": 66.23,
+          "after": 68.11,
+          "change_percent": 2.8
+        },
+        {
+          "distance": 16.93,
+          "frame": 866,
+          "before": 66.81,
+          "after": 68.68,
+          "change_percent": 2.8
+        }
+      ]
+    },
+    "wall_outer": {
+      "16-60 m": 30,
+      "7.1-16 m": 118,
+      "below 7.1 m": 45,
+      "largest": [
+        {
+          "distance": 14.48,
+          "frame": 915,
+          "before": 70.95,
+          "after": 109.88,
+          "change_percent": 54.9
+        },
+        {
+          "distance": 12.48,
+          "frame": 955,
+          "before": 120.86,
+          "after": 132.08,
+          "change_percent": 9.3
+        },
+        {
+          "distance": 9.68,
+          "frame": 1011,
+          "before": 157.35,
+          "after": 167.28,
+          "change_percent": 6.3
+        },
+        {
+          "distance": 58.33,
+          "frame": 38,
+          "before": 60.03,
+          "after": 69.27,
+          "change_percent": 15.4
+        },
+        {
+          "distance": 11.63,
+          "frame": 972,
+          "before": 138.22,
+          "after": 145.22,
+          "change_percent": 5.1
+        }
+      ]
+    },
+    "wall_four": {
+      "16-60 m": 30,
+      "7.1-16 m": 119,
+      "below 7.1 m": 34,
+      "largest": [
+        {
+          "distance": 6.98,
+          "frame": 1065,
+          "before": 180.86,
+          "after": 58.83,
+          "change_percent": -67.5
+        },
+        {
+          "distance": 14.48,
+          "frame": 915,
+          "before": 70.72,
+          "after": 109.3,
+          "change_percent": 54.6
+        },
+        {
+          "distance": 12.48,
+          "frame": 955,
+          "before": 120.14,
+          "after": 131.34,
+          "change_percent": 9.3
+        },
+        {
+          "distance": 9.68,
+          "frame": 1011,
+          "before": 156.46,
+          "after": 166.58,
+          "change_percent": 6.5
+        },
+        {
+          "distance": 58.33,
+          "frame": 38,
+          "before": 59.85,
+          "after": 69.1,
+          "change_percent": 15.5
+        }
+      ]
+    },
+    "wall_tiles": {
+      "16-60 m": 30,
+      "7.1-16 m": 2,
+      "below 7.1 m": 0,
+      "largest": [
+        {
+          "distance": 14.48,
+          "frame": 915,
+          "before": 69.84,
+          "after": 48.27,
+          "change_percent": -30.9
+        },
+        {
+          "distance": 58.33,
+          "frame": 38,
+          "before": 59.62,
+          "after": 68.88,
+          "change_percent": 15.5
+        },
+        {
+          "distance": 12.48,
+          "frame": 955,
+          "before": 46.11,
+          "after": 38.67,
+          "change_percent": -16.1
+        },
+        {
+          "distance": 17.83,
+          "frame": 848,
+          "before": 64.39,
+          "after": 66.46,
+          "change_percent": 3.2
+        },
+        {
+          "distance": 29.53,
+          "frame": 614,
+          "before": 66.16,
+          "after": 68.04,
+          "change_percent": 2.8
+        }
+      ]
+    },
+    "floor_legacy": {
+      "16-60 m": 83,
+      "7.1-16 m": 16,
+      "below 7.1 m": 0,
+      "largest": [
+        {
+          "distance": 23.68,
+          "frame": 731,
+          "before": 122.1,
+          "after": 126.06,
+          "change_percent": 3.2
+        },
+        {
+          "distance": 24.08,
+          "frame": 723,
+          "before": 126.87,
+          "after": 123.48,
+          "change_percent": -2.7
+        },
+        {
+          "distance": 24.53,
+          "frame": 714,
+          "before": 128.24,
+          "after": 124.93,
+          "change_percent": -2.6
+        },
+        {
+          "distance": 24.98,
+          "frame": 705,
+          "before": 128.6,
+          "after": 125.33,
+          "change_percent": -2.5
+        },
+        {
+          "distance": 23.63,
+          "frame": 732,
+          "before": 126.06,
+          "after": 123.04,
+          "change_percent": -2.4
+        }
+      ]
+    },
+    "floor_merged": {
+      "16-60 m": 122,
+      "7.1-16 m": 26,
+      "below 7.1 m": 1,
+      "largest": [
+        {
+          "distance": 23.68,
+          "frame": 731,
+          "before": 85.68,
+          "after": 91.66,
+          "change_percent": 7.0
+        },
+        {
+          "distance": 24.53,
+          "frame": 714,
+          "before": 93.6,
+          "after": 87.98,
+          "change_percent": -6.0
+        },
+        {
+          "distance": 24.08,
+          "frame": 723,
+          "before": 92.94,
+          "after": 87.89,
+          "change_percent": -5.4
+        },
+        {
+          "distance": 24.98,
+          "frame": 705,
+          "before": 93.74,
+          "after": 88.93,
+          "change_percent": -5.1
+        },
+        {
+          "distance": 23.63,
+          "frame": 732,
+          "before": 91.66,
+          "after": 87.47,
+          "change_percent": -4.6
+        }
+      ]
+    },
+    "floor_outer": {
+      "16-60 m": 125,
+      "7.1-16 m": 142,
+      "below 7.1 m": 32,
+      "largest": [
+        {
+          "distance": 16.48,
+          "frame": 875,
+          "before": 91.61,
+          "after": 109.69,
+          "change_percent": 19.7
+        },
+        {
+          "distance": 13.63,
+          "frame": 932,
+          "before": 136.71,
+          "after": 145.9,
+          "change_percent": 6.7
+        },
+        {
+          "distance": 13.68,
+          "frame": 931,
+          "before": 127.92,
+          "after": 136.71,
+          "change_percent": 6.9
+        },
+        {
+          "distance": 13.33,
+          "frame": 938,
+          "before": 162.85,
+          "after": 171.01,
+          "change_percent": 5.0
+        },
+        {
+          "distance": 15.58,
+          "frame": 893,
+          "before": 110.0,
+          "after": 116.74,
+          "change_percent": 6.1
+        }
+      ]
+    },
+    "floor_four": {
+      "16-60 m": 126,
+      "7.1-16 m": 121,
+      "below 7.1 m": 16,
+      "largest": [
+        {
+          "distance": 8.98,
+          "frame": 1025,
+          "before": 190.4,
+          "after": 127.74,
+          "change_percent": -32.9
+        },
+        {
+          "distance": 7.98,
+          "frame": 1045,
+          "before": 125.02,
+          "after": 98.34,
+          "change_percent": -21.3
+        },
+        {
+          "distance": 16.48,
+          "frame": 875,
+          "before": 90.19,
+          "after": 108.54,
+          "change_percent": 20.3
+        },
+        {
+          "distance": 9.98,
+          "frame": 1005,
+          "before": 196.66,
+          "after": 185.0,
+          "change_percent": -5.9
+        },
+        {
+          "distance": 13.63,
+          "frame": 932,
+          "before": 135.11,
+          "after": 144.3,
+          "change_percent": 6.8
+        }
+      ]
+    },
+    "floor_tiles": {
+      "16-60 m": 120,
+      "7.1-16 m": 20,
+      "below 7.1 m": 1,
+      "largest": [
+        {
+          "distance": 23.68,
+          "frame": 731,
+          "before": 85.6,
+          "after": 91.67,
+          "change_percent": 7.1
+        },
+        {
+          "distance": 24.53,
+          "frame": 714,
+          "before": 93.6,
+          "after": 87.95,
+          "change_percent": -6.0
+        },
+        {
+          "distance": 24.08,
+          "frame": 723,
+          "before": 92.9,
+          "after": 87.85,
+          "change_percent": -5.4
+        },
+        {
+          "distance": 24.98,
+          "frame": 705,
+          "before": 93.8,
+          "after": 88.94,
+          "change_percent": -5.2
+        },
+        {
+          "distance": 23.63,
+          "frame": 732,
+          "before": 91.67,
+          "after": 87.42,
+          "change_percent": -4.6
+        }
+      ]
+    }
+  }
+}

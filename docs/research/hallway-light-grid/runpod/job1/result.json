@@ -1,0 +1,52 @@
+{
+  "id": "e97c0dd4-1692-41f9-88b3-5c40e760aa18-u2",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 592747,
+  "delayTime": 11232,
+  "error": null,
+  "files": [
+    "out/clocks.csv",
+    "out/four/run-1.log",
+    "out/four/run-1/gpu-timings.json",
+    "out/four/run-2.log",
+    "out/four/run-2/gpu-timings.json",
+    "out/four/run-3.log",
+    "out/four/run-3/gpu-timings.json",
+    "out/four/run-4.log",
+    "out/four/run-4/gpu-timings.json",
+    "out/legacy/run-1.log",
+    "out/legacy/run-1/gpu-timings.json",
+    "out/legacy/run-2.log",
+    "out/legacy/run-2/gpu-timings.json",
+    "out/legacy/run-3.log",
+    "out/legacy/run-3/gpu-timings.json",
+    "out/legacy/run-4.log",
+    "out/legacy/run-4/gpu-timings.json",
+    "out/merged/run-1.log",
+    "out/merged/run-1/gpu-timings.json",
+    "out/merged/run-2.log",
+    "out/merged/run-2/gpu-timings.json",
+    "out/merged/run-3.log",
+    "out/merged/run-3/gpu-timings.json",
+    "out/merged/run-4.log",
+    "out/merged/run-4/gpu-timings.json",
+    "out/outer/run-1.log",
+    "out/outer/run-1/gpu-timings.json",
+    "out/outer/run-2.log",
+    "out/outer/run-2/gpu-timings.json",
+    "out/outer/run-3.log",
+    "out/outer/run-3/gpu-timings.json",
+    "out/outer/run-4.log",
+    "out/outer/run-4/gpu-timings.json"
+  ],
+  "log": "$ for t in legacy merged outer four; do cp branch/scripts/hallway-walk.json $t/scripts/hallway-walk.json; done && DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash merged/tools/runpod/ab_run.sh scripts/hallway-walk.json 4 legacy merged outer four\nbuilding legacy\n    0 Error(s)\n\nTime Elapsed 00:01:02.35\nbuilding merged\n    0 Error(s)\n\nTime Elapsed 00:00:52.08\nbuilding outer\n    0 Error(s)\n\nTime Elapsed 00:00:49.49\nbuilding four\n    0 Error(s)\n\nTime Elapsed 00:00:50.36\nwarming up with legacy\nlegacy run 1: GPU frame span: mean 9.790 ms, median 9.924 ms, p95 10.073 ms over 1190 frames\nmerged run 1: GPU frame span: mean 8.857 ms, median 8.892 ms, p95 9.002 ms over 1190 frames\nouter run 1: GPU frame span: mean 8.659 ms, median 8.695 ms, p95 8.843 ms over 1190 frames\nfour run 1: GPU frame span: mean 8.903 ms, median 8.940 ms, p95 9.091 ms over 1190 frames\nfour run 2: GPU frame span: mean 8.922 ms, median 8.963 ms, p95 9.116 ms over 1190 frames\nouter run 2: GPU frame span: mean 8.666 ms, median 8.708 ms, p95 8.858 ms over 1190 frames\nmerged run 2: GPU frame span: mean 8.541 ms, median 8.585 ms, p95 8.705 ms over 1190 frames\nlegacy run 2: GPU frame span: mean 9.937 ms, median 10.073 ms, p95 10.262 ms over 1190 frames\nlegacy run 3: GPU frame span: mean 9.980 ms, median 10.123 ms, p95 10.305 ms over 1190 frames\nmerged run 3: GPU frame span: mean 8.556 ms, median 8.600 ms, p95 8.705 ms over 1190 frames\nouter run 3: GPU frame span: mean 8.698 ms, median 8.739 ms, p95 8.884 ms over 1190 frames\nfour run 3: GPU frame span: mean 8.936 ms, median 8.979 ms, p95 9.137 ms over 1190 frames\nfour run 4: GPU frame span: mean 8.938 ms, median 8.984 ms, p95 9.134 ms over 1190 frames\nouter run 4: GPU frame span: mean 8.690 ms, median 8.731 ms, p95 8.879 ms over 1190 frames\nmerged run 4: GPU frame span: mean 8.571 ms, median 8.609 ms, p95 8.726 ms over 1190 frames\nlegacy run 4: GPU frame span: mean 9.985 ms, median 10.118 ms, p95 10.326 ms over 1190 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "for t in legacy merged outer four; do cp branch/scripts/hallway-walk.json $t/scripts/hallway-walk.json; done && DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash merged/tools/runpod/ab_run.sh scripts/hallway-walk.json 4 legacy merged outer four",
+      "exitCode": 0,
+      "seconds": 572.8131845491007
+    }
+  ]
+}

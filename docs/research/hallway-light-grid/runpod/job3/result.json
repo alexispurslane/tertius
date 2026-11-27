@@ -1,0 +1,50 @@
+{
+  "id": "cfb2f98f-f218-4240-b46d-5e4d521246dd-u1",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 480317,
+  "delayTime": 26987,
+  "error": null,
+  "files": [
+    "out/clocks.csv",
+    "out/four/run-1.log",
+    "out/four/run-1/gpu-timings.json",
+    "out/four/run-2.log",
+    "out/four/run-2/gpu-timings.json",
+    "out/four/run-3.log",
+    "out/four/run-3/gpu-timings.json",
+    "out/four/run-4.log",
+    "out/four/run-4/gpu-timings.json",
+    "out/four/run-5.log",
+    "out/four/run-5/gpu-timings.json",
+    "out/merged/run-1.log",
+    "out/merged/run-1/gpu-timings.json",
+    "out/merged/run-2.log",
+    "out/merged/run-2/gpu-timings.json",
+    "out/merged/run-3.log",
+    "out/merged/run-3/gpu-timings.json",
+    "out/merged/run-4.log",
+    "out/merged/run-4/gpu-timings.json",
+    "out/merged/run-5.log",
+    "out/merged/run-5/gpu-timings.json",
+    "out/tiles/run-1.log",
+    "out/tiles/run-1/gpu-timings.json",
+    "out/tiles/run-2.log",
+    "out/tiles/run-2/gpu-timings.json",
+    "out/tiles/run-3.log",
+    "out/tiles/run-3/gpu-timings.json",
+    "out/tiles/run-4.log",
+    "out/tiles/run-4/gpu-timings.json",
+    "out/tiles/run-5.log",
+    "out/tiles/run-5/gpu-timings.json"
+  ],
+  "log": "$ for t in merged four tiles; do cp branch/scripts/hallway-walk.json $t/scripts/hallway-walk.json; done && DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash merged/tools/runpod/ab_run.sh scripts/hallway-walk.json 5 merged four tiles\nbuilding merged\n    0 Error(s)\n\nTime Elapsed 00:01:05.63\nbuilding four\n    0 Error(s)\n\nTime Elapsed 00:00:52.77\nbuilding tiles\n    0 Error(s)\n\nTime Elapsed 00:00:49.48\nwarming up with merged\nmerged run 1: GPU frame span: mean 8.591 ms, median 8.636 ms, p95 8.743 ms over 1190 frames\nfour run 1: GPU frame span: mean 9.007 ms, median 9.041 ms, p95 9.195 ms over 1190 frames\ntiles run 1: GPU frame span: mean 8.998 ms, median 9.042 ms, p95 9.163 ms over 1190 frames\ntiles run 2: GPU frame span: mean 9.012 ms, median 9.056 ms, p95 9.184 ms over 1190 frames\nfour run 2: GPU frame span: mean 9.024 ms, median 9.064 ms, p95 9.222 ms over 1190 frames\nmerged run 2: GPU frame span: mean 8.644 ms, median 8.685 ms, p95 8.799 ms over 1190 frames\nmerged run 3: GPU frame span: mean 8.629 ms, median 8.670 ms, p95 8.780 ms over 1190 frames\nfour run 3: GPU frame span: mean 9.022 ms, median 9.061 ms, p95 9.215 ms over 1190 frames\ntiles run 3: GPU frame span: mean 9.006 ms, median 9.059 ms, p95 9.189 ms over 1190 frames\ntiles run 4: GPU frame span: mean 9.021 ms, median 9.067 ms, p95 9.200 ms over 1190 frames\nfour run 4: GPU frame span: mean 9.026 ms, median 9.065 ms, p95 9.221 ms over 1190 frames\nmerged run 4: GPU frame span: mean 8.647 ms, median 8.686 ms, p95 8.798 ms over 1190 frames\nmerged run 5: GPU frame span: mean 8.642 ms, median 8.679 ms, p95 8.798 ms over 1190 frames\nfour run 5: GPU frame span: mean 9.043 ms, median 9.083 ms, p95 9.238 ms over 1190 frames\ntiles run 5: GPU frame span: mean 9.027 ms, median 9.070 ms, p95 9.199 ms over 1190 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "for t in merged four tiles; do cp branch/scripts/hallway-walk.json $t/scripts/hallway-walk.json; done && DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash merged/tools/runpod/ab_run.sh scripts/hallway-walk.json 5 merged four tiles",
+      "exitCode": 0,
+      "seconds": 464.25034554395825
+    }
+  ]
+}
