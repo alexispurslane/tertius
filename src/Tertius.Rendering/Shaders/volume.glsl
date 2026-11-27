@@ -1,11 +1,6 @@
-// Three nested 16³ grids, finest first. World axes are those of the camera's reference frame.
+// The directional light volume's buffer (volume_layout.glsl has the grids' shape).
 // Each signed dominant-normal bucket sums geometry in units of 1/4096 of one cell face.
-const int GridSide = 16;
-const int Cells = 4096;
-const int Levels = 3;
-const int Directions = 32;
-const int CellCount = Cells * Levels;
-const int Tiles = 64;
+#include "volume_layout.glsl"
 const float EmissionScale = 4.0;
 const float NeutralSourceShare = 0.02;
 struct SurfaceBucket
@@ -25,28 +20,12 @@ layout(set = VOLUME_SET, binding = VOLUME_BINDING, std430) VOLUME_ACCESS buffer 
     vec4 grids[Levels]; // lowest corner relative to the camera (m), cell width (m)
     uvec4 stats;        // x lighting evaluations
     SurfaceBucket surfaces[CellCount * 6];
-    vec4 whiteLight[Levels * Tiles * 6]; // outgoing radiance of a unit white diffuse surface
+    vec4 whiteLight[TileCount * 6]; // outgoing radiance of a unit white diffuse surface
     uvec4 field[CellCount * Directions]; // outgoing radiance and remaining environment transmission
     vec4 bounce[CellCount * 6];
     vec4 filtered[CellCount * 12]; // directional diffuse and broad specular integrals
 }
 volume;
-int cellIndex(ivec3 c)
-{
-    return c.x + GridSide * (c.y + GridSide * c.z);
-}
-ivec3 coordinates(int i)
-{
-    return ivec3(i % 16, (i / 16) % 16, i / 256);
-}
-int tileIndex(ivec3 c)
-{
-    return c.x / 4 + 4 * (c.y / 4 + 4 * (c.z / 4));
-}
-bool withinGrid(ivec3 c)
-{
-    return all(greaterThanEqual(c, ivec3(0))) && all(lessThan(c, ivec3(GridSide)));
-}
 ivec3 directionStep(int d)
 {
     // Four directions per octant: one diagonal, three tilted toward the axes.
@@ -80,8 +59,8 @@ vec4 parentOutgoing(ivec3 c, int level, int direction)
         return vec4(0, 0, 0, 1);
     vec4 grid = volume.grids[level], larger = volume.grids[level + 1];
     vec3 world = grid.xyz + (vec3(c) + 0.5) * grid.w;
-    ivec3 coarse = clamp(ivec3(floor((world - larger.xyz) / larger.w)), 0, 15);
-    return outgoingOf(volume.field[((level + 1) * Directions + direction) * Cells + cellIndex(coarse)]);
+    ivec3 coarse = clamp(ivec3(floor((world - larger.xyz) / larger.w)), 0, sideOf(level + 1) - 1);
+    return outgoingOf(volume.field[fieldIndex(level + 1, direction, cellIndex(level + 1, coarse))]);
 }
 
 // Low-saturation indirect sources are restrained to NeutralSourceShare so neutral bounce

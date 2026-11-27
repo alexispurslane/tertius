@@ -29,7 +29,7 @@ void main()
     if (finest > 0)
     {
         vec4 finer = volume.grids[finest - 1];
-        if (withinGrid(ivec3(floor((world - finer.xyz) / finer.w))))
+        if (withinGrid(finest - 1, ivec3(floor((world - finer.xyz) / finer.w))))
             return;
     }
     GpuMaterial m = materials[draw.words.y];
@@ -44,10 +44,10 @@ void main()
     vec3 glow = restrainNeutral(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
     vec4 g = draw.grid;
     ivec3 c = ivec3(floor((world - g.xyz) / g.w));
-    if (!withinGrid(c))
+    if (!withinGrid(finest, c))
         return;
     float area = length(crossArea) / (g.w * g.w) * 4096.0;
-    int k = (finest * Cells + cellIndex(c)) * 6 + side;
+    int k = (firstCellOf(finest) + cellIndex(finest, c)) * 6 + side;
     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
     for (int i = 0; i < 3; ++i)
     {
