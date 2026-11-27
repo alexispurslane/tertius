@@ -1,0 +1,35 @@
+{
+  "id": "3ca224fd-2f5e-47cc-a1c0-1e5f8c3a3711-u2",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 480295,
+  "delayTime": 51228,
+  "error": null,
+  "files": [
+    "out/clocks.csv",
+    "out/guard/run-1/gpu-timings.json",
+    "out/guard/run-2/gpu-timings.json",
+    "out/guard/run-3/gpu-timings.json",
+    "out/guard/run-4/gpu-timings.json",
+    "out/guard/run-5/gpu-timings.json",
+    "out/guard8/run-1/gpu-timings.json",
+    "out/guard8/run-2/gpu-timings.json",
+    "out/guard8/run-3/gpu-timings.json",
+    "out/guard8/run-4/gpu-timings.json",
+    "out/guard8/run-5/gpu-timings.json",
+    "out/main/run-1/gpu-timings.json",
+    "out/main/run-2/gpu-timings.json",
+    "out/main/run-3/gpu-timings.json",
+    "out/main/run-4/gpu-timings.json",
+    "out/main/run-5/gpu-timings.json"
+  ],
+  "log": "$ DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash main/tools/runpod/ab_run.sh scripts/hallway-walk.json 5 main guard guard8\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:01:05.03\nbuilding guard\n    0 Error(s)\n\nTime Elapsed 00:00:53.60\nbuilding guard8\n    0 Error(s)\n\nTime Elapsed 00:00:54.97\nwarming up with main\nmain run 1: GPU frame span: mean 8.501 ms, median 8.544 ms, p95 8.656 ms over 1190 frames\nguard run 1: GPU frame span: mean 8.653 ms, median 8.690 ms, p95 8.797 ms over 1190 frames\nguard8 run 1: GPU frame span: mean 8.816 ms, median 8.859 ms, p95 8.971 ms over 1190 frames\nguard8 run 2: GPU frame span: mean 8.835 ms, median 8.882 ms, p95 9.003 ms over 1190 frames\nguard run 2: GPU frame span: mean 8.689 ms, median 8.734 ms, p95 8.876 ms over 1190 frames\nmain run 2: GPU frame span: mean 8.529 ms, median 8.574 ms, p95 8.698 ms over 1190 frames\nmain run 3: GPU frame span: mean 8.547 ms, median 8.584 ms, p95 8.700 ms over 1190 frames\nguard run 3: GPU frame span: mean 8.715 ms, median 8.754 ms, p95 8.871 ms over 1190 frames\nguard8 run 3: GPU frame span: mean 8.852 ms, median 8.888 ms, p95 9.007 ms over 1190 frames\nguard8 run 4: GPU frame span: mean 8.845 ms, median 8.881 ms, p95 9.004 ms over 1190 frames\nguard run 4: GPU frame span: mean 8.722 ms, median 8.760 ms, p95 8.873 ms over 1190 frames\nmain run 4: GPU frame span: mean 8.555 ms, median 8.593 ms, p95 8.704 ms over 1190 frames\nmain run 5: GPU frame span: mean 8.547 ms, median 8.588 ms, p95 8.705 ms over 1190 frames\nguard run 5: GPU frame span: mean 8.728 ms, median 8.766 ms, p95 8.879 ms over 1190 frames\nguard8 run 5: GPU frame span: mean 8.858 ms, median 8.897 ms, p95 9.009 ms over 1190 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --exposure 3.79 --gpu-run deformation..outlines\" bash main/tools/runpod/ab_run.sh scripts/hallway-walk.json 5 main guard guard8",
+      "exitCode": 0,
+      "seconds": 467.50721888802946
+    }
+  ]
+}

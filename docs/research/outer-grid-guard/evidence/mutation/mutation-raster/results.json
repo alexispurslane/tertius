@@ -1,0 +1,23 @@
+{
+ "stopped": null,
+ "rows": [
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+   "line": 197,
+   "change": "BeginRaster(context, geom... -> BeginRaster(context, geom...",
+   "result": "killed",
+   "killed_by": [
+    "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 3.625, z: 3.75)",
+    "LightVolumeLayoutTests.ASmallSurfaceAtALevelsEdgeContributesItsCoverageToTheOuterGrid(x: 0.125, y: 0.125, z: 8.5)"
+   ],
+   "seconds": 34.798477625474334,
+   "original": "BeginRaster(context, geometry, new(OuterSide * 4, OuterSide * 4));",
+   "replacement": "BeginRaster(context, geometry, new(Reach * 4, Reach * 4));",
+   "classes": [
+    "LightVolumeRenderTests",
+    "LightVolumeLayoutTests"
+   ]
+  }
+ ]
+}

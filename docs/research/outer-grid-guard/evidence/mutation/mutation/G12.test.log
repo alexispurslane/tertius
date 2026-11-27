@@ -1,0 +1,63 @@
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 6.69999981) (3s 076ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected changes[2] to approximate 0F +/- 0.011767578F because the fade follows the camera, so the snap adds no step, but 2.2841797F differed by 2.2841797F.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.NumericAssertionsExtensions.FailIfDifferenceOutsidePrecision[T](Boolean differenceWithinPrecision, NumericAssertions`1 parent, T expectedValue, T precision, T actualDifference, String because, Object[] becauseArgs)
+    at AwesomeAssertions.NumericAssertionsExtensions.BeApproximately(NumericAssertions`1 parent, Single expectedValue, Single precision, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:334
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7.30000019) (849ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected lights.Min() to be greater than 0.001F because the emitter lights the wall through the outer grid, but found 0F (difference of -0.001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:333
+    at InvokeStub_LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(distance: 7) (836ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected changes[2] to approximate 0F +/- 0.0013720703F because the fade follows the camera, so the snap adds no step, but 3.2944336F differed by 3.2944336F.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.NumericAssertionsExtensions.FailIfDifferenceOutsidePrecision[T](Boolean differenceWithinPrecision, NumericAssertions`1 parent, T expectedValue, T precision, T actualDifference, String because, Object[] becauseArgs)
+    at AwesomeAssertions.NumericAssertionsExtensions.BeApproximately(NumericAssertions`1 parent, Single expectedValue, Single precision, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:334
+    at InvokeStub_LightVolumeRenderTests.AWallInTheOuterFadeChangesNoMoreWhenTheCameraStepsAcrossAWholeCellThanWithinOne(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps (879ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected beyond to contain only items matching (red == 0) because the dark scene's only light reaches the wall through the grid, but {0.33129883F, 1.1728516F} do(es) not match.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Execution.GivenSelector`1.FailWith(String message, Func`2[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass88_0.<OnlyContain>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.TheOuterFadeEndsSevenAndAHalfCellsFromTheCameraWhereverTheGridSnaps() in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:397
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallAtAFixedDistanceInTheOuterFadeGetsTheSameLightWhereverTheGridSnaps(distance: 7.19999981) (922ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected lights.Min() to be greater than 0.001F because the emitter lights the wall through the outer grid, but found 0F (difference of -0.001).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeGreaterThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallAtAFixedDistanceInTheOuterFadeGetsTheSameLightWhereverTheGridSnaps(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:364
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.LightVolumeRenderTests.AWallAtAFixedDistanceInTheOuterFadeGetsTheSameLightWhereverTheGridSnaps(distance: 6.80000019) (889ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected lights.Max() to be less than 1.1021484F because the fade follows the camera, not the cell that the grid snapped to, but found 3.4453125F (difference of 2.343164).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.BeLessThan(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.LightVolumeRenderTests.AWallAtAFixedDistanceInTheOuterFadeGetsTheSameLightWhereverTheGridSnaps(Single distance) in /Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/LightVolumeRenderTests.cs:365
+    at InvokeStub_LightVolumeRenderTests.AWallAtAFixedDistanceInTheOuterFadeGetsTheSameLightWhereverTheGridSnaps(Object, Span`1)
+    at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+/Users/alexispurslane/.t3/worktrees/tertius/t3-343285ff-f8dc54ee4377651e/tests/Tertius.Rendering.Tests/bin/Checked/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 6 error(s) [+14/x6/?0] (28s 089ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 20
+  failed: 6
+  succeeded: 14
+  skipped: 0
+  duration: 28s 484ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)

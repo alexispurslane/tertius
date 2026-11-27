@@ -1,0 +1,32 @@
+[
+  {
+    "id": "B01",
+    "file": "src/Tertius.Rendering/Passes/BloomPass.cs",
+    "line": 32,
+    "original": "        RenderTargets targets = context.Targets;",
+    "replacement": "        if (context.Number > 62)\n        {\n            context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.TransferDestination);\n            context.Barriers.Flush(context.Vk, context.CommandBuffer);\n            context.Vk.CmdFillBuffer(\n                commandBuffer: context.CommandBuffer,\n                dstBuffer: context.Exposure.Buffer.Handle,\n                dstOffset: 0,\n                size: sizeof(float),\n                data: BitConverter.SingleToUInt32Bits(bloom.Strength)\n            );\n        }\n        RenderTargets targets = context.Targets;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": "BloomExposureIsolationTests",
+    "note": "Bloom overwrites next-frame exposure only after moving frame 30; delayed feedback must be caught."
+  },
+  {
+    "id": "B02",
+    "file": "src/Tertius.Rendering/Passes/ToneMapPass.cs",
+    "line": 90,
+    "original": "            GlowStrength = glow?.Strength ?? 0,",
+    "replacement": "            GlowStrength = 0,",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": "BloomExposureIsolationTests",
+    "note": "Disable visible halo while leaving exposure isolated."
+  },
+  {
+    "id": "B03",
+    "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+    "line": 80,
+    "original": "        exposureStops = used + (target - used) * factor;",
+    "replacement": "        exposureStops = used;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": "BloomExposureIsolationTests",
+    "note": "Freeze exposure so equal bloom variants cannot hide a broken light response."
+  }
+]

@@ -1,0 +1,5952 @@
+[
+  {
+    "frame": 0,
+    "capture": "start-000000",
+    "stops": 3.79
+  },
+  {
+    "frame": 1,
+    "capture": "start-000001",
+    "stops": 3.79
+  },
+  {
+    "frame": 2,
+    "capture": "start-000002",
+    "stops": 3.79
+  },
+  {
+    "frame": 3,
+    "capture": "start-000003",
+    "stops": 3.79
+  },
+  {
+    "frame": 4,
+    "capture": "start-000004",
+    "stops": 3.79
+  },
+  {
+    "frame": 5,
+    "capture": "start-000005",
+    "stops": 3.79
+  },
+  {
+    "frame": 6,
+    "capture": "start-000006",
+    "stops": 3.79
+  },
+  {
+    "frame": 7,
+    "capture": "start-000007",
+    "stops": 3.79
+  },
+  {
+    "frame": 8,
+    "capture": "start-000008",
+    "stops": 3.79
+  },
+  {
+    "frame": 9,
+    "capture": "start-000009",
+    "stops": 3.79
+  },
+  {
+    "frame": 10,
+    "capture": "start-000010",
+    "stops": 3.79
+  },
+  {
+    "frame": 11,
+    "capture": "start-000011",
+    "stops": 3.79
+  },
+  {
+    "frame": 12,
+    "capture": "start-000012",
+    "stops": 3.79
+  },
+  {
+    "frame": 13,
+    "capture": "start-000013",
+    "stops": 3.79
+  },
+  {
+    "frame": 14,
+    "capture": "start-000014",
+    "stops": 3.79
+  },
+  {
+    "frame": 15,
+    "capture": "start-000015",
+    "stops": 3.79
+  },
+  {
+    "frame": 16,
+    "capture": "start-000016",
+    "stops": 3.79
+  },
+  {
+    "frame": 17,
+    "capture": "start-000017",
+    "stops": 3.79
+  },
+  {
+    "frame": 18,
+    "capture": "start-000018",
+    "stops": 3.79
+  },
+  {
+    "frame": 19,
+    "capture": "start-000019",
+    "stops": 3.79
+  },
+  {
+    "frame": 20,
+    "capture": "start-000020",
+    "stops": 3.79
+  },
+  {
+    "frame": 21,
+    "capture": "start-000021",
+    "stops": 3.79
+  },
+  {
+    "frame": 22,
+    "capture": "start-000022",
+    "stops": 3.79
+  },
+  {
+    "frame": 23,
+    "capture": "start-000023",
+    "stops": 3.79
+  },
+  {
+    "frame": 24,
+    "capture": "start-000024",
+    "stops": 3.79
+  },
+  {
+    "frame": 25,
+    "capture": "start-000025",
+    "stops": 3.79
+  },
+  {
+    "frame": 26,
+    "capture": "start-000026",
+    "stops": 3.79
+  },
+  {
+    "frame": 27,
+    "capture": "start-000027",
+    "stops": 3.79
+  },
+  {
+    "frame": 28,
+    "capture": "start-000028",
+    "stops": 3.79
+  },
+  {
+    "frame": 29,
+    "capture": "start-000029",
+    "stops": 3.79
+  },
+  {
+    "frame": 30,
+    "capture": "walk-000000",
+    "stops": 3.79
+  },
+  {
+    "frame": 31,
+    "capture": "walk-000001",
+    "stops": 3.79
+  },
+  {
+    "frame": 32,
+    "capture": "walk-000002",
+    "stops": 3.79
+  },
+  {
+    "frame": 33,
+    "capture": "walk-000003",
+    "stops": 3.79
+  },
+  {
+    "frame": 34,
+    "capture": "walk-000004",
+    "stops": 3.79
+  },
+  {
+    "frame": 35,
+    "capture": "walk-000005",
+    "stops": 3.79
+  },
+  {
+    "frame": 36,
+    "capture": "walk-000006",
+    "stops": 3.79
+  },
+  {
+    "frame": 37,
+    "capture": "walk-000007",
+    "stops": 3.79
+  },
+  {
+    "frame": 38,
+    "capture": "walk-000008",
+    "stops": 3.79
+  },
+  {
+    "frame": 39,
+    "capture": "walk-000009",
+    "stops": 3.79
+  },
+  {
+    "frame": 40,
+    "capture": "walk-000010",
+    "stops": 3.79
+  },
+  {
+    "frame": 41,
+    "capture": "walk-000011",
+    "stops": 3.79
+  },
+  {
+    "frame": 42,
+    "capture": "walk-000012",
+    "stops": 3.79
+  },
+  {
+    "frame": 43,
+    "capture": "walk-000013",
+    "stops": 3.79
+  },
+  {
+    "frame": 44,
+    "capture": "walk-000014",
+    "stops": 3.79
+  },
+  {
+    "frame": 45,
+    "capture": "walk-000015",
+    "stops": 3.79
+  },
+  {
+    "frame": 46,
+    "capture": "walk-000016",
+    "stops": 3.79
+  },
+  {
+    "frame": 47,
+    "capture": "walk-000017",
+    "stops": 3.79
+  },
+  {
+    "frame": 48,
+    "capture": "walk-000018",
+    "stops": 3.79
+  },
+  {
+    "frame": 49,
+    "capture": "walk-000019",
+    "stops": 3.79
+  },
+  {
+    "frame": 50,
+    "capture": "walk-000020",
+    "stops": 3.79
+  },
+  {
+    "frame": 51,
+    "capture": "walk-000021",
+    "stops": 3.79
+  },
+  {
+    "frame": 52,
+    "capture": "walk-000022",
+    "stops": 3.79
+  },
+  {
+    "frame": 53,
+    "capture": "walk-000023",
+    "stops": 3.79
+  },
+  {
+    "frame": 54,
+    "capture": "walk-000024",
+    "stops": 3.79
+  },
+  {
+    "frame": 55,
+    "capture": "walk-000025",
+    "stops": 3.79
+  },
+  {
+    "frame": 56,
+    "capture": "walk-000026",
+    "stops": 3.79
+  },
+  {
+    "frame": 57,
+    "capture": "walk-000027",
+    "stops": 3.79
+  },
+  {
+    "frame": 58,
+    "capture": "walk-000028",
+    "stops": 3.79
+  },
+  {
+    "frame": 59,
+    "capture": "walk-000029",
+    "stops": 3.79
+  },
+  {
+    "frame": 60,
+    "capture": "walk-000030",
+    "stops": 3.79
+  },
+  {
+    "frame": 61,
+    "capture": "walk-000031",
+    "stops": 3.79
+  },
+  {
+    "frame": 62,
+    "capture": "walk-000032",
+    "stops": 3.79
+  },
+  {
+    "frame": 63,
+    "capture": "walk-000033",
+    "stops": 3.79
+  },
+  {
+    "frame": 64,
+    "capture": "walk-000034",
+    "stops": 3.79
+  },
+  {
+    "frame": 65,
+    "capture": "walk-000035",
+    "stops": 3.79
+  },
+  {
+    "frame": 66,
+    "capture": "walk-000036",
+    "stops": 3.79
+  },
+  {
+    "frame": 67,
+    "capture": "walk-000037",
+    "stops": 3.79
+  },
+  {
+    "frame": 68,
+    "capture": "walk-000038",
+    "stops": 3.79
+  },
+  {
+    "frame": 69,
+    "capture": "walk-000039",
+    "stops": 3.79
+  },
+  {
+    "frame": 70,
+    "capture": "walk-000040",
+    "stops": 3.79
+  },
+  {
+    "frame": 71,
+    "capture": "walk-000041",
+    "stops": 3.79
+  },
+  {
+    "frame": 72,
+    "capture": "walk-000042",
+    "stops": 3.79
+  },
+  {
+    "frame": 73,
+    "capture": "walk-000043",
+    "stops": 3.79
+  },
+  {
+    "frame": 74,
+    "capture": "walk-000044",
+    "stops": 3.79
+  },
+  {
+    "frame": 75,
+    "capture": "walk-000045",
+    "stops": 3.79
+  },
+  {
+    "frame": 76,
+    "capture": "walk-000046",
+    "stops": 3.79
+  },
+  {
+    "frame": 77,
+    "capture": "walk-000047",
+    "stops": 3.79
+  },
+  {
+    "frame": 78,
+    "capture": "walk-000048",
+    "stops": 3.79
+  },
+  {
+    "frame": 79,
+    "capture": "walk-000049",
+    "stops": 3.79
+  },
+  {
+    "frame": 80,
+    "capture": "walk-000050",
+    "stops": 3.79
+  },
+  {
+    "frame": 81,
+    "capture": "walk-000051",
+    "stops": 3.79
+  },
+  {
+    "frame": 82,
+    "capture": "walk-000052",
+    "stops": 3.79
+  },
+  {
+    "frame": 83,
+    "capture": "walk-000053",
+    "stops": 3.79
+  },
+  {
+    "frame": 84,
+    "capture": "walk-000054",
+    "stops": 3.79
+  },
+  {
+    "frame": 85,
+    "capture": "walk-000055",
+    "stops": 3.79
+  },
+  {
+    "frame": 86,
+    "capture": "walk-000056",
+    "stops": 3.79
+  },
+  {
+    "frame": 87,
+    "capture": "walk-000057",
+    "stops": 3.79
+  },
+  {
+    "frame": 88,
+    "capture": "walk-000058",
+    "stops": 3.79
+  },
+  {
+    "frame": 89,
+    "capture": "walk-000059",
+    "stops": 3.79
+  },
+  {
+    "frame": 90,
+    "capture": "walk-000060",
+    "stops": 3.79
+  },
+  {
+    "frame": 91,
+    "capture": "walk-000061",
+    "stops": 3.79
+  },
+  {
+    "frame": 92,
+    "capture": "walk-000062",
+    "stops": 3.79
+  },
+  {
+    "frame": 93,
+    "capture": "walk-000063",
+    "stops": 3.79
+  },
+  {
+    "frame": 94,
+    "capture": "walk-000064",
+    "stops": 3.79
+  },
+  {
+    "frame": 95,
+    "capture": "walk-000065",
+    "stops": 3.79
+  },
+  {
+    "frame": 96,
+    "capture": "walk-000066",
+    "stops": 3.79
+  },
+  {
+    "frame": 97,
+    "capture": "walk-000067",
+    "stops": 3.79
+  },
+  {
+    "frame": 98,
+    "capture": "walk-000068",
+    "stops": 3.79
+  },
+  {
+    "frame": 99,
+    "capture": "walk-000069",
+    "stops": 3.79
+  },
+  {
+    "frame": 100,
+    "capture": "walk-000070",
+    "stops": 3.79
+  },
+  {
+    "frame": 101,
+    "capture": "walk-000071",
+    "stops": 3.79
+  },
+  {
+    "frame": 102,
+    "capture": "walk-000072",
+    "stops": 3.79
+  },
+  {
+    "frame": 103,
+    "capture": "walk-000073",
+    "stops": 3.79
+  },
+  {
+    "frame": 104,
+    "capture": "walk-000074",
+    "stops": 3.79
+  },
+  {
+    "frame": 105,
+    "capture": "walk-000075",
+    "stops": 3.79
+  },
+  {
+    "frame": 106,
+    "capture": "walk-000076",
+    "stops": 3.79
+  },
+  {
+    "frame": 107,
+    "capture": "walk-000077",
+    "stops": 3.79
+  },
+  {
+    "frame": 108,
+    "capture": "walk-000078",
+    "stops": 3.79
+  },
+  {
+    "frame": 109,
+    "capture": "walk-000079",
+    "stops": 3.79
+  },
+  {
+    "frame": 110,
+    "capture": "walk-000080",
+    "stops": 3.79
+  },
+  {
+    "frame": 111,
+    "capture": "walk-000081",
+    "stops": 3.79
+  },
+  {
+    "frame": 112,
+    "capture": "walk-000082",
+    "stops": 3.79
+  },
+  {
+    "frame": 113,
+    "capture": "walk-000083",
+    "stops": 3.79
+  },
+  {
+    "frame": 114,
+    "capture": "walk-000084",
+    "stops": 3.79
+  },
+  {
+    "frame": 115,
+    "capture": "walk-000085",
+    "stops": 3.79
+  },
+  {
+    "frame": 116,
+    "capture": "walk-000086",
+    "stops": 3.79
+  },
+  {
+    "frame": 117,
+    "capture": "walk-000087",
+    "stops": 3.79
+  },
+  {
+    "frame": 118,
+    "capture": "walk-000088",
+    "stops": 3.79
+  },
+  {
+    "frame": 119,
+    "capture": "walk-000089",
+    "stops": 3.79
+  },
+  {
+    "frame": 120,
+    "capture": "walk-000090",
+    "stops": 3.79
+  },
+  {
+    "frame": 121,
+    "capture": "walk-000091",
+    "stops": 3.79
+  },
+  {
+    "frame": 122,
+    "capture": "walk-000092",
+    "stops": 3.79
+  },
+  {
+    "frame": 123,
+    "capture": "walk-000093",
+    "stops": 3.79
+  },
+  {
+    "frame": 124,
+    "capture": "walk-000094",
+    "stops": 3.79
+  },
+  {
+    "frame": 125,
+    "capture": "walk-000095",
+    "stops": 3.79
+  },
+  {
+    "frame": 126,
+    "capture": "walk-000096",
+    "stops": 3.79
+  },
+  {
+    "frame": 127,
+    "capture": "walk-000097",
+    "stops": 3.79
+  },
+  {
+    "frame": 128,
+    "capture": "walk-000098",
+    "stops": 3.79
+  },
+  {
+    "frame": 129,
+    "capture": "walk-000099",
+    "stops": 3.79
+  },
+  {
+    "frame": 130,
+    "capture": "walk-000100",
+    "stops": 3.79
+  },
+  {
+    "frame": 131,
+    "capture": "walk-000101",
+    "stops": 3.79
+  },
+  {
+    "frame": 132,
+    "capture": "walk-000102",
+    "stops": 3.79
+  },
+  {
+    "frame": 133,
+    "capture": "walk-000103",
+    "stops": 3.79
+  },
+  {
+    "frame": 134,
+    "capture": "walk-000104",
+    "stops": 3.79
+  },
+  {
+    "frame": 135,
+    "capture": "walk-000105",
+    "stops": 3.79
+  },
+  {
+    "frame": 136,
+    "capture": "walk-000106",
+    "stops": 3.79
+  },
+  {
+    "frame": 137,
+    "capture": "walk-000107",
+    "stops": 3.79
+  },
+  {
+    "frame": 138,
+    "capture": "walk-000108",
+    "stops": 3.79
+  },
+  {
+    "frame": 139,
+    "capture": "walk-000109",
+    "stops": 3.79
+  },
+  {
+    "frame": 140,
+    "capture": "walk-000110",
+    "stops": 3.79
+  },
+  {
+    "frame": 141,
+    "capture": "walk-000111",
+    "stops": 3.79
+  },
+  {
+    "frame": 142,
+    "capture": "walk-000112",
+    "stops": 3.79
+  },
+  {
+    "frame": 143,
+    "capture": "walk-000113",
+    "stops": 3.79
+  },
+  {
+    "frame": 144,
+    "capture": "walk-000114",
+    "stops": 3.79
+  },
+  {
+    "frame": 145,
+    "capture": "walk-000115",
+    "stops": 3.79
+  },
+  {
+    "frame": 146,
+    "capture": "walk-000116",
+    "stops": 3.79
+  },
+  {
+    "frame": 147,
+    "capture": "walk-000117",
+    "stops": 3.79
+  },
+  {
+    "frame": 148,
+    "capture": "walk-000118",
+    "stops": 3.79
+  },
+  {
+    "frame": 149,
+    "capture": "walk-000119",
+    "stops": 3.79
+  },
+  {
+    "frame": 150,
+    "capture": "walk-000120",
+    "stops": 3.79
+  },
+  {
+    "frame": 151,
+    "capture": "walk-000121",
+    "stops": 3.79
+  },
+  {
+    "frame": 152,
+    "capture": "walk-000122",
+    "stops": 3.79
+  },
+  {
+    "frame": 153,
+    "capture": "walk-000123",
+    "stops": 3.79
+  },
+  {
+    "frame": 154,
+    "capture": "walk-000124",
+    "stops": 3.79
+  },
+  {
+    "frame": 155,
+    "capture": "walk-000125",
+    "stops": 3.79
+  },
+  {
+    "frame": 156,
+    "capture": "walk-000126",
+    "stops": 3.79
+  },
+  {
+    "frame": 157,
+    "capture": "walk-000127",
+    "stops": 3.79
+  },
+  {
+    "frame": 158,
+    "capture": "walk-000128",
+    "stops": 3.79
+  },
+  {
+    "frame": 159,
+    "capture": "walk-000129",
+    "stops": 3.79
+  },
+  {
+    "frame": 160,
+    "capture": "walk-000130",
+    "stops": 3.79
+  },
+  {
+    "frame": 161,
+    "capture": "walk-000131",
+    "stops": 3.79
+  },
+  {
+    "frame": 162,
+    "capture": "walk-000132",
+    "stops": 3.79
+  },
+  {
+    "frame": 163,
+    "capture": "walk-000133",
+    "stops": 3.79
+  },
+  {
+    "frame": 164,
+    "capture": "walk-000134",
+    "stops": 3.79
+  },
+  {
+    "frame": 165,
+    "capture": "walk-000135",
+    "stops": 3.79
+  },
+  {
+    "frame": 166,
+    "capture": "walk-000136",
+    "stops": 3.79
+  },
+  {
+    "frame": 167,
+    "capture": "walk-000137",
+    "stops": 3.79
+  },
+  {
+    "frame": 168,
+    "capture": "walk-000138",
+    "stops": 3.79
+  },
+  {
+    "frame": 169,
+    "capture": "walk-000139",
+    "stops": 3.79
+  },
+  {
+    "frame": 170,
+    "capture": "walk-000140",
+    "stops": 3.79
+  },
+  {
+    "frame": 171,
+    "capture": "walk-000141",
+    "stops": 3.79
+  },
+  {
+    "frame": 172,
+    "capture": "walk-000142",
+    "stops": 3.79
+  },
+  {
+    "frame": 173,
+    "capture": "walk-000143",
+    "stops": 3.79
+  },
+  {
+    "frame": 174,
+    "capture": "walk-000144",
+    "stops": 3.79
+  },
+  {
+    "frame": 175,
+    "capture": "walk-000145",
+    "stops": 3.79
+  },
+  {
+    "frame": 176,
+    "capture": "walk-000146",
+    "stops": 3.79
+  },
+  {
+    "frame": 177,
+    "capture": "walk-000147",
+    "stops": 3.79
+  },
+  {
+    "frame": 178,
+    "capture": "walk-000148",
+    "stops": 3.79
+  },
+  {
+    "frame": 179,
+    "capture": "walk-000149",
+    "stops": 3.79
+  },
+  {
+    "frame": 180,
+    "capture": "walk-000150",
+    "stops": 3.79
+  },
+  {
+    "frame": 181,
+    "capture": "walk-000151",
+    "stops": 3.79
+  },
+  {
+    "frame": 182,
+    "capture": "walk-000152",
+    "stops": 3.79
+  },
+  {
+    "frame": 183,
+    "capture": "walk-000153",
+    "stops": 3.79
+  },
+  {
+    "frame": 184,
+    "capture": "walk-000154",
+    "stops": 3.79
+  },
+  {
+    "frame": 185,
+    "capture": "walk-000155",
+    "stops": 3.79
+  },
+  {
+    "frame": 186,
+    "capture": "walk-000156",
+    "stops": 3.79
+  },
+  {
+    "frame": 187,
+    "capture": "walk-000157",
+    "stops": 3.79
+  },
+  {
+    "frame": 188,
+    "capture": "walk-000158",
+    "stops": 3.79
+  },
+  {
+    "frame": 189,
+    "capture": "walk-000159",
+    "stops": 3.79
+  },
+  {
+    "frame": 190,
+    "capture": "walk-000160",
+    "stops": 3.79
+  },
+  {
+    "frame": 191,
+    "capture": "walk-000161",
+    "stops": 3.79
+  },
+  {
+    "frame": 192,
+    "capture": "walk-000162",
+    "stops": 3.79
+  },
+  {
+    "frame": 193,
+    "capture": "walk-000163",
+    "stops": 3.79
+  },
+  {
+    "frame": 194,
+    "capture": "walk-000164",
+    "stops": 3.79
+  },
+  {
+    "frame": 195,
+    "capture": "walk-000165",
+    "stops": 3.79
+  },
+  {
+    "frame": 196,
+    "capture": "walk-000166",
+    "stops": 3.79
+  },
+  {
+    "frame": 197,
+    "capture": "walk-000167",
+    "stops": 3.79
+  },
+  {
+    "frame": 198,
+    "capture": "walk-000168",
+    "stops": 3.79
+  },
+  {
+    "frame": 199,
+    "capture": "walk-000169",
+    "stops": 3.79
+  },
+  {
+    "frame": 200,
+    "capture": "walk-000170",
+    "stops": 3.79
+  },
+  {
+    "frame": 201,
+    "capture": "walk-000171",
+    "stops": 3.79
+  },
+  {
+    "frame": 202,
+    "capture": "walk-000172",
+    "stops": 3.79
+  },
+  {
+    "frame": 203,
+    "capture": "walk-000173",
+    "stops": 3.79
+  },
+  {
+    "frame": 204,
+    "capture": "walk-000174",
+    "stops": 3.79
+  },
+  {
+    "frame": 205,
+    "capture": "walk-000175",
+    "stops": 3.79
+  },
+  {
+    "frame": 206,
+    "capture": "walk-000176",
+    "stops": 3.79
+  },
+  {
+    "frame": 207,
+    "capture": "walk-000177",
+    "stops": 3.79
+  },
+  {
+    "frame": 208,
+    "capture": "walk-000178",
+    "stops": 3.79
+  },
+  {
+    "frame": 209,
+    "capture": "walk-000179",
+    "stops": 3.79
+  },
+  {
+    "frame": 210,
+    "capture": "walk-000180",
+    "stops": 3.79
+  },
+  {
+    "frame": 211,
+    "capture": "walk-000181",
+    "stops": 3.79
+  },
+  {
+    "frame": 212,
+    "capture": "walk-000182",
+    "stops": 3.79
+  },
+  {
+    "frame": 213,
+    "capture": "walk-000183",
+    "stops": 3.79
+  },
+  {
+    "frame": 214,
+    "capture": "walk-000184",
+    "stops": 3.79
+  },
+  {
+    "frame": 215,
+    "capture": "walk-000185",
+    "stops": 3.79
+  },
+  {
+    "frame": 216,
+    "capture": "walk-000186",
+    "stops": 3.79
+  },
+  {
+    "frame": 217,
+    "capture": "walk-000187",
+    "stops": 3.79
+  },
+  {
+    "frame": 218,
+    "capture": "walk-000188",
+    "stops": 3.79
+  },
+  {
+    "frame": 219,
+    "capture": "walk-000189",
+    "stops": 3.79
+  },
+  {
+    "frame": 220,
+    "capture": "walk-000190",
+    "stops": 3.79
+  },
+  {
+    "frame": 221,
+    "capture": "walk-000191",
+    "stops": 3.79
+  },
+  {
+    "frame": 222,
+    "capture": "walk-000192",
+    "stops": 3.79
+  },
+  {
+    "frame": 223,
+    "capture": "walk-000193",
+    "stops": 3.79
+  },
+  {
+    "frame": 224,
+    "capture": "walk-000194",
+    "stops": 3.79
+  },
+  {
+    "frame": 225,
+    "capture": "walk-000195",
+    "stops": 3.79
+  },
+  {
+    "frame": 226,
+    "capture": "walk-000196",
+    "stops": 3.79
+  },
+  {
+    "frame": 227,
+    "capture": "walk-000197",
+    "stops": 3.79
+  },
+  {
+    "frame": 228,
+    "capture": "walk-000198",
+    "stops": 3.79
+  },
+  {
+    "frame": 229,
+    "capture": "walk-000199",
+    "stops": 3.79
+  },
+  {
+    "frame": 230,
+    "capture": "walk-000200",
+    "stops": 3.79
+  },
+  {
+    "frame": 231,
+    "capture": "walk-000201",
+    "stops": 3.79
+  },
+  {
+    "frame": 232,
+    "capture": "walk-000202",
+    "stops": 3.79
+  },
+  {
+    "frame": 233,
+    "capture": "walk-000203",
+    "stops": 3.79
+  },
+  {
+    "frame": 234,
+    "capture": "walk-000204",
+    "stops": 3.79
+  },
+  {
+    "frame": 235,
+    "capture": "walk-000205",
+    "stops": 3.79
+  },
+  {
+    "frame": 236,
+    "capture": "walk-000206",
+    "stops": 3.79
+  },
+  {
+    "frame": 237,
+    "capture": "walk-000207",
+    "stops": 3.79
+  },
+  {
+    "frame": 238,
+    "capture": "walk-000208",
+    "stops": 3.79
+  },
+  {
+    "frame": 239,
+    "capture": "walk-000209",
+    "stops": 3.79
+  },
+  {
+    "frame": 240,
+    "capture": "walk-000210",
+    "stops": 3.79
+  },
+  {
+    "frame": 241,
+    "capture": "walk-000211",
+    "stops": 3.79
+  },
+  {
+    "frame": 242,
+    "capture": "walk-000212",
+    "stops": 3.79
+  },
+  {
+    "frame": 243,
+    "capture": "walk-000213",
+    "stops": 3.79
+  },
+  {
+    "frame": 244,
+    "capture": "walk-000214",
+    "stops": 3.79
+  },
+  {
+    "frame": 245,
+    "capture": "walk-000215",
+    "stops": 3.79
+  },
+  {
+    "frame": 246,
+    "capture": "walk-000216",
+    "stops": 3.79
+  },
+  {
+    "frame": 247,
+    "capture": "walk-000217",
+    "stops": 3.79
+  },
+  {
+    "frame": 248,
+    "capture": "walk-000218",
+    "stops": 3.79
+  },
+  {
+    "frame": 249,
+    "capture": "walk-000219",
+    "stops": 3.79
+  },
+  {
+    "frame": 250,
+    "capture": "walk-000220",
+    "stops": 3.79
+  },
+  {
+    "frame": 251,
+    "capture": "walk-000221",
+    "stops": 3.79
+  },
+  {
+    "frame": 252,
+    "capture": "walk-000222",
+    "stops": 3.79
+  },
+  {
+    "frame": 253,
+    "capture": "walk-000223",
+    "stops": 3.79
+  },
+  {
+    "frame": 254,
+    "capture": "walk-000224",
+    "stops": 3.79
+  },
+  {
+    "frame": 255,
+    "capture": "walk-000225",
+    "stops": 3.79
+  },
+  {
+    "frame": 256,
+    "capture": "walk-000226",
+    "stops": 3.79
+  },
+  {
+    "frame": 257,
+    "capture": "walk-000227",
+    "stops": 3.79
+  },
+  {
+    "frame": 258,
+    "capture": "walk-000228",
+    "stops": 3.79
+  },
+  {
+    "frame": 259,
+    "capture": "walk-000229",
+    "stops": 3.79
+  },
+  {
+    "frame": 260,
+    "capture": "walk-000230",
+    "stops": 3.79
+  },
+  {
+    "frame": 261,
+    "capture": "walk-000231",
+    "stops": 3.79
+  },
+  {
+    "frame": 262,
+    "capture": "walk-000232",
+    "stops": 3.79
+  },
+  {
+    "frame": 263,
+    "capture": "walk-000233",
+    "stops": 3.79
+  },
+  {
+    "frame": 264,
+    "capture": "walk-000234",
+    "stops": 3.79
+  },
+  {
+    "frame": 265,
+    "capture": "walk-000235",
+    "stops": 3.79
+  },
+  {
+    "frame": 266,
+    "capture": "walk-000236",
+    "stops": 3.79
+  },
+  {
+    "frame": 267,
+    "capture": "walk-000237",
+    "stops": 3.79
+  },
+  {
+    "frame": 268,
+    "capture": "walk-000238",
+    "stops": 3.79
+  },
+  {
+    "frame": 269,
+    "capture": "walk-000239",
+    "stops": 3.79
+  },
+  {
+    "frame": 270,
+    "capture": "walk-000240",
+    "stops": 3.79
+  },
+  {
+    "frame": 271,
+    "capture": "walk-000241",
+    "stops": 3.79
+  },
+  {
+    "frame": 272,
+    "capture": "walk-000242",
+    "stops": 3.79
+  },
+  {
+    "frame": 273,
+    "capture": "walk-000243",
+    "stops": 3.79
+  },
+  {
+    "frame": 274,
+    "capture": "walk-000244",
+    "stops": 3.79
+  },
+  {
+    "frame": 275,
+    "capture": "walk-000245",
+    "stops": 3.79
+  },
+  {
+    "frame": 276,
+    "capture": "walk-000246",
+    "stops": 3.79
+  },
+  {
+    "frame": 277,
+    "capture": "walk-000247",
+    "stops": 3.79
+  },
+  {
+    "frame": 278,
+    "capture": "walk-000248",
+    "stops": 3.79
+  },
+  {
+    "frame": 279,
+    "capture": "walk-000249",
+    "stops": 3.79
+  },
+  {
+    "frame": 280,
+    "capture": "walk-000250",
+    "stops": 3.79
+  },
+  {
+    "frame": 281,
+    "capture": "walk-000251",
+    "stops": 3.79
+  },
+  {
+    "frame": 282,
+    "capture": "walk-000252",
+    "stops": 3.79
+  },
+  {
+    "frame": 283,
+    "capture": "walk-000253",
+    "stops": 3.79
+  },
+  {
+    "frame": 284,
+    "capture": "walk-000254",
+    "stops": 3.79
+  },
+  {
+    "frame": 285,
+    "capture": "walk-000255",
+    "stops": 3.79
+  },
+  {
+    "frame": 286,
+    "capture": "walk-000256",
+    "stops": 3.79
+  },
+  {
+    "frame": 287,
+    "capture": "walk-000257",
+    "stops": 3.79
+  },
+  {
+    "frame": 288,
+    "capture": "walk-000258",
+    "stops": 3.79
+  },
+  {
+    "frame": 289,
+    "capture": "walk-000259",
+    "stops": 3.79
+  },
+  {
+    "frame": 290,
+    "capture": "walk-000260",
+    "stops": 3.79
+  },
+  {
+    "frame": 291,
+    "capture": "walk-000261",
+    "stops": 3.79
+  },
+  {
+    "frame": 292,
+    "capture": "walk-000262",
+    "stops": 3.79
+  },
+  {
+    "frame": 293,
+    "capture": "walk-000263",
+    "stops": 3.79
+  },
+  {
+    "frame": 294,
+    "capture": "walk-000264",
+    "stops": 3.79
+  },
+  {
+    "frame": 295,
+    "capture": "walk-000265",
+    "stops": 3.79
+  },
+  {
+    "frame": 296,
+    "capture": "walk-000266",
+    "stops": 3.79
+  },
+  {
+    "frame": 297,
+    "capture": "walk-000267",
+    "stops": 3.79
+  },
+  {
+    "frame": 298,
+    "capture": "walk-000268",
+    "stops": 3.79
+  },
+  {
+    "frame": 299,
+    "capture": "walk-000269",
+    "stops": 3.79
+  },
+  {
+    "frame": 300,
+    "capture": "walk-000270",
+    "stops": 3.79
+  },
+  {
+    "frame": 301,
+    "capture": "walk-000271",
+    "stops": 3.79
+  },
+  {
+    "frame": 302,
+    "capture": "walk-000272",
+    "stops": 3.79
+  },
+  {
+    "frame": 303,
+    "capture": "walk-000273",
+    "stops": 3.79
+  },
+  {
+    "frame": 304,
+    "capture": "walk-000274",
+    "stops": 3.79
+  },
+  {
+    "frame": 305,
+    "capture": "walk-000275",
+    "stops": 3.79
+  },
+  {
+    "frame": 306,
+    "capture": "walk-000276",
+    "stops": 3.79
+  },
+  {
+    "frame": 307,
+    "capture": "walk-000277",
+    "stops": 3.79
+  },
+  {
+    "frame": 308,
+    "capture": "walk-000278",
+    "stops": 3.79
+  },
+  {
+    "frame": 309,
+    "capture": "walk-000279",
+    "stops": 3.79
+  },
+  {
+    "frame": 310,
+    "capture": "walk-000280",
+    "stops": 3.79
+  },
+  {
+    "frame": 311,
+    "capture": "walk-000281",
+    "stops": 3.79
+  },
+  {
+    "frame": 312,
+    "capture": "walk-000282",
+    "stops": 3.79
+  },
+  {
+    "frame": 313,
+    "capture": "walk-000283",
+    "stops": 3.79
+  },
+  {
+    "frame": 314,
+    "capture": "walk-000284",
+    "stops": 3.79
+  },
+  {
+    "frame": 315,
+    "capture": "walk-000285",
+    "stops": 3.79
+  },
+  {
+    "frame": 316,
+    "capture": "walk-000286",
+    "stops": 3.79
+  },
+  {
+    "frame": 317,
+    "capture": "walk-000287",
+    "stops": 3.79
+  },
+  {
+    "frame": 318,
+    "capture": "walk-000288",
+    "stops": 3.79
+  },
+  {
+    "frame": 319,
+    "capture": "walk-000289",
+    "stops": 3.79
+  },
+  {
+    "frame": 320,
+    "capture": "walk-000290",
+    "stops": 3.79
+  },
+  {
+    "frame": 321,
+    "capture": "walk-000291",
+    "stops": 3.79
+  },
+  {
+    "frame": 322,
+    "capture": "walk-000292",
+    "stops": 3.79
+  },
+  {
+    "frame": 323,
+    "capture": "walk-000293",
+    "stops": 3.79
+  },
+  {
+    "frame": 324,
+    "capture": "walk-000294",
+    "stops": 3.79
+  },
+  {
+    "frame": 325,
+    "capture": "walk-000295",
+    "stops": 3.79
+  },
+  {
+    "frame": 326,
+    "capture": "walk-000296",
+    "stops": 3.79
+  },
+  {
+    "frame": 327,
+    "capture": "walk-000297",
+    "stops": 3.79
+  },
+  {
+    "frame": 328,
+    "capture": "walk-000298",
+    "stops": 3.79
+  },
+  {
+    "frame": 329,
+    "capture": "walk-000299",
+    "stops": 3.79
+  },
+  {
+    "frame": 330,
+    "capture": "walk-000300",
+    "stops": 3.79
+  },
+  {
+    "frame": 331,
+    "capture": "walk-000301",
+    "stops": 3.79
+  },
+  {
+    "frame": 332,
+    "capture": "walk-000302",
+    "stops": 3.79
+  },
+  {
+    "frame": 333,
+    "capture": "walk-000303",
+    "stops": 3.79
+  },
+  {
+    "frame": 334,
+    "capture": "walk-000304",
+    "stops": 3.79
+  },
+  {
+    "frame": 335,
+    "capture": "walk-000305",
+    "stops": 3.79
+  },
+  {
+    "frame": 336,
+    "capture": "walk-000306",
+    "stops": 3.79
+  },
+  {
+    "frame": 337,
+    "capture": "walk-000307",
+    "stops": 3.79
+  },
+  {
+    "frame": 338,
+    "capture": "walk-000308",
+    "stops": 3.79
+  },
+  {
+    "frame": 339,
+    "capture": "walk-000309",
+    "stops": 3.79
+  },
+  {
+    "frame": 340,
+    "capture": "walk-000310",
+    "stops": 3.79
+  },
+  {
+    "frame": 341,
+    "capture": "walk-000311",
+    "stops": 3.79
+  },
+  {
+    "frame": 342,
+    "capture": "walk-000312",
+    "stops": 3.79
+  },
+  {
+    "frame": 343,
+    "capture": "walk-000313",
+    "stops": 3.79
+  },
+  {
+    "frame": 344,
+    "capture": "walk-000314",
+    "stops": 3.79
+  },
+  {
+    "frame": 345,
+    "capture": "walk-000315",
+    "stops": 3.79
+  },
+  {
+    "frame": 346,
+    "capture": "walk-000316",
+    "stops": 3.79
+  },
+  {
+    "frame": 347,
+    "capture": "walk-000317",
+    "stops": 3.79
+  },
+  {
+    "frame": 348,
+    "capture": "walk-000318",
+    "stops": 3.79
+  },
+  {
+    "frame": 349,
+    "capture": "walk-000319",
+    "stops": 3.79
+  },
+  {
+    "frame": 350,
+    "capture": "walk-000320",
+    "stops": 3.79
+  },
+  {
+    "frame": 351,
+    "capture": "walk-000321",
+    "stops": 3.79
+  },
+  {
+    "frame": 352,
+    "capture": "walk-000322",
+    "stops": 3.79
+  },
+  {
+    "frame": 353,
+    "capture": "walk-000323",
+    "stops": 3.79
+  },
+  {
+    "frame": 354,
+    "capture": "walk-000324",
+    "stops": 3.79
+  },
+  {
+    "frame": 355,
+    "capture": "walk-000325",
+    "stops": 3.79
+  },
+  {
+    "frame": 356,
+    "capture": "walk-000326",
+    "stops": 3.79
+  },
+  {
+    "frame": 357,
+    "capture": "walk-000327",
+    "stops": 3.79
+  },
+  {
+    "frame": 358,
+    "capture": "walk-000328",
+    "stops": 3.79
+  },
+  {
+    "frame": 359,
+    "capture": "walk-000329",
+    "stops": 3.79
+  },
+  {
+    "frame": 360,
+    "capture": "walk-000330",
+    "stops": 3.79
+  },
+  {
+    "frame": 361,
+    "capture": "walk-000331",
+    "stops": 3.79
+  },
+  {
+    "frame": 362,
+    "capture": "walk-000332",
+    "stops": 3.79
+  },
+  {
+    "frame": 363,
+    "capture": "walk-000333",
+    "stops": 3.79
+  },
+  {
+    "frame": 364,
+    "capture": "walk-000334",
+    "stops": 3.79
+  },
+  {
+    "frame": 365,
+    "capture": "walk-000335",
+    "stops": 3.79
+  },
+  {
+    "frame": 366,
+    "capture": "walk-000336",
+    "stops": 3.79
+  },
+  {
+    "frame": 367,
+    "capture": "walk-000337",
+    "stops": 3.79
+  },
+  {
+    "frame": 368,
+    "capture": "walk-000338",
+    "stops": 3.79
+  },
+  {
+    "frame": 369,
+    "capture": "walk-000339",
+    "stops": 3.79
+  },
+  {
+    "frame": 370,
+    "capture": "walk-000340",
+    "stops": 3.79
+  },
+  {
+    "frame": 371,
+    "capture": "walk-000341",
+    "stops": 3.79
+  },
+  {
+    "frame": 372,
+    "capture": "walk-000342",
+    "stops": 3.79
+  },
+  {
+    "frame": 373,
+    "capture": "walk-000343",
+    "stops": 3.79
+  },
+  {
+    "frame": 374,
+    "capture": "walk-000344",
+    "stops": 3.79
+  },
+  {
+    "frame": 375,
+    "capture": "walk-000345",
+    "stops": 3.79
+  },
+  {
+    "frame": 376,
+    "capture": "walk-000346",
+    "stops": 3.79
+  },
+  {
+    "frame": 377,
+    "capture": "walk-000347",
+    "stops": 3.79
+  },
+  {
+    "frame": 378,
+    "capture": "walk-000348",
+    "stops": 3.79
+  },
+  {
+    "frame": 379,
+    "capture": "walk-000349",
+    "stops": 3.79
+  },
+  {
+    "frame": 380,
+    "capture": "walk-000350",
+    "stops": 3.79
+  },
+  {
+    "frame": 381,
+    "capture": "walk-000351",
+    "stops": 3.79
+  },
+  {
+    "frame": 382,
+    "capture": "walk-000352",
+    "stops": 3.79
+  },
+  {
+    "frame": 383,
+    "capture": "walk-000353",
+    "stops": 3.79
+  },
+  {
+    "frame": 384,
+    "capture": "walk-000354",
+    "stops": 3.79
+  },
+  {
+    "frame": 385,
+    "capture": "walk-000355",
+    "stops": 3.79
+  },
+  {
+    "frame": 386,
+    "capture": "walk-000356",
+    "stops": 3.79
+  },
+  {
+    "frame": 387,
+    "capture": "walk-000357",
+    "stops": 3.79
+  },
+  {
+    "frame": 388,
+    "capture": "walk-000358",
+    "stops": 3.79
+  },
+  {
+    "frame": 389,
+    "capture": "walk-000359",
+    "stops": 3.79
+  },
+  {
+    "frame": 390,
+    "capture": "walk-000360",
+    "stops": 3.79
+  },
+  {
+    "frame": 391,
+    "capture": "walk-000361",
+    "stops": 3.79
+  },
+  {
+    "frame": 392,
+    "capture": "walk-000362",
+    "stops": 3.79
+  },
+  {
+    "frame": 393,
+    "capture": "walk-000363",
+    "stops": 3.79
+  },
+  {
+    "frame": 394,
+    "capture": "walk-000364",
+    "stops": 3.79
+  },
+  {
+    "frame": 395,
+    "capture": "walk-000365",
+    "stops": 3.79
+  },
+  {
+    "frame": 396,
+    "capture": "walk-000366",
+    "stops": 3.79
+  },
+  {
+    "frame": 397,
+    "capture": "walk-000367",
+    "stops": 3.79
+  },
+  {
+    "frame": 398,
+    "capture": "walk-000368",
+    "stops": 3.79
+  },
+  {
+    "frame": 399,
+    "capture": "walk-000369",
+    "stops": 3.79
+  },
+  {
+    "frame": 400,
+    "capture": "walk-000370",
+    "stops": 3.79
+  },
+  {
+    "frame": 401,
+    "capture": "walk-000371",
+    "stops": 3.79
+  },
+  {
+    "frame": 402,
+    "capture": "walk-000372",
+    "stops": 3.79
+  },
+  {
+    "frame": 403,
+    "capture": "walk-000373",
+    "stops": 3.79
+  },
+  {
+    "frame": 404,
+    "capture": "walk-000374",
+    "stops": 3.79
+  },
+  {
+    "frame": 405,
+    "capture": "walk-000375",
+    "stops": 3.79
+  },
+  {
+    "frame": 406,
+    "capture": "walk-000376",
+    "stops": 3.79
+  },
+  {
+    "frame": 407,
+    "capture": "walk-000377",
+    "stops": 3.79
+  },
+  {
+    "frame": 408,
+    "capture": "walk-000378",
+    "stops": 3.79
+  },
+  {
+    "frame": 409,
+    "capture": "walk-000379",
+    "stops": 3.79
+  },
+  {
+    "frame": 410,
+    "capture": "walk-000380",
+    "stops": 3.79
+  },
+  {
+    "frame": 411,
+    "capture": "walk-000381",
+    "stops": 3.79
+  },
+  {
+    "frame": 412,
+    "capture": "walk-000382",
+    "stops": 3.79
+  },
+  {
+    "frame": 413,
+    "capture": "walk-000383",
+    "stops": 3.79
+  },
+  {
+    "frame": 414,
+    "capture": "walk-000384",
+    "stops": 3.79
+  },
+  {
+    "frame": 415,
+    "capture": "walk-000385",
+    "stops": 3.79
+  },
+  {
+    "frame": 416,
+    "capture": "walk-000386",
+    "stops": 3.79
+  },
+  {
+    "frame": 417,
+    "capture": "walk-000387",
+    "stops": 3.79
+  },
+  {
+    "frame": 418,
+    "capture": "walk-000388",
+    "stops": 3.79
+  },
+  {
+    "frame": 419,
+    "capture": "walk-000389",
+    "stops": 3.79
+  },
+  {
+    "frame": 420,
+    "capture": "walk-000390",
+    "stops": 3.79
+  },
+  {
+    "frame": 421,
+    "capture": "walk-000391",
+    "stops": 3.79
+  },
+  {
+    "frame": 422,
+    "capture": "walk-000392",
+    "stops": 3.79
+  },
+  {
+    "frame": 423,
+    "capture": "walk-000393",
+    "stops": 3.79
+  },
+  {
+    "frame": 424,
+    "capture": "walk-000394",
+    "stops": 3.79
+  },
+  {
+    "frame": 425,
+    "capture": "walk-000395",
+    "stops": 3.79
+  },
+  {
+    "frame": 426,
+    "capture": "walk-000396",
+    "stops": 3.79
+  },
+  {
+    "frame": 427,
+    "capture": "walk-000397",
+    "stops": 3.79
+  },
+  {
+    "frame": 428,
+    "capture": "walk-000398",
+    "stops": 3.79
+  },
+  {
+    "frame": 429,
+    "capture": "walk-000399",
+    "stops": 3.79
+  },
+  {
+    "frame": 430,
+    "capture": "walk-000400",
+    "stops": 3.79
+  },
+  {
+    "frame": 431,
+    "capture": "walk-000401",
+    "stops": 3.79
+  },
+  {
+    "frame": 432,
+    "capture": "walk-000402",
+    "stops": 3.79
+  },
+  {
+    "frame": 433,
+    "capture": "walk-000403",
+    "stops": 3.79
+  },
+  {
+    "frame": 434,
+    "capture": "walk-000404",
+    "stops": 3.79
+  },
+  {
+    "frame": 435,
+    "capture": "walk-000405",
+    "stops": 3.79
+  },
+  {
+    "frame": 436,
+    "capture": "walk-000406",
+    "stops": 3.79
+  },
+  {
+    "frame": 437,
+    "capture": "walk-000407",
+    "stops": 3.79
+  },
+  {
+    "frame": 438,
+    "capture": "walk-000408",
+    "stops": 3.79
+  },
+  {
+    "frame": 439,
+    "capture": "walk-000409",
+    "stops": 3.79
+  },
+  {
+    "frame": 440,
+    "capture": "walk-000410",
+    "stops": 3.79
+  },
+  {
+    "frame": 441,
+    "capture": "walk-000411",
+    "stops": 3.79
+  },
+  {
+    "frame": 442,
+    "capture": "walk-000412",
+    "stops": 3.79
+  },
+  {
+    "frame": 443,
+    "capture": "walk-000413",
+    "stops": 3.79
+  },
+  {
+    "frame": 444,
+    "capture": "walk-000414",
+    "stops": 3.79
+  },
+  {
+    "frame": 445,
+    "capture": "walk-000415",
+    "stops": 3.79
+  },
+  {
+    "frame": 446,
+    "capture": "walk-000416",
+    "stops": 3.79
+  },
+  {
+    "frame": 447,
+    "capture": "walk-000417",
+    "stops": 3.79
+  },
+  {
+    "frame": 448,
+    "capture": "walk-000418",
+    "stops": 3.79
+  },
+  {
+    "frame": 449,
+    "capture": "walk-000419",
+    "stops": 3.79
+  },
+  {
+    "frame": 450,
+    "capture": "walk-000420",
+    "stops": 3.79
+  },
+  {
+    "frame": 451,
+    "capture": "walk-000421",
+    "stops": 3.79
+  },
+  {
+    "frame": 452,
+    "capture": "walk-000422",
+    "stops": 3.79
+  },
+  {
+    "frame": 453,
+    "capture": "walk-000423",
+    "stops": 3.79
+  },
+  {
+    "frame": 454,
+    "capture": "walk-000424",
+    "stops": 3.79
+  },
+  {
+    "frame": 455,
+    "capture": "walk-000425",
+    "stops": 3.79
+  },
+  {
+    "frame": 456,
+    "capture": "walk-000426",
+    "stops": 3.79
+  },
+  {
+    "frame": 457,
+    "capture": "walk-000427",
+    "stops": 3.79
+  },
+  {
+    "frame": 458,
+    "capture": "walk-000428",
+    "stops": 3.79
+  },
+  {
+    "frame": 459,
+    "capture": "walk-000429",
+    "stops": 3.79
+  },
+  {
+    "frame": 460,
+    "capture": "walk-000430",
+    "stops": 3.79
+  },
+  {
+    "frame": 461,
+    "capture": "walk-000431",
+    "stops": 3.79
+  },
+  {
+    "frame": 462,
+    "capture": "walk-000432",
+    "stops": 3.79
+  },
+  {
+    "frame": 463,
+    "capture": "walk-000433",
+    "stops": 3.79
+  },
+  {
+    "frame": 464,
+    "capture": "walk-000434",
+    "stops": 3.79
+  },
+  {
+    "frame": 465,
+    "capture": "walk-000435",
+    "stops": 3.79
+  },
+  {
+    "frame": 466,
+    "capture": "walk-000436",
+    "stops": 3.79
+  },
+  {
+    "frame": 467,
+    "capture": "walk-000437",
+    "stops": 3.79
+  },
+  {
+    "frame": 468,
+    "capture": "walk-000438",
+    "stops": 3.79
+  },
+  {
+    "frame": 469,
+    "capture": "walk-000439",
+    "stops": 3.79
+  },
+  {
+    "frame": 470,
+    "capture": "walk-000440",
+    "stops": 3.79
+  },
+  {
+    "frame": 471,
+    "capture": "walk-000441",
+    "stops": 3.79
+  },
+  {
+    "frame": 472,
+    "capture": "walk-000442",
+    "stops": 3.79
+  },
+  {
+    "frame": 473,
+    "capture": "walk-000443",
+    "stops": 3.79
+  },
+  {
+    "frame": 474,
+    "capture": "walk-000444",
+    "stops": 3.79
+  },
+  {
+    "frame": 475,
+    "capture": "walk-000445",
+    "stops": 3.79
+  },
+  {
+    "frame": 476,
+    "capture": "walk-000446",
+    "stops": 3.79
+  },
+  {
+    "frame": 477,
+    "capture": "walk-000447",
+    "stops": 3.79
+  },
+  {
+    "frame": 478,
+    "capture": "walk-000448",
+    "stops": 3.79
+  },
+  {
+    "frame": 479,
+    "capture": "walk-000449",
+    "stops": 3.79
+  },
+  {
+    "frame": 480,
+    "capture": "walk-000450",
+    "stops": 3.79
+  },
+  {
+    "frame": 481,
+    "capture": "walk-000451",
+    "stops": 3.79
+  },
+  {
+    "frame": 482,
+    "capture": "walk-000452",
+    "stops": 3.79
+  },
+  {
+    "frame": 483,
+    "capture": "walk-000453",
+    "stops": 3.79
+  },
+  {
+    "frame": 484,
+    "capture": "walk-000454",
+    "stops": 3.79
+  },
+  {
+    "frame": 485,
+    "capture": "walk-000455",
+    "stops": 3.79
+  },
+  {
+    "frame": 486,
+    "capture": "walk-000456",
+    "stops": 3.79
+  },
+  {
+    "frame": 487,
+    "capture": "walk-000457",
+    "stops": 3.79
+  },
+  {
+    "frame": 488,
+    "capture": "walk-000458",
+    "stops": 3.79
+  },
+  {
+    "frame": 489,
+    "capture": "walk-000459",
+    "stops": 3.79
+  },
+  {
+    "frame": 490,
+    "capture": "walk-000460",
+    "stops": 3.79
+  },
+  {
+    "frame": 491,
+    "capture": "walk-000461",
+    "stops": 3.79
+  },
+  {
+    "frame": 492,
+    "capture": "walk-000462",
+    "stops": 3.79
+  },
+  {
+    "frame": 493,
+    "capture": "walk-000463",
+    "stops": 3.79
+  },
+  {
+    "frame": 494,
+    "capture": "walk-000464",
+    "stops": 3.79
+  },
+  {
+    "frame": 495,
+    "capture": "walk-000465",
+    "stops": 3.79
+  },
+  {
+    "frame": 496,
+    "capture": "walk-000466",
+    "stops": 3.79
+  },
+  {
+    "frame": 497,
+    "capture": "walk-000467",
+    "stops": 3.79
+  },
+  {
+    "frame": 498,
+    "capture": "walk-000468",
+    "stops": 3.79
+  },
+  {
+    "frame": 499,
+    "capture": "walk-000469",
+    "stops": 3.79
+  },
+  {
+    "frame": 500,
+    "capture": "walk-000470",
+    "stops": 3.79
+  },
+  {
+    "frame": 501,
+    "capture": "walk-000471",
+    "stops": 3.79
+  },
+  {
+    "frame": 502,
+    "capture": "walk-000472",
+    "stops": 3.79
+  },
+  {
+    "frame": 503,
+    "capture": "walk-000473",
+    "stops": 3.79
+  },
+  {
+    "frame": 504,
+    "capture": "walk-000474",
+    "stops": 3.79
+  },
+  {
+    "frame": 505,
+    "capture": "walk-000475",
+    "stops": 3.79
+  },
+  {
+    "frame": 506,
+    "capture": "walk-000476",
+    "stops": 3.79
+  },
+  {
+    "frame": 507,
+    "capture": "walk-000477",
+    "stops": 3.79
+  },
+  {
+    "frame": 508,
+    "capture": "walk-000478",
+    "stops": 3.79
+  },
+  {
+    "frame": 509,
+    "capture": "walk-000479",
+    "stops": 3.79
+  },
+  {
+    "frame": 510,
+    "capture": "walk-000480",
+    "stops": 3.79
+  },
+  {
+    "frame": 511,
+    "capture": "walk-000481",
+    "stops": 3.79
+  },
+  {
+    "frame": 512,
+    "capture": "walk-000482",
+    "stops": 3.79
+  },
+  {
+    "frame": 513,
+    "capture": "walk-000483",
+    "stops": 3.79
+  },
+  {
+    "frame": 514,
+    "capture": "walk-000484",
+    "stops": 3.79
+  },
+  {
+    "frame": 515,
+    "capture": "walk-000485",
+    "stops": 3.79
+  },
+  {
+    "frame": 516,
+    "capture": "walk-000486",
+    "stops": 3.79
+  },
+  {
+    "frame": 517,
+    "capture": "walk-000487",
+    "stops": 3.79
+  },
+  {
+    "frame": 518,
+    "capture": "walk-000488",
+    "stops": 3.79
+  },
+  {
+    "frame": 519,
+    "capture": "walk-000489",
+    "stops": 3.79
+  },
+  {
+    "frame": 520,
+    "capture": "walk-000490",
+    "stops": 3.79
+  },
+  {
+    "frame": 521,
+    "capture": "walk-000491",
+    "stops": 3.79
+  },
+  {
+    "frame": 522,
+    "capture": "walk-000492",
+    "stops": 3.79
+  },
+  {
+    "frame": 523,
+    "capture": "walk-000493",
+    "stops": 3.79
+  },
+  {
+    "frame": 524,
+    "capture": "walk-000494",
+    "stops": 3.79
+  },
+  {
+    "frame": 525,
+    "capture": "walk-000495",
+    "stops": 3.79
+  },
+  {
+    "frame": 526,
+    "capture": "walk-000496",
+    "stops": 3.79
+  },
+  {
+    "frame": 527,
+    "capture": "walk-000497",
+    "stops": 3.79
+  },
+  {
+    "frame": 528,
+    "capture": "walk-000498",
+    "stops": 3.79
+  },
+  {
+    "frame": 529,
+    "capture": "walk-000499",
+    "stops": 3.79
+  },
+  {
+    "frame": 530,
+    "capture": "walk-000500",
+    "stops": 3.79
+  },
+  {
+    "frame": 531,
+    "capture": "walk-000501",
+    "stops": 3.79
+  },
+  {
+    "frame": 532,
+    "capture": "walk-000502",
+    "stops": 3.79
+  },
+  {
+    "frame": 533,
+    "capture": "walk-000503",
+    "stops": 3.79
+  },
+  {
+    "frame": 534,
+    "capture": "walk-000504",
+    "stops": 3.79
+  },
+  {
+    "frame": 535,
+    "capture": "walk-000505",
+    "stops": 3.79
+  },
+  {
+    "frame": 536,
+    "capture": "walk-000506",
+    "stops": 3.79
+  },
+  {
+    "frame": 537,
+    "capture": "walk-000507",
+    "stops": 3.79
+  },
+  {
+    "frame": 538,
+    "capture": "walk-000508",
+    "stops": 3.79
+  },
+  {
+    "frame": 539,
+    "capture": "walk-000509",
+    "stops": 3.79
+  },
+  {
+    "frame": 540,
+    "capture": "walk-000510",
+    "stops": 3.79
+  },
+  {
+    "frame": 541,
+    "capture": "walk-000511",
+    "stops": 3.79
+  },
+  {
+    "frame": 542,
+    "capture": "walk-000512",
+    "stops": 3.79
+  },
+  {
+    "frame": 543,
+    "capture": "walk-000513",
+    "stops": 3.79
+  },
+  {
+    "frame": 544,
+    "capture": "walk-000514",
+    "stops": 3.79
+  },
+  {
+    "frame": 545,
+    "capture": "walk-000515",
+    "stops": 3.79
+  },
+  {
+    "frame": 546,
+    "capture": "walk-000516",
+    "stops": 3.79
+  },
+  {
+    "frame": 547,
+    "capture": "walk-000517",
+    "stops": 3.79
+  },
+  {
+    "frame": 548,
+    "capture": "walk-000518",
+    "stops": 3.79
+  },
+  {
+    "frame": 549,
+    "capture": "walk-000519",
+    "stops": 3.79
+  },
+  {
+    "frame": 550,
+    "capture": "walk-000520",
+    "stops": 3.79
+  },
+  {
+    "frame": 551,
+    "capture": "walk-000521",
+    "stops": 3.79
+  },
+  {
+    "frame": 552,
+    "capture": "walk-000522",
+    "stops": 3.79
+  },
+  {
+    "frame": 553,
+    "capture": "walk-000523",
+    "stops": 3.79
+  },
+  {
+    "frame": 554,
+    "capture": "walk-000524",
+    "stops": 3.79
+  },
+  {
+    "frame": 555,
+    "capture": "walk-000525",
+    "stops": 3.79
+  },
+  {
+    "frame": 556,
+    "capture": "walk-000526",
+    "stops": 3.79
+  },
+  {
+    "frame": 557,
+    "capture": "walk-000527",
+    "stops": 3.79
+  },
+  {
+    "frame": 558,
+    "capture": "walk-000528",
+    "stops": 3.79
+  },
+  {
+    "frame": 559,
+    "capture": "walk-000529",
+    "stops": 3.79
+  },
+  {
+    "frame": 560,
+    "capture": "walk-000530",
+    "stops": 3.79
+  },
+  {
+    "frame": 561,
+    "capture": "walk-000531",
+    "stops": 3.79
+  },
+  {
+    "frame": 562,
+    "capture": "walk-000532",
+    "stops": 3.79
+  },
+  {
+    "frame": 563,
+    "capture": "walk-000533",
+    "stops": 3.79
+  },
+  {
+    "frame": 564,
+    "capture": "walk-000534",
+    "stops": 3.79
+  },
+  {
+    "frame": 565,
+    "capture": "walk-000535",
+    "stops": 3.79
+  },
+  {
+    "frame": 566,
+    "capture": "walk-000536",
+    "stops": 3.79
+  },
+  {
+    "frame": 567,
+    "capture": "walk-000537",
+    "stops": 3.79
+  },
+  {
+    "frame": 568,
+    "capture": "walk-000538",
+    "stops": 3.79
+  },
+  {
+    "frame": 569,
+    "capture": "walk-000539",
+    "stops": 3.79
+  },
+  {
+    "frame": 570,
+    "capture": "walk-000540",
+    "stops": 3.79
+  },
+  {
+    "frame": 571,
+    "capture": "walk-000541",
+    "stops": 3.79
+  },
+  {
+    "frame": 572,
+    "capture": "walk-000542",
+    "stops": 3.79
+  },
+  {
+    "frame": 573,
+    "capture": "walk-000543",
+    "stops": 3.79
+  },
+  {
+    "frame": 574,
+    "capture": "walk-000544",
+    "stops": 3.79
+  },
+  {
+    "frame": 575,
+    "capture": "walk-000545",
+    "stops": 3.79
+  },
+  {
+    "frame": 576,
+    "capture": "walk-000546",
+    "stops": 3.79
+  },
+  {
+    "frame": 577,
+    "capture": "walk-000547",
+    "stops": 3.79
+  },
+  {
+    "frame": 578,
+    "capture": "walk-000548",
+    "stops": 3.79
+  },
+  {
+    "frame": 579,
+    "capture": "walk-000549",
+    "stops": 3.79
+  },
+  {
+    "frame": 580,
+    "capture": "walk-000550",
+    "stops": 3.79
+  },
+  {
+    "frame": 581,
+    "capture": "walk-000551",
+    "stops": 3.79
+  },
+  {
+    "frame": 582,
+    "capture": "walk-000552",
+    "stops": 3.79
+  },
+  {
+    "frame": 583,
+    "capture": "walk-000553",
+    "stops": 3.79
+  },
+  {
+    "frame": 584,
+    "capture": "walk-000554",
+    "stops": 3.79
+  },
+  {
+    "frame": 585,
+    "capture": "walk-000555",
+    "stops": 3.79
+  },
+  {
+    "frame": 586,
+    "capture": "walk-000556",
+    "stops": 3.79
+  },
+  {
+    "frame": 587,
+    "capture": "walk-000557",
+    "stops": 3.79
+  },
+  {
+    "frame": 588,
+    "capture": "walk-000558",
+    "stops": 3.79
+  },
+  {
+    "frame": 589,
+    "capture": "walk-000559",
+    "stops": 3.79
+  },
+  {
+    "frame": 590,
+    "capture": "walk-000560",
+    "stops": 3.79
+  },
+  {
+    "frame": 591,
+    "capture": "walk-000561",
+    "stops": 3.79
+  },
+  {
+    "frame": 592,
+    "capture": "walk-000562",
+    "stops": 3.79
+  },
+  {
+    "frame": 593,
+    "capture": "walk-000563",
+    "stops": 3.79
+  },
+  {
+    "frame": 594,
+    "capture": "walk-000564",
+    "stops": 3.79
+  },
+  {
+    "frame": 595,
+    "capture": "walk-000565",
+    "stops": 3.79
+  },
+  {
+    "frame": 596,
+    "capture": "walk-000566",
+    "stops": 3.79
+  },
+  {
+    "frame": 597,
+    "capture": "walk-000567",
+    "stops": 3.79
+  },
+  {
+    "frame": 598,
+    "capture": "walk-000568",
+    "stops": 3.79
+  },
+  {
+    "frame": 599,
+    "capture": "walk-000569",
+    "stops": 3.79
+  },
+  {
+    "frame": 600,
+    "capture": "walk-000570",
+    "stops": 3.79
+  },
+  {
+    "frame": 601,
+    "capture": "walk-000571",
+    "stops": 3.79
+  },
+  {
+    "frame": 602,
+    "capture": "walk-000572",
+    "stops": 3.79
+  },
+  {
+    "frame": 603,
+    "capture": "walk-000573",
+    "stops": 3.79
+  },
+  {
+    "frame": 604,
+    "capture": "walk-000574",
+    "stops": 3.79
+  },
+  {
+    "frame": 605,
+    "capture": "walk-000575",
+    "stops": 3.79
+  },
+  {
+    "frame": 606,
+    "capture": "walk-000576",
+    "stops": 3.79
+  },
+  {
+    "frame": 607,
+    "capture": "walk-000577",
+    "stops": 3.79
+  },
+  {
+    "frame": 608,
+    "capture": "walk-000578",
+    "stops": 3.79
+  },
+  {
+    "frame": 609,
+    "capture": "walk-000579",
+    "stops": 3.79
+  },
+  {
+    "frame": 610,
+    "capture": "walk-000580",
+    "stops": 3.79
+  },
+  {
+    "frame": 611,
+    "capture": "walk-000581",
+    "stops": 3.79
+  },
+  {
+    "frame": 612,
+    "capture": "walk-000582",
+    "stops": 3.79
+  },
+  {
+    "frame": 613,
+    "capture": "walk-000583",
+    "stops": 3.79
+  },
+  {
+    "frame": 614,
+    "capture": "walk-000584",
+    "stops": 3.79
+  },
+  {
+    "frame": 615,
+    "capture": "walk-000585",
+    "stops": 3.79
+  },
+  {
+    "frame": 616,
+    "capture": "walk-000586",
+    "stops": 3.79
+  },
+  {
+    "frame": 617,
+    "capture": "walk-000587",
+    "stops": 3.79
+  },
+  {
+    "frame": 618,
+    "capture": "walk-000588",
+    "stops": 3.79
+  },
+  {
+    "frame": 619,
+    "capture": "walk-000589",
+    "stops": 3.79
+  },
+  {
+    "frame": 620,
+    "capture": "walk-000590",
+    "stops": 3.79
+  },
+  {
+    "frame": 621,
+    "capture": "walk-000591",
+    "stops": 3.79
+  },
+  {
+    "frame": 622,
+    "capture": "walk-000592",
+    "stops": 3.79
+  },
+  {
+    "frame": 623,
+    "capture": "walk-000593",
+    "stops": 3.79
+  },
+  {
+    "frame": 624,
+    "capture": "walk-000594",
+    "stops": 3.79
+  },
+  {
+    "frame": 625,
+    "capture": "walk-000595",
+    "stops": 3.79
+  },
+  {
+    "frame": 626,
+    "capture": "walk-000596",
+    "stops": 3.79
+  },
+  {
+    "frame": 627,
+    "capture": "walk-000597",
+    "stops": 3.79
+  },
+  {
+    "frame": 628,
+    "capture": "walk-000598",
+    "stops": 3.79
+  },
+  {
+    "frame": 629,
+    "capture": "walk-000599",
+    "stops": 3.79
+  },
+  {
+    "frame": 630,
+    "capture": "walk-000600",
+    "stops": 3.79
+  },
+  {
+    "frame": 631,
+    "capture": "walk-000601",
+    "stops": 3.79
+  },
+  {
+    "frame": 632,
+    "capture": "walk-000602",
+    "stops": 3.79
+  },
+  {
+    "frame": 633,
+    "capture": "walk-000603",
+    "stops": 3.79
+  },
+  {
+    "frame": 634,
+    "capture": "walk-000604",
+    "stops": 3.79
+  },
+  {
+    "frame": 635,
+    "capture": "walk-000605",
+    "stops": 3.79
+  },
+  {
+    "frame": 636,
+    "capture": "walk-000606",
+    "stops": 3.79
+  },
+  {
+    "frame": 637,
+    "capture": "walk-000607",
+    "stops": 3.79
+  },
+  {
+    "frame": 638,
+    "capture": "walk-000608",
+    "stops": 3.79
+  },
+  {
+    "frame": 639,
+    "capture": "walk-000609",
+    "stops": 3.79
+  },
+  {
+    "frame": 640,
+    "capture": "walk-000610",
+    "stops": 3.79
+  },
+  {
+    "frame": 641,
+    "capture": "walk-000611",
+    "stops": 3.79
+  },
+  {
+    "frame": 642,
+    "capture": "walk-000612",
+    "stops": 3.79
+  },
+  {
+    "frame": 643,
+    "capture": "walk-000613",
+    "stops": 3.79
+  },
+  {
+    "frame": 644,
+    "capture": "walk-000614",
+    "stops": 3.79
+  },
+  {
+    "frame": 645,
+    "capture": "walk-000615",
+    "stops": 3.79
+  },
+  {
+    "frame": 646,
+    "capture": "walk-000616",
+    "stops": 3.79
+  },
+  {
+    "frame": 647,
+    "capture": "walk-000617",
+    "stops": 3.79
+  },
+  {
+    "frame": 648,
+    "capture": "walk-000618",
+    "stops": 3.79
+  },
+  {
+    "frame": 649,
+    "capture": "walk-000619",
+    "stops": 3.79
+  },
+  {
+    "frame": 650,
+    "capture": "walk-000620",
+    "stops": 3.79
+  },
+  {
+    "frame": 651,
+    "capture": "walk-000621",
+    "stops": 3.79
+  },
+  {
+    "frame": 652,
+    "capture": "walk-000622",
+    "stops": 3.79
+  },
+  {
+    "frame": 653,
+    "capture": "walk-000623",
+    "stops": 3.79
+  },
+  {
+    "frame": 654,
+    "capture": "walk-000624",
+    "stops": 3.79
+  },
+  {
+    "frame": 655,
+    "capture": "walk-000625",
+    "stops": 3.79
+  },
+  {
+    "frame": 656,
+    "capture": "walk-000626",
+    "stops": 3.79
+  },
+  {
+    "frame": 657,
+    "capture": "walk-000627",
+    "stops": 3.79
+  },
+  {
+    "frame": 658,
+    "capture": "walk-000628",
+    "stops": 3.79
+  },
+  {
+    "frame": 659,
+    "capture": "walk-000629",
+    "stops": 3.79
+  },
+  {
+    "frame": 660,
+    "capture": "walk-000630",
+    "stops": 3.79
+  },
+  {
+    "frame": 661,
+    "capture": "walk-000631",
+    "stops": 3.79
+  },
+  {
+    "frame": 662,
+    "capture": "walk-000632",
+    "stops": 3.79
+  },
+  {
+    "frame": 663,
+    "capture": "walk-000633",
+    "stops": 3.79
+  },
+  {
+    "frame": 664,
+    "capture": "walk-000634",
+    "stops": 3.79
+  },
+  {
+    "frame": 665,
+    "capture": "walk-000635",
+    "stops": 3.79
+  },
+  {
+    "frame": 666,
+    "capture": "walk-000636",
+    "stops": 3.79
+  },
+  {
+    "frame": 667,
+    "capture": "walk-000637",
+    "stops": 3.79
+  },
+  {
+    "frame": 668,
+    "capture": "walk-000638",
+    "stops": 3.79
+  },
+  {
+    "frame": 669,
+    "capture": "walk-000639",
+    "stops": 3.79
+  },
+  {
+    "frame": 670,
+    "capture": "walk-000640",
+    "stops": 3.79
+  },
+  {
+    "frame": 671,
+    "capture": "walk-000641",
+    "stops": 3.79
+  },
+  {
+    "frame": 672,
+    "capture": "walk-000642",
+    "stops": 3.79
+  },
+  {
+    "frame": 673,
+    "capture": "walk-000643",
+    "stops": 3.79
+  },
+  {
+    "frame": 674,
+    "capture": "walk-000644",
+    "stops": 3.79
+  },
+  {
+    "frame": 675,
+    "capture": "walk-000645",
+    "stops": 3.79
+  },
+  {
+    "frame": 676,
+    "capture": "walk-000646",
+    "stops": 3.79
+  },
+  {
+    "frame": 677,
+    "capture": "walk-000647",
+    "stops": 3.79
+  },
+  {
+    "frame": 678,
+    "capture": "walk-000648",
+    "stops": 3.79
+  },
+  {
+    "frame": 679,
+    "capture": "walk-000649",
+    "stops": 3.79
+  },
+  {
+    "frame": 680,
+    "capture": "walk-000650",
+    "stops": 3.79
+  },
+  {
+    "frame": 681,
+    "capture": "walk-000651",
+    "stops": 3.79
+  },
+  {
+    "frame": 682,
+    "capture": "walk-000652",
+    "stops": 3.79
+  },
+  {
+    "frame": 683,
+    "capture": "walk-000653",
+    "stops": 3.79
+  },
+  {
+    "frame": 684,
+    "capture": "walk-000654",
+    "stops": 3.79
+  },
+  {
+    "frame": 685,
+    "capture": "walk-000655",
+    "stops": 3.79
+  },
+  {
+    "frame": 686,
+    "capture": "walk-000656",
+    "stops": 3.79
+  },
+  {
+    "frame": 687,
+    "capture": "walk-000657",
+    "stops": 3.79
+  },
+  {
+    "frame": 688,
+    "capture": "walk-000658",
+    "stops": 3.79
+  },
+  {
+    "frame": 689,
+    "capture": "walk-000659",
+    "stops": 3.79
+  },
+  {
+    "frame": 690,
+    "capture": "walk-000660",
+    "stops": 3.79
+  },
+  {
+    "frame": 691,
+    "capture": "walk-000661",
+    "stops": 3.79
+  },
+  {
+    "frame": 692,
+    "capture": "walk-000662",
+    "stops": 3.79
+  },
+  {
+    "frame": 693,
+    "capture": "walk-000663",
+    "stops": 3.79
+  },
+  {
+    "frame": 694,
+    "capture": "walk-000664",
+    "stops": 3.79
+  },
+  {
+    "frame": 695,
+    "capture": "walk-000665",
+    "stops": 3.79
+  },
+  {
+    "frame": 696,
+    "capture": "walk-000666",
+    "stops": 3.79
+  },
+  {
+    "frame": 697,
+    "capture": "walk-000667",
+    "stops": 3.79
+  },
+  {
+    "frame": 698,
+    "capture": "walk-000668",
+    "stops": 3.79
+  },
+  {
+    "frame": 699,
+    "capture": "walk-000669",
+    "stops": 3.79
+  },
+  {
+    "frame": 700,
+    "capture": "walk-000670",
+    "stops": 3.79
+  },
+  {
+    "frame": 701,
+    "capture": "walk-000671",
+    "stops": 3.79
+  },
+  {
+    "frame": 702,
+    "capture": "walk-000672",
+    "stops": 3.79
+  },
+  {
+    "frame": 703,
+    "capture": "walk-000673",
+    "stops": 3.79
+  },
+  {
+    "frame": 704,
+    "capture": "walk-000674",
+    "stops": 3.79
+  },
+  {
+    "frame": 705,
+    "capture": "walk-000675",
+    "stops": 3.79
+  },
+  {
+    "frame": 706,
+    "capture": "walk-000676",
+    "stops": 3.79
+  },
+  {
+    "frame": 707,
+    "capture": "walk-000677",
+    "stops": 3.79
+  },
+  {
+    "frame": 708,
+    "capture": "walk-000678",
+    "stops": 3.79
+  },
+  {
+    "frame": 709,
+    "capture": "walk-000679",
+    "stops": 3.79
+  },
+  {
+    "frame": 710,
+    "capture": "walk-000680",
+    "stops": 3.79
+  },
+  {
+    "frame": 711,
+    "capture": "walk-000681",
+    "stops": 3.79
+  },
+  {
+    "frame": 712,
+    "capture": "walk-000682",
+    "stops": 3.79
+  },
+  {
+    "frame": 713,
+    "capture": "walk-000683",
+    "stops": 3.79
+  },
+  {
+    "frame": 714,
+    "capture": "walk-000684",
+    "stops": 3.79
+  },
+  {
+    "frame": 715,
+    "capture": "walk-000685",
+    "stops": 3.79
+  },
+  {
+    "frame": 716,
+    "capture": "walk-000686",
+    "stops": 3.79
+  },
+  {
+    "frame": 717,
+    "capture": "walk-000687",
+    "stops": 3.79
+  },
+  {
+    "frame": 718,
+    "capture": "walk-000688",
+    "stops": 3.79
+  },
+  {
+    "frame": 719,
+    "capture": "walk-000689",
+    "stops": 3.79
+  },
+  {
+    "frame": 720,
+    "capture": "walk-000690",
+    "stops": 3.79
+  },
+  {
+    "frame": 721,
+    "capture": "walk-000691",
+    "stops": 3.79
+  },
+  {
+    "frame": 722,
+    "capture": "walk-000692",
+    "stops": 3.79
+  },
+  {
+    "frame": 723,
+    "capture": "walk-000693",
+    "stops": 3.79
+  },
+  {
+    "frame": 724,
+    "capture": "walk-000694",
+    "stops": 3.79
+  },
+  {
+    "frame": 725,
+    "capture": "walk-000695",
+    "stops": 3.79
+  },
+  {
+    "frame": 726,
+    "capture": "walk-000696",
+    "stops": 3.79
+  },
+  {
+    "frame": 727,
+    "capture": "walk-000697",
+    "stops": 3.79
+  },
+  {
+    "frame": 728,
+    "capture": "walk-000698",
+    "stops": 3.79
+  },
+  {
+    "frame": 729,
+    "capture": "walk-000699",
+    "stops": 3.79
+  },
+  {
+    "frame": 730,
+    "capture": "walk-000700",
+    "stops": 3.79
+  },
+  {
+    "frame": 731,
+    "capture": "walk-000701",
+    "stops": 3.79
+  },
+  {
+    "frame": 732,
+    "capture": "walk-000702",
+    "stops": 3.79
+  },
+  {
+    "frame": 733,
+    "capture": "walk-000703",
+    "stops": 3.79
+  },
+  {
+    "frame": 734,
+    "capture": "walk-000704",
+    "stops": 3.79
+  },
+  {
+    "frame": 735,
+    "capture": "walk-000705",
+    "stops": 3.79
+  },
+  {
+    "frame": 736,
+    "capture": "walk-000706",
+    "stops": 3.79
+  },
+  {
+    "frame": 737,
+    "capture": "walk-000707",
+    "stops": 3.79
+  },
+  {
+    "frame": 738,
+    "capture": "walk-000708",
+    "stops": 3.79
+  },
+  {
+    "frame": 739,
+    "capture": "walk-000709",
+    "stops": 3.79
+  },
+  {
+    "frame": 740,
+    "capture": "walk-000710",
+    "stops": 3.79
+  },
+  {
+    "frame": 741,
+    "capture": "walk-000711",
+    "stops": 3.79
+  },
+  {
+    "frame": 742,
+    "capture": "walk-000712",
+    "stops": 3.79
+  },
+  {
+    "frame": 743,
+    "capture": "walk-000713",
+    "stops": 3.79
+  },
+  {
+    "frame": 744,
+    "capture": "walk-000714",
+    "stops": 3.79
+  },
+  {
+    "frame": 745,
+    "capture": "walk-000715",
+    "stops": 3.79
+  },
+  {
+    "frame": 746,
+    "capture": "walk-000716",
+    "stops": 3.79
+  },
+  {
+    "frame": 747,
+    "capture": "walk-000717",
+    "stops": 3.79
+  },
+  {
+    "frame": 748,
+    "capture": "walk-000718",
+    "stops": 3.79
+  },
+  {
+    "frame": 749,
+    "capture": "walk-000719",
+    "stops": 3.79
+  },
+  {
+    "frame": 750,
+    "capture": "walk-000720",
+    "stops": 3.79
+  },
+  {
+    "frame": 751,
+    "capture": "walk-000721",
+    "stops": 3.79
+  },
+  {
+    "frame": 752,
+    "capture": "walk-000722",
+    "stops": 3.79
+  },
+  {
+    "frame": 753,
+    "capture": "walk-000723",
+    "stops": 3.79
+  },
+  {
+    "frame": 754,
+    "capture": "walk-000724",
+    "stops": 3.79
+  },
+  {
+    "frame": 755,
+    "capture": "walk-000725",
+    "stops": 3.79
+  },
+  {
+    "frame": 756,
+    "capture": "walk-000726",
+    "stops": 3.79
+  },
+  {
+    "frame": 757,
+    "capture": "walk-000727",
+    "stops": 3.79
+  },
+  {
+    "frame": 758,
+    "capture": "walk-000728",
+    "stops": 3.79
+  },
+  {
+    "frame": 759,
+    "capture": "walk-000729",
+    "stops": 3.79
+  },
+  {
+    "frame": 760,
+    "capture": "walk-000730",
+    "stops": 3.79
+  },
+  {
+    "frame": 761,
+    "capture": "walk-000731",
+    "stops": 3.79
+  },
+  {
+    "frame": 762,
+    "capture": "walk-000732",
+    "stops": 3.79
+  },
+  {
+    "frame": 763,
+    "capture": "walk-000733",
+    "stops": 3.79
+  },
+  {
+    "frame": 764,
+    "capture": "walk-000734",
+    "stops": 3.79
+  },
+  {
+    "frame": 765,
+    "capture": "walk-000735",
+    "stops": 3.79
+  },
+  {
+    "frame": 766,
+    "capture": "walk-000736",
+    "stops": 3.79
+  },
+  {
+    "frame": 767,
+    "capture": "walk-000737",
+    "stops": 3.79
+  },
+  {
+    "frame": 768,
+    "capture": "walk-000738",
+    "stops": 3.79
+  },
+  {
+    "frame": 769,
+    "capture": "walk-000739",
+    "stops": 3.79
+  },
+  {
+    "frame": 770,
+    "capture": "walk-000740",
+    "stops": 3.79
+  },
+  {
+    "frame": 771,
+    "capture": "walk-000741",
+    "stops": 3.79
+  },
+  {
+    "frame": 772,
+    "capture": "walk-000742",
+    "stops": 3.79
+  },
+  {
+    "frame": 773,
+    "capture": "walk-000743",
+    "stops": 3.79
+  },
+  {
+    "frame": 774,
+    "capture": "walk-000744",
+    "stops": 3.79
+  },
+  {
+    "frame": 775,
+    "capture": "walk-000745",
+    "stops": 3.79
+  },
+  {
+    "frame": 776,
+    "capture": "walk-000746",
+    "stops": 3.79
+  },
+  {
+    "frame": 777,
+    "capture": "walk-000747",
+    "stops": 3.79
+  },
+  {
+    "frame": 778,
+    "capture": "walk-000748",
+    "stops": 3.79
+  },
+  {
+    "frame": 779,
+    "capture": "walk-000749",
+    "stops": 3.79
+  },
+  {
+    "frame": 780,
+    "capture": "walk-000750",
+    "stops": 3.79
+  },
+  {
+    "frame": 781,
+    "capture": "walk-000751",
+    "stops": 3.79
+  },
+  {
+    "frame": 782,
+    "capture": "walk-000752",
+    "stops": 3.79
+  },
+  {
+    "frame": 783,
+    "capture": "walk-000753",
+    "stops": 3.79
+  },
+  {
+    "frame": 784,
+    "capture": "walk-000754",
+    "stops": 3.79
+  },
+  {
+    "frame": 785,
+    "capture": "walk-000755",
+    "stops": 3.79
+  },
+  {
+    "frame": 786,
+    "capture": "walk-000756",
+    "stops": 3.79
+  },
+  {
+    "frame": 787,
+    "capture": "walk-000757",
+    "stops": 3.79
+  },
+  {
+    "frame": 788,
+    "capture": "walk-000758",
+    "stops": 3.79
+  },
+  {
+    "frame": 789,
+    "capture": "walk-000759",
+    "stops": 3.79
+  },
+  {
+    "frame": 790,
+    "capture": "walk-000760",
+    "stops": 3.79
+  },
+  {
+    "frame": 791,
+    "capture": "walk-000761",
+    "stops": 3.79
+  },
+  {
+    "frame": 792,
+    "capture": "walk-000762",
+    "stops": 3.79
+  },
+  {
+    "frame": 793,
+    "capture": "walk-000763",
+    "stops": 3.79
+  },
+  {
+    "frame": 794,
+    "capture": "walk-000764",
+    "stops": 3.79
+  },
+  {
+    "frame": 795,
+    "capture": "walk-000765",
+    "stops": 3.79
+  },
+  {
+    "frame": 796,
+    "capture": "walk-000766",
+    "stops": 3.79
+  },
+  {
+    "frame": 797,
+    "capture": "walk-000767",
+    "stops": 3.79
+  },
+  {
+    "frame": 798,
+    "capture": "walk-000768",
+    "stops": 3.79
+  },
+  {
+    "frame": 799,
+    "capture": "walk-000769",
+    "stops": 3.79
+  },
+  {
+    "frame": 800,
+    "capture": "walk-000770",
+    "stops": 3.79
+  },
+  {
+    "frame": 801,
+    "capture": "walk-000771",
+    "stops": 3.79
+  },
+  {
+    "frame": 802,
+    "capture": "walk-000772",
+    "stops": 3.79
+  },
+  {
+    "frame": 803,
+    "capture": "walk-000773",
+    "stops": 3.79
+  },
+  {
+    "frame": 804,
+    "capture": "walk-000774",
+    "stops": 3.79
+  },
+  {
+    "frame": 805,
+    "capture": "walk-000775",
+    "stops": 3.79
+  },
+  {
+    "frame": 806,
+    "capture": "walk-000776",
+    "stops": 3.79
+  },
+  {
+    "frame": 807,
+    "capture": "walk-000777",
+    "stops": 3.79
+  },
+  {
+    "frame": 808,
+    "capture": "walk-000778",
+    "stops": 3.79
+  },
+  {
+    "frame": 809,
+    "capture": "walk-000779",
+    "stops": 3.79
+  },
+  {
+    "frame": 810,
+    "capture": "walk-000780",
+    "stops": 3.79
+  },
+  {
+    "frame": 811,
+    "capture": "walk-000781",
+    "stops": 3.79
+  },
+  {
+    "frame": 812,
+    "capture": "walk-000782",
+    "stops": 3.79
+  },
+  {
+    "frame": 813,
+    "capture": "walk-000783",
+    "stops": 3.79
+  },
+  {
+    "frame": 814,
+    "capture": "walk-000784",
+    "stops": 3.79
+  },
+  {
+    "frame": 815,
+    "capture": "walk-000785",
+    "stops": 3.79
+  },
+  {
+    "frame": 816,
+    "capture": "walk-000786",
+    "stops": 3.79
+  },
+  {
+    "frame": 817,
+    "capture": "walk-000787",
+    "stops": 3.79
+  },
+  {
+    "frame": 818,
+    "capture": "walk-000788",
+    "stops": 3.79
+  },
+  {
+    "frame": 819,
+    "capture": "walk-000789",
+    "stops": 3.79
+  },
+  {
+    "frame": 820,
+    "capture": "walk-000790",
+    "stops": 3.79
+  },
+  {
+    "frame": 821,
+    "capture": "walk-000791",
+    "stops": 3.79
+  },
+  {
+    "frame": 822,
+    "capture": "walk-000792",
+    "stops": 3.79
+  },
+  {
+    "frame": 823,
+    "capture": "walk-000793",
+    "stops": 3.79
+  },
+  {
+    "frame": 824,
+    "capture": "walk-000794",
+    "stops": 3.79
+  },
+  {
+    "frame": 825,
+    "capture": "walk-000795",
+    "stops": 3.79
+  },
+  {
+    "frame": 826,
+    "capture": "walk-000796",
+    "stops": 3.79
+  },
+  {
+    "frame": 827,
+    "capture": "walk-000797",
+    "stops": 3.79
+  },
+  {
+    "frame": 828,
+    "capture": "walk-000798",
+    "stops": 3.79
+  },
+  {
+    "frame": 829,
+    "capture": "walk-000799",
+    "stops": 3.79
+  },
+  {
+    "frame": 830,
+    "capture": "walk-000800",
+    "stops": 3.79
+  },
+  {
+    "frame": 831,
+    "capture": "walk-000801",
+    "stops": 3.79
+  },
+  {
+    "frame": 832,
+    "capture": "walk-000802",
+    "stops": 3.79
+  },
+  {
+    "frame": 833,
+    "capture": "walk-000803",
+    "stops": 3.79
+  },
+  {
+    "frame": 834,
+    "capture": "walk-000804",
+    "stops": 3.79
+  },
+  {
+    "frame": 835,
+    "capture": "walk-000805",
+    "stops": 3.79
+  },
+  {
+    "frame": 836,
+    "capture": "walk-000806",
+    "stops": 3.79
+  },
+  {
+    "frame": 837,
+    "capture": "walk-000807",
+    "stops": 3.79
+  },
+  {
+    "frame": 838,
+    "capture": "walk-000808",
+    "stops": 3.79
+  },
+  {
+    "frame": 839,
+    "capture": "walk-000809",
+    "stops": 3.79
+  },
+  {
+    "frame": 840,
+    "capture": "walk-000810",
+    "stops": 3.79
+  },
+  {
+    "frame": 841,
+    "capture": "walk-000811",
+    "stops": 3.79
+  },
+  {
+    "frame": 842,
+    "capture": "walk-000812",
+    "stops": 3.79
+  },
+  {
+    "frame": 843,
+    "capture": "walk-000813",
+    "stops": 3.79
+  },
+  {
+    "frame": 844,
+    "capture": "walk-000814",
+    "stops": 3.79
+  },
+  {
+    "frame": 845,
+    "capture": "walk-000815",
+    "stops": 3.79
+  },
+  {
+    "frame": 846,
+    "capture": "walk-000816",
+    "stops": 3.79
+  },
+  {
+    "frame": 847,
+    "capture": "walk-000817",
+    "stops": 3.79
+  },
+  {
+    "frame": 848,
+    "capture": "walk-000818",
+    "stops": 3.79
+  },
+  {
+    "frame": 849,
+    "capture": "walk-000819",
+    "stops": 3.79
+  },
+  {
+    "frame": 850,
+    "capture": "walk-000820",
+    "stops": 3.79
+  },
+  {
+    "frame": 851,
+    "capture": "walk-000821",
+    "stops": 3.79
+  },
+  {
+    "frame": 852,
+    "capture": "walk-000822",
+    "stops": 3.79
+  },
+  {
+    "frame": 853,
+    "capture": "walk-000823",
+    "stops": 3.79
+  },
+  {
+    "frame": 854,
+    "capture": "walk-000824",
+    "stops": 3.79
+  },
+  {
+    "frame": 855,
+    "capture": "walk-000825",
+    "stops": 3.79
+  },
+  {
+    "frame": 856,
+    "capture": "walk-000826",
+    "stops": 3.79
+  },
+  {
+    "frame": 857,
+    "capture": "walk-000827",
+    "stops": 3.79
+  },
+  {
+    "frame": 858,
+    "capture": "walk-000828",
+    "stops": 3.79
+  },
+  {
+    "frame": 859,
+    "capture": "walk-000829",
+    "stops": 3.79
+  },
+  {
+    "frame": 860,
+    "capture": "walk-000830",
+    "stops": 3.79
+  },
+  {
+    "frame": 861,
+    "capture": "walk-000831",
+    "stops": 3.79
+  },
+  {
+    "frame": 862,
+    "capture": "walk-000832",
+    "stops": 3.79
+  },
+  {
+    "frame": 863,
+    "capture": "walk-000833",
+    "stops": 3.79
+  },
+  {
+    "frame": 864,
+    "capture": "walk-000834",
+    "stops": 3.79
+  },
+  {
+    "frame": 865,
+    "capture": "walk-000835",
+    "stops": 3.79
+  },
+  {
+    "frame": 866,
+    "capture": "walk-000836",
+    "stops": 3.79
+  },
+  {
+    "frame": 867,
+    "capture": "walk-000837",
+    "stops": 3.79
+  },
+  {
+    "frame": 868,
+    "capture": "walk-000838",
+    "stops": 3.79
+  },
+  {
+    "frame": 869,
+    "capture": "walk-000839",
+    "stops": 3.79
+  },
+  {
+    "frame": 870,
+    "capture": "walk-000840",
+    "stops": 3.79
+  },
+  {
+    "frame": 871,
+    "capture": "walk-000841",
+    "stops": 3.79
+  },
+  {
+    "frame": 872,
+    "capture": "walk-000842",
+    "stops": 3.79
+  },
+  {
+    "frame": 873,
+    "capture": "walk-000843",
+    "stops": 3.79
+  },
+  {
+    "frame": 874,
+    "capture": "walk-000844",
+    "stops": 3.79
+  },
+  {
+    "frame": 875,
+    "capture": "walk-000845",
+    "stops": 3.79
+  },
+  {
+    "frame": 876,
+    "capture": "walk-000846",
+    "stops": 3.79
+  },
+  {
+    "frame": 877,
+    "capture": "walk-000847",
+    "stops": 3.79
+  },
+  {
+    "frame": 878,
+    "capture": "walk-000848",
+    "stops": 3.79
+  },
+  {
+    "frame": 879,
+    "capture": "walk-000849",
+    "stops": 3.79
+  },
+  {
+    "frame": 880,
+    "capture": "walk-000850",
+    "stops": 3.79
+  },
+  {
+    "frame": 881,
+    "capture": "walk-000851",
+    "stops": 3.79
+  },
+  {
+    "frame": 882,
+    "capture": "walk-000852",
+    "stops": 3.79
+  },
+  {
+    "frame": 883,
+    "capture": "walk-000853",
+    "stops": 3.79
+  },
+  {
+    "frame": 884,
+    "capture": "walk-000854",
+    "stops": 3.79
+  },
+  {
+    "frame": 885,
+    "capture": "walk-000855",
+    "stops": 3.79
+  },
+  {
+    "frame": 886,
+    "capture": "walk-000856",
+    "stops": 3.79
+  },
+  {
+    "frame": 887,
+    "capture": "walk-000857",
+    "stops": 3.79
+  },
+  {
+    "frame": 888,
+    "capture": "walk-000858",
+    "stops": 3.79
+  },
+  {
+    "frame": 889,
+    "capture": "walk-000859",
+    "stops": 3.79
+  },
+  {
+    "frame": 890,
+    "capture": "walk-000860",
+    "stops": 3.79
+  },
+  {
+    "frame": 891,
+    "capture": "walk-000861",
+    "stops": 3.79
+  },
+  {
+    "frame": 892,
+    "capture": "walk-000862",
+    "stops": 3.79
+  },
+  {
+    "frame": 893,
+    "capture": "walk-000863",
+    "stops": 3.79
+  },
+  {
+    "frame": 894,
+    "capture": "walk-000864",
+    "stops": 3.79
+  },
+  {
+    "frame": 895,
+    "capture": "walk-000865",
+    "stops": 3.79
+  },
+  {
+    "frame": 896,
+    "capture": "walk-000866",
+    "stops": 3.79
+  },
+  {
+    "frame": 897,
+    "capture": "walk-000867",
+    "stops": 3.79
+  },
+  {
+    "frame": 898,
+    "capture": "walk-000868",
+    "stops": 3.79
+  },
+  {
+    "frame": 899,
+    "capture": "walk-000869",
+    "stops": 3.79
+  },
+  {
+    "frame": 900,
+    "capture": "walk-000870",
+    "stops": 3.79
+  },
+  {
+    "frame": 901,
+    "capture": "walk-000871",
+    "stops": 3.79
+  },
+  {
+    "frame": 902,
+    "capture": "walk-000872",
+    "stops": 3.79
+  },
+  {
+    "frame": 903,
+    "capture": "walk-000873",
+    "stops": 3.79
+  },
+  {
+    "frame": 904,
+    "capture": "walk-000874",
+    "stops": 3.79
+  },
+  {
+    "frame": 905,
+    "capture": "walk-000875",
+    "stops": 3.79
+  },
+  {
+    "frame": 906,
+    "capture": "walk-000876",
+    "stops": 3.79
+  },
+  {
+    "frame": 907,
+    "capture": "walk-000877",
+    "stops": 3.79
+  },
+  {
+    "frame": 908,
+    "capture": "walk-000878",
+    "stops": 3.79
+  },
+  {
+    "frame": 909,
+    "capture": "walk-000879",
+    "stops": 3.79
+  },
+  {
+    "frame": 910,
+    "capture": "walk-000880",
+    "stops": 3.79
+  },
+  {
+    "frame": 911,
+    "capture": "walk-000881",
+    "stops": 3.79
+  },
+  {
+    "frame": 912,
+    "capture": "walk-000882",
+    "stops": 3.79
+  },
+  {
+    "frame": 913,
+    "capture": "walk-000883",
+    "stops": 3.79
+  },
+  {
+    "frame": 914,
+    "capture": "walk-000884",
+    "stops": 3.79
+  },
+  {
+    "frame": 915,
+    "capture": "walk-000885",
+    "stops": 3.79
+  },
+  {
+    "frame": 916,
+    "capture": "walk-000886",
+    "stops": 3.79
+  },
+  {
+    "frame": 917,
+    "capture": "walk-000887",
+    "stops": 3.79
+  },
+  {
+    "frame": 918,
+    "capture": "walk-000888",
+    "stops": 3.79
+  },
+  {
+    "frame": 919,
+    "capture": "walk-000889",
+    "stops": 3.79
+  },
+  {
+    "frame": 920,
+    "capture": "walk-000890",
+    "stops": 3.79
+  },
+  {
+    "frame": 921,
+    "capture": "walk-000891",
+    "stops": 3.79
+  },
+  {
+    "frame": 922,
+    "capture": "walk-000892",
+    "stops": 3.79
+  },
+  {
+    "frame": 923,
+    "capture": "walk-000893",
+    "stops": 3.79
+  },
+  {
+    "frame": 924,
+    "capture": "walk-000894",
+    "stops": 3.79
+  },
+  {
+    "frame": 925,
+    "capture": "walk-000895",
+    "stops": 3.79
+  },
+  {
+    "frame": 926,
+    "capture": "walk-000896",
+    "stops": 3.79
+  },
+  {
+    "frame": 927,
+    "capture": "walk-000897",
+    "stops": 3.79
+  },
+  {
+    "frame": 928,
+    "capture": "walk-000898",
+    "stops": 3.79
+  },
+  {
+    "frame": 929,
+    "capture": "walk-000899",
+    "stops": 3.79
+  },
+  {
+    "frame": 930,
+    "capture": "walk-000900",
+    "stops": 3.79
+  },
+  {
+    "frame": 931,
+    "capture": "walk-000901",
+    "stops": 3.79
+  },
+  {
+    "frame": 932,
+    "capture": "walk-000902",
+    "stops": 3.79
+  },
+  {
+    "frame": 933,
+    "capture": "walk-000903",
+    "stops": 3.79
+  },
+  {
+    "frame": 934,
+    "capture": "walk-000904",
+    "stops": 3.79
+  },
+  {
+    "frame": 935,
+    "capture": "walk-000905",
+    "stops": 3.79
+  },
+  {
+    "frame": 936,
+    "capture": "walk-000906",
+    "stops": 3.79
+  },
+  {
+    "frame": 937,
+    "capture": "walk-000907",
+    "stops": 3.79
+  },
+  {
+    "frame": 938,
+    "capture": "walk-000908",
+    "stops": 3.79
+  },
+  {
+    "frame": 939,
+    "capture": "walk-000909",
+    "stops": 3.79
+  },
+  {
+    "frame": 940,
+    "capture": "walk-000910",
+    "stops": 3.79
+  },
+  {
+    "frame": 941,
+    "capture": "walk-000911",
+    "stops": 3.79
+  },
+  {
+    "frame": 942,
+    "capture": "walk-000912",
+    "stops": 3.79
+  },
+  {
+    "frame": 943,
+    "capture": "walk-000913",
+    "stops": 3.79
+  },
+  {
+    "frame": 944,
+    "capture": "walk-000914",
+    "stops": 3.79
+  },
+  {
+    "frame": 945,
+    "capture": "walk-000915",
+    "stops": 3.79
+  },
+  {
+    "frame": 946,
+    "capture": "walk-000916",
+    "stops": 3.79
+  },
+  {
+    "frame": 947,
+    "capture": "walk-000917",
+    "stops": 3.79
+  },
+  {
+    "frame": 948,
+    "capture": "walk-000918",
+    "stops": 3.79
+  },
+  {
+    "frame": 949,
+    "capture": "walk-000919",
+    "stops": 3.79
+  },
+  {
+    "frame": 950,
+    "capture": "walk-000920",
+    "stops": 3.79
+  },
+  {
+    "frame": 951,
+    "capture": "walk-000921",
+    "stops": 3.79
+  },
+  {
+    "frame": 952,
+    "capture": "walk-000922",
+    "stops": 3.79
+  },
+  {
+    "frame": 953,
+    "capture": "walk-000923",
+    "stops": 3.79
+  },
+  {
+    "frame": 954,
+    "capture": "walk-000924",
+    "stops": 3.79
+  },
+  {
+    "frame": 955,
+    "capture": "walk-000925",
+    "stops": 3.79
+  },
+  {
+    "frame": 956,
+    "capture": "walk-000926",
+    "stops": 3.79
+  },
+  {
+    "frame": 957,
+    "capture": "walk-000927",
+    "stops": 3.79
+  },
+  {
+    "frame": 958,
+    "capture": "walk-000928",
+    "stops": 3.79
+  },
+  {
+    "frame": 959,
+    "capture": "walk-000929",
+    "stops": 3.79
+  },
+  {
+    "frame": 960,
+    "capture": "walk-000930",
+    "stops": 3.79
+  },
+  {
+    "frame": 961,
+    "capture": "walk-000931",
+    "stops": 3.79
+  },
+  {
+    "frame": 962,
+    "capture": "walk-000932",
+    "stops": 3.79
+  },
+  {
+    "frame": 963,
+    "capture": "walk-000933",
+    "stops": 3.79
+  },
+  {
+    "frame": 964,
+    "capture": "walk-000934",
+    "stops": 3.79
+  },
+  {
+    "frame": 965,
+    "capture": "walk-000935",
+    "stops": 3.79
+  },
+  {
+    "frame": 966,
+    "capture": "walk-000936",
+    "stops": 3.79
+  },
+  {
+    "frame": 967,
+    "capture": "walk-000937",
+    "stops": 3.79
+  },
+  {
+    "frame": 968,
+    "capture": "walk-000938",
+    "stops": 3.79
+  },
+  {
+    "frame": 969,
+    "capture": "walk-000939",
+    "stops": 3.79
+  },
+  {
+    "frame": 970,
+    "capture": "walk-000940",
+    "stops": 3.79
+  },
+  {
+    "frame": 971,
+    "capture": "walk-000941",
+    "stops": 3.79
+  },
+  {
+    "frame": 972,
+    "capture": "walk-000942",
+    "stops": 3.79
+  },
+  {
+    "frame": 973,
+    "capture": "walk-000943",
+    "stops": 3.79
+  },
+  {
+    "frame": 974,
+    "capture": "walk-000944",
+    "stops": 3.79
+  },
+  {
+    "frame": 975,
+    "capture": "walk-000945",
+    "stops": 3.79
+  },
+  {
+    "frame": 976,
+    "capture": "walk-000946",
+    "stops": 3.79
+  },
+  {
+    "frame": 977,
+    "capture": "walk-000947",
+    "stops": 3.79
+  },
+  {
+    "frame": 978,
+    "capture": "walk-000948",
+    "stops": 3.79
+  },
+  {
+    "frame": 979,
+    "capture": "walk-000949",
+    "stops": 3.79
+  },
+  {
+    "frame": 980,
+    "capture": "walk-000950",
+    "stops": 3.79
+  },
+  {
+    "frame": 981,
+    "capture": "walk-000951",
+    "stops": 3.79
+  },
+  {
+    "frame": 982,
+    "capture": "walk-000952",
+    "stops": 3.79
+  },
+  {
+    "frame": 983,
+    "capture": "walk-000953",
+    "stops": 3.79
+  },
+  {
+    "frame": 984,
+    "capture": "walk-000954",
+    "stops": 3.79
+  },
+  {
+    "frame": 985,
+    "capture": "walk-000955",
+    "stops": 3.79
+  },
+  {
+    "frame": 986,
+    "capture": "walk-000956",
+    "stops": 3.79
+  },
+  {
+    "frame": 987,
+    "capture": "walk-000957",
+    "stops": 3.79
+  },
+  {
+    "frame": 988,
+    "capture": "walk-000958",
+    "stops": 3.79
+  },
+  {
+    "frame": 989,
+    "capture": "walk-000959",
+    "stops": 3.79
+  },
+  {
+    "frame": 990,
+    "capture": "walk-000960",
+    "stops": 3.79
+  },
+  {
+    "frame": 991,
+    "capture": "walk-000961",
+    "stops": 3.79
+  },
+  {
+    "frame": 992,
+    "capture": "walk-000962",
+    "stops": 3.79
+  },
+  {
+    "frame": 993,
+    "capture": "walk-000963",
+    "stops": 3.79
+  },
+  {
+    "frame": 994,
+    "capture": "walk-000964",
+    "stops": 3.79
+  },
+  {
+    "frame": 995,
+    "capture": "walk-000965",
+    "stops": 3.79
+  },
+  {
+    "frame": 996,
+    "capture": "walk-000966",
+    "stops": 3.79
+  },
+  {
+    "frame": 997,
+    "capture": "walk-000967",
+    "stops": 3.79
+  },
+  {
+    "frame": 998,
+    "capture": "walk-000968",
+    "stops": 3.79
+  },
+  {
+    "frame": 999,
+    "capture": "walk-000969",
+    "stops": 3.79
+  },
+  {
+    "frame": 1000,
+    "capture": "walk-000970",
+    "stops": 3.79
+  },
+  {
+    "frame": 1001,
+    "capture": "walk-000971",
+    "stops": 3.79
+  },
+  {
+    "frame": 1002,
+    "capture": "walk-000972",
+    "stops": 3.79
+  },
+  {
+    "frame": 1003,
+    "capture": "walk-000973",
+    "stops": 3.79
+  },
+  {
+    "frame": 1004,
+    "capture": "walk-000974",
+    "stops": 3.79
+  },
+  {
+    "frame": 1005,
+    "capture": "walk-000975",
+    "stops": 3.79
+  },
+  {
+    "frame": 1006,
+    "capture": "walk-000976",
+    "stops": 3.79
+  },
+  {
+    "frame": 1007,
+    "capture": "walk-000977",
+    "stops": 3.79
+  },
+  {
+    "frame": 1008,
+    "capture": "walk-000978",
+    "stops": 3.79
+  },
+  {
+    "frame": 1009,
+    "capture": "walk-000979",
+    "stops": 3.79
+  },
+  {
+    "frame": 1010,
+    "capture": "walk-000980",
+    "stops": 3.79
+  },
+  {
+    "frame": 1011,
+    "capture": "walk-000981",
+    "stops": 3.79
+  },
+  {
+    "frame": 1012,
+    "capture": "walk-000982",
+    "stops": 3.79
+  },
+  {
+    "frame": 1013,
+    "capture": "walk-000983",
+    "stops": 3.79
+  },
+  {
+    "frame": 1014,
+    "capture": "walk-000984",
+    "stops": 3.79
+  },
+  {
+    "frame": 1015,
+    "capture": "walk-000985",
+    "stops": 3.79
+  },
+  {
+    "frame": 1016,
+    "capture": "walk-000986",
+    "stops": 3.79
+  },
+  {
+    "frame": 1017,
+    "capture": "walk-000987",
+    "stops": 3.79
+  },
+  {
+    "frame": 1018,
+    "capture": "walk-000988",
+    "stops": 3.79
+  },
+  {
+    "frame": 1019,
+    "capture": "walk-000989",
+    "stops": 3.79
+  },
+  {
+    "frame": 1020,
+    "capture": "walk-000990",
+    "stops": 3.79
+  },
+  {
+    "frame": 1021,
+    "capture": "walk-000991",
+    "stops": 3.79
+  },
+  {
+    "frame": 1022,
+    "capture": "walk-000992",
+    "stops": 3.79
+  },
+  {
+    "frame": 1023,
+    "capture": "walk-000993",
+    "stops": 3.79
+  },
+  {
+    "frame": 1024,
+    "capture": "walk-000994",
+    "stops": 3.79
+  },
+  {
+    "frame": 1025,
+    "capture": "walk-000995",
+    "stops": 3.79
+  },
+  {
+    "frame": 1026,
+    "capture": "walk-000996",
+    "stops": 3.79
+  },
+  {
+    "frame": 1027,
+    "capture": "walk-000997",
+    "stops": 3.79
+  },
+  {
+    "frame": 1028,
+    "capture": "walk-000998",
+    "stops": 3.79
+  },
+  {
+    "frame": 1029,
+    "capture": "walk-000999",
+    "stops": 3.79
+  },
+  {
+    "frame": 1030,
+    "capture": "walk-001000",
+    "stops": 3.79
+  },
+  {
+    "frame": 1031,
+    "capture": "walk-001001",
+    "stops": 3.79
+  },
+  {
+    "frame": 1032,
+    "capture": "walk-001002",
+    "stops": 3.79
+  },
+  {
+    "frame": 1033,
+    "capture": "walk-001003",
+    "stops": 3.79
+  },
+  {
+    "frame": 1034,
+    "capture": "walk-001004",
+    "stops": 3.79
+  },
+  {
+    "frame": 1035,
+    "capture": "walk-001005",
+    "stops": 3.79
+  },
+  {
+    "frame": 1036,
+    "capture": "walk-001006",
+    "stops": 3.79
+  },
+  {
+    "frame": 1037,
+    "capture": "walk-001007",
+    "stops": 3.79
+  },
+  {
+    "frame": 1038,
+    "capture": "walk-001008",
+    "stops": 3.79
+  },
+  {
+    "frame": 1039,
+    "capture": "walk-001009",
+    "stops": 3.79
+  },
+  {
+    "frame": 1040,
+    "capture": "walk-001010",
+    "stops": 3.79
+  },
+  {
+    "frame": 1041,
+    "capture": "walk-001011",
+    "stops": 3.79
+  },
+  {
+    "frame": 1042,
+    "capture": "walk-001012",
+    "stops": 3.79
+  },
+  {
+    "frame": 1043,
+    "capture": "walk-001013",
+    "stops": 3.79
+  },
+  {
+    "frame": 1044,
+    "capture": "walk-001014",
+    "stops": 3.79
+  },
+  {
+    "frame": 1045,
+    "capture": "walk-001015",
+    "stops": 3.79
+  },
+  {
+    "frame": 1046,
+    "capture": "walk-001016",
+    "stops": 3.79
+  },
+  {
+    "frame": 1047,
+    "capture": "walk-001017",
+    "stops": 3.79
+  },
+  {
+    "frame": 1048,
+    "capture": "walk-001018",
+    "stops": 3.79
+  },
+  {
+    "frame": 1049,
+    "capture": "walk-001019",
+    "stops": 3.79
+  },
+  {
+    "frame": 1050,
+    "capture": "walk-001020",
+    "stops": 3.79
+  },
+  {
+    "frame": 1051,
+    "capture": "walk-001021",
+    "stops": 3.79
+  },
+  {
+    "frame": 1052,
+    "capture": "walk-001022",
+    "stops": 3.79
+  },
+  {
+    "frame": 1053,
+    "capture": "walk-001023",
+    "stops": 3.79
+  },
+  {
+    "frame": 1054,
+    "capture": "walk-001024",
+    "stops": 3.79
+  },
+  {
+    "frame": 1055,
+    "capture": "walk-001025",
+    "stops": 3.79
+  },
+  {
+    "frame": 1056,
+    "capture": "walk-001026",
+    "stops": 3.79
+  },
+  {
+    "frame": 1057,
+    "capture": "walk-001027",
+    "stops": 3.79
+  },
+  {
+    "frame": 1058,
+    "capture": "walk-001028",
+    "stops": 3.79
+  },
+  {
+    "frame": 1059,
+    "capture": "walk-001029",
+    "stops": 3.79
+  },
+  {
+    "frame": 1060,
+    "capture": "walk-001030",
+    "stops": 3.79
+  },
+  {
+    "frame": 1061,
+    "capture": "walk-001031",
+    "stops": 3.79
+  },
+  {
+    "frame": 1062,
+    "capture": "walk-001032",
+    "stops": 3.79
+  },
+  {
+    "frame": 1063,
+    "capture": "walk-001033",
+    "stops": 3.79
+  },
+  {
+    "frame": 1064,
+    "capture": "walk-001034",
+    "stops": 3.79
+  },
+  {
+    "frame": 1065,
+    "capture": "walk-001035",
+    "stops": 3.79
+  },
+  {
+    "frame": 1066,
+    "capture": "walk-001036",
+    "stops": 3.79
+  },
+  {
+    "frame": 1067,
+    "capture": "walk-001037",
+    "stops": 3.79
+  },
+  {
+    "frame": 1068,
+    "capture": "walk-001038",
+    "stops": 3.79
+  },
+  {
+    "frame": 1069,
+    "capture": "walk-001039",
+    "stops": 3.79
+  },
+  {
+    "frame": 1070,
+    "capture": "walk-001040",
+    "stops": 3.79
+  },
+  {
+    "frame": 1071,
+    "capture": "walk-001041",
+    "stops": 3.79
+  },
+  {
+    "frame": 1072,
+    "capture": "walk-001042",
+    "stops": 3.79
+  },
+  {
+    "frame": 1073,
+    "capture": "walk-001043",
+    "stops": 3.79
+  },
+  {
+    "frame": 1074,
+    "capture": "walk-001044",
+    "stops": 3.79
+  },
+  {
+    "frame": 1075,
+    "capture": "walk-001045",
+    "stops": 3.79
+  },
+  {
+    "frame": 1076,
+    "capture": "walk-001046",
+    "stops": 3.79
+  },
+  {
+    "frame": 1077,
+    "capture": "walk-001047",
+    "stops": 3.79
+  },
+  {
+    "frame": 1078,
+    "capture": "walk-001048",
+    "stops": 3.79
+  },
+  {
+    "frame": 1079,
+    "capture": "walk-001049",
+    "stops": 3.79
+  },
+  {
+    "frame": 1080,
+    "capture": "walk-001050",
+    "stops": 3.79
+  },
+  {
+    "frame": 1081,
+    "capture": "walk-001051",
+    "stops": 3.79
+  },
+  {
+    "frame": 1082,
+    "capture": "walk-001052",
+    "stops": 3.79
+  },
+  {
+    "frame": 1083,
+    "capture": "walk-001053",
+    "stops": 3.79
+  },
+  {
+    "frame": 1084,
+    "capture": "walk-001054",
+    "stops": 3.79
+  },
+  {
+    "frame": 1085,
+    "capture": "walk-001055",
+    "stops": 3.79
+  },
+  {
+    "frame": 1086,
+    "capture": "walk-001056",
+    "stops": 3.79
+  },
+  {
+    "frame": 1087,
+    "capture": "walk-001057",
+    "stops": 3.79
+  },
+  {
+    "frame": 1088,
+    "capture": "walk-001058",
+    "stops": 3.79
+  },
+  {
+    "frame": 1089,
+    "capture": "walk-001059",
+    "stops": 3.79
+  },
+  {
+    "frame": 1090,
+    "capture": "walk-001060",
+    "stops": 3.79
+  },
+  {
+    "frame": 1091,
+    "capture": "walk-001061",
+    "stops": 3.79
+  },
+  {
+    "frame": 1092,
+    "capture": "walk-001062",
+    "stops": 3.79
+  },
+  {
+    "frame": 1093,
+    "capture": "walk-001063",
+    "stops": 3.79
+  },
+  {
+    "frame": 1094,
+    "capture": "walk-001064",
+    "stops": 3.79
+  },
+  {
+    "frame": 1095,
+    "capture": "walk-001065",
+    "stops": 3.79
+  },
+  {
+    "frame": 1096,
+    "capture": "walk-001066",
+    "stops": 3.79
+  },
+  {
+    "frame": 1097,
+    "capture": "walk-001067",
+    "stops": 3.79
+  },
+  {
+    "frame": 1098,
+    "capture": "walk-001068",
+    "stops": 3.79
+  },
+  {
+    "frame": 1099,
+    "capture": "walk-001069",
+    "stops": 3.79
+  },
+  {
+    "frame": 1100,
+    "capture": "walk-001070",
+    "stops": 3.79
+  },
+  {
+    "frame": 1101,
+    "capture": "walk-001071",
+    "stops": 3.79
+  },
+  {
+    "frame": 1102,
+    "capture": "walk-001072",
+    "stops": 3.79
+  },
+  {
+    "frame": 1103,
+    "capture": "walk-001073",
+    "stops": 3.79
+  },
+  {
+    "frame": 1104,
+    "capture": "walk-001074",
+    "stops": 3.79
+  },
+  {
+    "frame": 1105,
+    "capture": "walk-001075",
+    "stops": 3.79
+  },
+  {
+    "frame": 1106,
+    "capture": "walk-001076",
+    "stops": 3.79
+  },
+  {
+    "frame": 1107,
+    "capture": "walk-001077",
+    "stops": 3.79
+  },
+  {
+    "frame": 1108,
+    "capture": "walk-001078",
+    "stops": 3.79
+  },
+  {
+    "frame": 1109,
+    "capture": "walk-001079",
+    "stops": 3.79
+  },
+  {
+    "frame": 1110,
+    "capture": "walk-001080",
+    "stops": 3.79
+  },
+  {
+    "frame": 1111,
+    "capture": "walk-001081",
+    "stops": 3.79
+  },
+  {
+    "frame": 1112,
+    "capture": "walk-001082",
+    "stops": 3.79
+  },
+  {
+    "frame": 1113,
+    "capture": "walk-001083",
+    "stops": 3.79
+  },
+  {
+    "frame": 1114,
+    "capture": "walk-001084",
+    "stops": 3.79
+  },
+  {
+    "frame": 1115,
+    "capture": "walk-001085",
+    "stops": 3.79
+  },
+  {
+    "frame": 1116,
+    "capture": "walk-001086",
+    "stops": 3.79
+  },
+  {
+    "frame": 1117,
+    "capture": "walk-001087",
+    "stops": 3.79
+  },
+  {
+    "frame": 1118,
+    "capture": "walk-001088",
+    "stops": 3.79
+  },
+  {
+    "frame": 1119,
+    "capture": "walk-001089",
+    "stops": 3.79
+  },
+  {
+    "frame": 1120,
+    "capture": "walk-001090",
+    "stops": 3.79
+  },
+  {
+    "frame": 1121,
+    "capture": "walk-001091",
+    "stops": 3.79
+  },
+  {
+    "frame": 1122,
+    "capture": "walk-001092",
+    "stops": 3.79
+  },
+  {
+    "frame": 1123,
+    "capture": "walk-001093",
+    "stops": 3.79
+  },
+  {
+    "frame": 1124,
+    "capture": "walk-001094",
+    "stops": 3.79
+  },
+  {
+    "frame": 1125,
+    "capture": "walk-001095",
+    "stops": 3.79
+  },
+  {
+    "frame": 1126,
+    "capture": "walk-001096",
+    "stops": 3.79
+  },
+  {
+    "frame": 1127,
+    "capture": "walk-001097",
+    "stops": 3.79
+  },
+  {
+    "frame": 1128,
+    "capture": "walk-001098",
+    "stops": 3.79
+  },
+  {
+    "frame": 1129,
+    "capture": "walk-001099",
+    "stops": 3.79
+  },
+  {
+    "frame": 1130,
+    "capture": "end-000000",
+    "stops": 3.79
+  },
+  {
+    "frame": 1131,
+    "capture": "end-000001",
+    "stops": 3.79
+  },
+  {
+    "frame": 1132,
+    "capture": "end-000002",
+    "stops": 3.79
+  },
+  {
+    "frame": 1133,
+    "capture": "end-000003",
+    "stops": 3.79
+  },
+  {
+    "frame": 1134,
+    "capture": "end-000004",
+    "stops": 3.79
+  },
+  {
+    "frame": 1135,
+    "capture": "end-000005",
+    "stops": 3.79
+  },
+  {
+    "frame": 1136,
+    "capture": "end-000006",
+    "stops": 3.79
+  },
+  {
+    "frame": 1137,
+    "capture": "end-000007",
+    "stops": 3.79
+  },
+  {
+    "frame": 1138,
+    "capture": "end-000008",
+    "stops": 3.79
+  },
+  {
+    "frame": 1139,
+    "capture": "end-000009",
+    "stops": 3.79
+  },
+  {
+    "frame": 1140,
+    "capture": "end-000010",
+    "stops": 3.79
+  },
+  {
+    "frame": 1141,
+    "capture": "end-000011",
+    "stops": 3.79
+  },
+  {
+    "frame": 1142,
+    "capture": "end-000012",
+    "stops": 3.79
+  },
+  {
+    "frame": 1143,
+    "capture": "end-000013",
+    "stops": 3.79
+  },
+  {
+    "frame": 1144,
+    "capture": "end-000014",
+    "stops": 3.79
+  },
+  {
+    "frame": 1145,
+    "capture": "end-000015",
+    "stops": 3.79
+  },
+  {
+    "frame": 1146,
+    "capture": "end-000016",
+    "stops": 3.79
+  },
+  {
+    "frame": 1147,
+    "capture": "end-000017",
+    "stops": 3.79
+  },
+  {
+    "frame": 1148,
+    "capture": "end-000018",
+    "stops": 3.79
+  },
+  {
+    "frame": 1149,
+    "capture": "end-000019",
+    "stops": 3.79
+  },
+  {
+    "frame": 1150,
+    "capture": "end-000020",
+    "stops": 3.79
+  },
+  {
+    "frame": 1151,
+    "capture": "end-000021",
+    "stops": 3.79
+  },
+  {
+    "frame": 1152,
+    "capture": "end-000022",
+    "stops": 3.79
+  },
+  {
+    "frame": 1153,
+    "capture": "end-000023",
+    "stops": 3.79
+  },
+  {
+    "frame": 1154,
+    "capture": "end-000024",
+    "stops": 3.79
+  },
+  {
+    "frame": 1155,
+    "capture": "end-000025",
+    "stops": 3.79
+  },
+  {
+    "frame": 1156,
+    "capture": "end-000026",
+    "stops": 3.79
+  },
+  {
+    "frame": 1157,
+    "capture": "end-000027",
+    "stops": 3.79
+  },
+  {
+    "frame": 1158,
+    "capture": "end-000028",
+    "stops": 3.79
+  },
+  {
+    "frame": 1159,
+    "capture": "end-000029",
+    "stops": 3.79
+  },
+  {
+    "frame": 1160,
+    "capture": "end-000030",
+    "stops": 3.79
+  },
+  {
+    "frame": 1161,
+    "capture": "end-000031",
+    "stops": 3.79
+  },
+  {
+    "frame": 1162,
+    "capture": "end-000032",
+    "stops": 3.79
+  },
+  {
+    "frame": 1163,
+    "capture": "end-000033",
+    "stops": 3.79
+  },
+  {
+    "frame": 1164,
+    "capture": "end-000034",
+    "stops": 3.79
+  },
+  {
+    "frame": 1165,
+    "capture": "end-000035",
+    "stops": 3.79
+  },
+  {
+    "frame": 1166,
+    "capture": "end-000036",
+    "stops": 3.79
+  },
+  {
+    "frame": 1167,
+    "capture": "end-000037",
+    "stops": 3.79
+  },
+  {
+    "frame": 1168,
+    "capture": "end-000038",
+    "stops": 3.79
+  },
+  {
+    "frame": 1169,
+    "capture": "end-000039",
+    "stops": 3.79
+  },
+  {
+    "frame": 1170,
+    "capture": "end-000040",
+    "stops": 3.79
+  },
+  {
+    "frame": 1171,
+    "capture": "end-000041",
+    "stops": 3.79
+  },
+  {
+    "frame": 1172,
+    "capture": "end-000042",
+    "stops": 3.79
+  },
+  {
+    "frame": 1173,
+    "capture": "end-000043",
+    "stops": 3.79
+  },
+  {
+    "frame": 1174,
+    "capture": "end-000044",
+    "stops": 3.79
+  },
+  {
+    "frame": 1175,
+    "capture": "end-000045",
+    "stops": 3.79
+  },
+  {
+    "frame": 1176,
+    "capture": "end-000046",
+    "stops": 3.79
+  },
+  {
+    "frame": 1177,
+    "capture": "end-000047",
+    "stops": 3.79
+  },
+  {
+    "frame": 1178,
+    "capture": "end-000048",
+    "stops": 3.79
+  },
+  {
+    "frame": 1179,
+    "capture": "end-000049",
+    "stops": 3.79
+  },
+  {
+    "frame": 1180,
+    "capture": "end-000050",
+    "stops": 3.79
+  },
+  {
+    "frame": 1181,
+    "capture": "end-000051",
+    "stops": 3.79
+  },
+  {
+    "frame": 1182,
+    "capture": "end-000052",
+    "stops": 3.79
+  },
+  {
+    "frame": 1183,
+    "capture": "end-000053",
+    "stops": 3.79
+  },
+  {
+    "frame": 1184,
+    "capture": "end-000054",
+    "stops": 3.79
+  },
+  {
+    "frame": 1185,
+    "capture": "end-000055",
+    "stops": 3.79
+  },
+  {
+    "frame": 1186,
+    "capture": "end-000056",
+    "stops": 3.79
+  },
+  {
+    "frame": 1187,
+    "capture": "end-000057",
+    "stops": 3.79
+  },
+  {
+    "frame": 1188,
+    "capture": "end-000058",
+    "stops": 3.79
+  },
+  {
+    "frame": 1189,
+    "capture": "end-000059",
+    "stops": 3.79
+  }
+]
