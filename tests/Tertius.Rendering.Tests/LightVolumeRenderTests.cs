@@ -325,8 +325,12 @@ public sealed class LightVolumeRenderTests
         try
         {
             RenderSnapshot scene = WallBeforeAWideEmitter(renderer, wall: -0.5f - distance, emitter: 1.5f);
-            float[] lights = [.. new[] { -0.45f, -0.47f, -0.49f, -0.51f, -0.53f, -0.55f }
-                .Select(z => RenderCenterRedFrom(renderer, scene, new(0, 0, z)))];
+            float[] lights =
+            [
+                .. new[] { -0.45f, -0.47f, -0.49f, -0.51f, -0.53f, -0.55f }.Select(z =>
+                    RenderCenterRedFrom(renderer, scene, new(0, 0, z))
+                ),
+            ];
             float[] changes = [.. lights.Zip(lights.Skip(1), (before, after) => after - before)];
             float within = (changes[0] + changes[1] + changes[3] + changes[4]) / 4;
 
@@ -394,8 +398,12 @@ public sealed class LightVolumeRenderTests
                 within.Add(RenderCenterRedFrom(renderer, near, new(0, 0, place)));
             }
 
-            beyond.Should().OnlyContain(red => red == 0, "the dark scene's only light reaches the wall through the grid");
-            within.Should().OnlyContain(red => red > 1e-3f, "the outer grid still gives a twentieth of the wall's light");
+            beyond
+                .Should()
+                .OnlyContain(red => red == 0, "the dark scene's only light reaches the wall through the grid");
+            within
+                .Should()
+                .OnlyContain(red => red > 1e-3f, "the outer grid still gives a twentieth of the wall's light");
         }
         finally
         {
@@ -455,7 +463,8 @@ public sealed class LightVolumeRenderTests
             foreach (int axis in new[] { 0, 1, 2 })
             foreach (float side in new[] { -8.5f, 8.5f })
             {
-                Vector3 place = Vector3.Zero, scale = new(17);
+                Vector3 place = Vector3.Zero,
+                    scale = new(17);
                 place[axis] = side;
                 scale[axis] = 0.08f;
                 scene.Instances.Add(BoxPanel(box, black, new(place, scale, entity++)));
@@ -493,6 +502,33 @@ public sealed class LightVolumeRenderTests
         LightVolumePass.Intersects(center: new(0, 0, 9.3f), radius: 0).Should().BeTrue();
         LightVolumePass.Intersects(center: new(9.3f, -9.3f, 9.3f), radius: 0).Should().BeTrue();
         LightVolumePass.Intersects(center: new(0, 0, 9.6f), radius: 0).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(4.25f)]
+    [InlineData(4.75f)]
+    public void AnEmitterJustOutsideTheMiddleGridLightsAReceiverThroughTheOuterGrid(float distance)
+    {
+        VulkanRenderer renderer = CreateVolumeRenderer();
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId matte = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, 1));
+            MaterialId red = renderer.CreateMaterial(
+                new(BaseColor: Vector4.UnitW, Roughness: 1, Emissive: new(8, 0, 0))
+            );
+            RenderSnapshot scene = DarkSnapshot(Vector3.UnitZ);
+            scene.Instances.Add(BoxPanel(box, matte, new(new(0, 0, -2), new(4, 4, 0.08f), 1)));
+            scene.Instances.Add(BoxPanel(box, red, new(new(0, 0, distance), new(6, 6, 0.08f), 2)));
+
+            RenderCenterRed(renderer, scene)
+                .Should()
+                .BeGreaterThan(1e-3f, "the middle grid ends at 4 m, so the outer grid must capture the emitter once");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     private static RenderSnapshot WallBeforeAWideEmitter(VulkanRenderer renderer, float wall, float emitter)
