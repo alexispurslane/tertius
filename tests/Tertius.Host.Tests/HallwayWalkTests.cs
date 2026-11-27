@@ -14,9 +14,10 @@ public sealed class HallwayWalkTests
     [Fact]
     public void TheFilmHoldsThirtyStillFramesThenWalksElevenHundredThenHoldsSixty()
     {
-        Script script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "hallway-walk.json")));
+        var script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "hallway-walk.json")));
 
-        IEnumerable<(string Name, int Frames, int Every)> films = script.Steps.Select(step => step.Value)
+        IEnumerable<(string Name, int Frames, int Every)> films = script
+            .Steps.Select(step => step.Value)
             .OfType<FilmStep>()
             .Select(film => (film.Name, film.Frames, film.Every));
 
