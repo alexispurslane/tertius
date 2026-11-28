@@ -56,5 +56,15 @@
   "execution_timeout_seconds": 1980,
   "canonical_ceiling_usd": 0.328,
   "projected_command_seconds_from_measured_phases": 1667.514903021233,
-  "projected_command_seconds_with_setup_build_caps": 1838.5698188175
+  "projected_command_seconds_with_setup_build_caps": 1838.5698188175,
+  "duration_policy_prerequisite": {
+    "launchable_under_checked_in_policy": false,
+    "checked_in_effective_command_seconds": 840,
+    "checked_in_effective_execution_seconds": 900,
+    "checked_in_effective_canonical_reservation_usd": 0.1552,
+    "proposed_limits_are_conditional": true,
+    "supported_isolated_cli_config": false,
+    "proof": "duration-policy/offline-check.json",
+    "decision": "Parent must settle duration policy separately. No config or live endpoint change is authorized."
+  }
 }

@@ -1,0 +1,13 @@
+--- a/tools/runpod/endpoint.json
++++ b/tools/runpod/endpoint.json
+@@ -12,8 +12,8 @@
+     "gpu": {
+       "rate_per_second": 0.00016,
+       "workers": 5,
+-      "job_seconds": 840,
+-      "endpoint_timeout_seconds": 900
++      "job_seconds": 1920,
++      "endpoint_timeout_seconds": 1980
+     },
+     "cpu": {
+       "rate_per_second": 2e-05,

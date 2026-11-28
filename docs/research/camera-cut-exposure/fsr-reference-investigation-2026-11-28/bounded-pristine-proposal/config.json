@@ -97,5 +97,28 @@
     "Extreme synthetic shared equality is rejected as a physical oracle by independent local histogram evidence, with tolerance unchanged.",
     "Linux return validation, ordinary synthetic sources, second extreme source and fixed/continuous controls remain missing. Local full-scope smoke verifies both real cuts but supplies no Linux speed."
   ],
-  "local_verification_limits": "Full real scope passed before adding derived active/output sizes. The exact final fixture passed minimal cut and ordinary smoke on both pins and modes."
+  "local_verification_limits": "Full real scope passed before adding derived active/output sizes. The exact final fixture passed minimal cut and ordinary smoke on both pins and modes.",
+  "duration_policy": {
+    "approved": false,
+    "applied": false,
+    "launchable_under_checked_in_policy": false,
+    "checked_in_command_seconds": 840,
+    "checked_in_execution_seconds": 900,
+    "proposed_command_seconds": 1920,
+    "proposed_execution_seconds": 1980,
+    "supported_isolated_cli_config": false,
+    "external_proposed_config": "/tmp/tertius-issue4-duration-policy/endpoint.proposed.json",
+    "external_proposed_config_sha256": "6cc6990f6a024f9cb6c326de260612047841dc42c1eaa395bfd3402024776c6b",
+    "exact_diff": "duration-policy/endpoint-duration-only.patch",
+    "exact_diff_sha256": "4634919df61d04f9f6ec0ce08fd73643d60527fad60cfb22ac36185d88672d84",
+    "offline_proof": "duration-policy/offline-check.json",
+    "prerequisite": "Parent policy decision required. The canonical CLI has no isolated --config or endpoint selector."
+  },
+  "parent_scope_decisions_2026_11_28": {
+    "physical_reference": "Accepted: independent unbinned raw-scene CPU reference for synthetic extreme FSR, within unchanged 1/16-stop tolerance. Historical Linux disagreement retained.",
+    "pristine_timing": "Accepted: both real film cuts and ordinary steady frames, native and FSR, baseline/candidate then candidate/baseline, four fresh processes.",
+    "platform_labels": "Local synthetic/continuous/fixed correctness and retained Linux diagnostics remain separately labeled.",
+    "paid_or_policy_approval": false
+  },
+  "output_completeness_limit": "The 6.5 MB compressed-row gate can exceed the 8 MB aggregate base64 handler file limit. Returned file completeness still needs review."
 }

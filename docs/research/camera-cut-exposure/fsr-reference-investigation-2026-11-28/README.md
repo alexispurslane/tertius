@@ -80,7 +80,7 @@ The nominal direct irradiance is 10^-12 W/m², with compensation of -13 stops. T
 
 With those defaults, the extreme fixture has scene RGB values above zero even though its direct-light and emission images are zero. Disabling the environment map, light volume and screen tracing makes the extreme fixture's scene RGB exactly zero. At an ordinary direct irradiance of 0.001 W/m², the same isolated setup produces positive scene RGB. Its HDR image equals direct diffuse plus direct specular plus emission exactly, on both pins and in both modes. All eight isolation cases emit zero Vulkan validation messages.
 
-The extreme fixture therefore measures a dark background signal outside the baseline histogram's useful range. Equality with that clipped baseline is an invalid physical target for this case. The candidate agrees with the independent scene target within the unchanged tolerance. No production fix follows from this investigation. The parent still owns acceptance of the revised correctness interpretation.
+The extreme fixture therefore measures a dark background signal outside the baseline histogram's useful range. Equality with that clipped baseline is an invalid physical target for this case. The candidate agrees with the independent scene target within the unchanged tolerance. No production fix follows from this investigation. The parent accepted the independent unbinned raw-scene CPU target for this case. The historical Linux disagreement and local provenance remain intact.
 
 ## A bounded pristine timing proposal
 
@@ -134,17 +134,28 @@ The [capacity model](bounded-pristine-proposal/capacity.json) uses the completed
 
 The projection charges each real return prefix for 45 frames at the prior mode's maximum measured per-draw wall time. It keeps the diagnostic validation overhead in that conservative estimate. It removes repeated synthetic populations and their recovery loops from timing. It also removes both new diagnostic runs and both restoration rebuilds. Only two initial pristine builds remain. Each pristine process has a 340-second cap. Asset setup has a 220-second cap, and each initial build has a 140-second cap.
 
-The canonical cost ceiling is **$0.328**: 1,980 execution seconds plus the existing 60-second worker-start and 10-second idle charges, at $0.00016 per second. This is a proposed ceiling, not approval or a completion guarantee. The worker can fail at a gate or timeout and still incur cost. No automatic retry is proposed.
+The proposed canonical cost ceiling is **$0.328**, conditional on an explicit duration-policy decision: 1,980 execution seconds plus the existing 60-second worker-start and 10-second idle charges, at $0.00016 per second. This is a proposed ceiling, not approval or a completion guarantee. The worker can fail at a gate or timeout and still incur cost. No automatic retry is proposed.
+
+### Duration policy prerequisite
+
+The pristine run is **not launchable under the checked-in policy**. The canonical GPU config still allows 840 command seconds and 900 execution seconds. A `--timeout 1920` request is clamped to those values. Its actual canonical reservation would be $0.1552, which does not fund the proposed scope.
+
+The [duration-policy evidence](bounded-pristine-proposal/duration-policy/README.md) retains an external, unapplied diff for 1,920 command seconds and 1,980 execution seconds. Offline calls to canonical code verify the resulting $0.328 reservation. All other config bytes, including worker counts and project budgets, stay unchanged. The canonical CLI has no isolated `--config` or endpoint selector. A programmatic config argument exists, but still uses the shared routing mechanism. No new launch mechanism was built.
+
+Published Runpod policy permits the 1,980-second per-job timeout to override an existing endpoint's 900-second default for that job only. A newly created endpoint would receive the higher default. The parent must settle that policy exposure separately. No duration change, live endpoint update or new spending is authorized.
+
+The evidence also records shared fetch/output deadline margins, TTL covering queue plus execution, and the existing compressed-output gate's base64 size mismatch. The worker and canonical tools remain unchanged. Complete returned output still needs review before a paid launch.
 
 ### Gates and remaining decisions
 
-The bundle retains the same GPU model and driver checks, minimum 2,048 MiB free-memory gate, source pins, allocator identity and NOAA mirror checks. It performs one canonical asset setup. Both trees share its pinned cooked content, with manifest `210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75`. It verifies source and assets again at the end. It pins and checks each retained diagnostic artifact before using its phase costs. It measures GPU clocks during the reversed rounds and preserves the complete-phase gate. Compressed rows have a 6.5 MB gate within the existing 8 MB handler result allowance. No new cache, infrastructure or uploaded asset is assumed.
+The bundle retains the same GPU model and driver checks, minimum 2,048 MiB free-memory gate, source pins, allocator identity and NOAA mirror checks. It performs one canonical asset setup. Both trees share its pinned cooked content, with manifest `210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75`. It verifies source and assets again at the end. It pins and checks each retained diagnostic artifact before using its phase costs. It measures GPU clocks during the reversed rounds and preserves the complete-phase gate. Compressed rows have a 6.5 MB gate, but base64 encoding can exceed the existing 8 MB handler file allowance. Complete returned output remains a separate prerequisite. No new cache, infrastructure or uploaded asset is assumed.
 
-The following remain unresolved:
+The accepted scope and remaining decisions are:
 
-1. The parent must accept the independent physical target for the extreme case. The earlier shared-reference failure stays in its historical record.
-2. Linux validation of the return cut, ordinary synthetic sources, second extreme source, fixed-exposure control and continuous-camera control is still missing. The proposed timing run covers the return cut without validation, and does not claim to fill the other correctness gaps. The parent must decide whether separate local correctness evidence is sufficient or a later Linux correctness scope is required.
-3. The conservative projection has not been tested by a completed pristine Linux visit. New spending needs approval for the exact bundle and ceiling. The earlier paid approval is exhausted.
-4. Required CI, final-head CI metrics, readiness and merge remain with the parent. PR #32 stays draft and In Progress, with F1 resolved.
+1. The parent accepted the independent unbinned raw-scene CPU target for extreme synthetic FSR at the unchanged 1/16-stop tolerance. The earlier shared-reference failure stays in its historical record.
+2. The parent accepted the pristine timing scope of both real film cuts and ordinary steady frames, native and FSR, in reversed paired rounds. Local synthetic, fixed-exposure and continuous-camera correctness remain labeled as local evidence. Retained Linux diagnostics remain separate. Linux validation of the return cut, ordinary synthetic sources, second extreme source and fixed/continuous controls remains missing. The timing scope does not fill those validation gaps.
+3. The duration policy remains unsettled. The current four-process scope cannot run under 840/900 seconds. No supported isolated CLI config exists. The exact external duration-only diff remains unapplied, pending the parent's policy decision.
+4. The conservative projection has not been tested by a completed pristine Linux visit. New spending needs approval for the exact bundle and conditional $0.328 ceiling. The earlier paid approval is exhausted. Handler output completeness and lifetime margins also need review.
+5. Required CI, final-head CI metrics, readiness and merge remain with the parent. PR #32 stays draft and In Progress, with F1 resolved.
 
 The original failed job remains **FAILED**, with canonical cost $0.09488624. No new paid job, reviewer, mutation run, full Rendering suite or game PNG capture ran during this local stage.
