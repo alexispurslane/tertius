@@ -95,6 +95,9 @@ vec3 restrainNeutral(vec3 radiance)
 #ifndef RESTRAINT_VARIANT
 #define RESTRAINT_VARIANT 0
 #endif
+#if RESTRAINT_VARIANT == 1 || RESTRAINT_VARIANT < 0 || RESTRAINT_VARIANT > 4
+#error RESTRAINT_VARIANT names no variant
+#endif
 // PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 2 and 3 keep in
 // full. It does not act on emission, and the second bounce carries the boosted light on with no second gain.
 #ifndef COLOR_GAIN
