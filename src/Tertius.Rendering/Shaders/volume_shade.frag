@@ -66,7 +66,7 @@ void main()
         if (area <= 0.0)
             continue;
         vec3 emission = vec3(volume.surfaces[k].source.rgb) * EmissionScale;
-        vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light);
+        vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light, COLOR_GAIN);
         volume.surfaces[k].source.rgb = floatBitsToUint(emission + reflected);
     }
 }
