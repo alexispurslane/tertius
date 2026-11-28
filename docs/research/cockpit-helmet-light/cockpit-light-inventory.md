@@ -76,3 +76,44 @@ Notes on the table:
   share can be the same fault as #47.
 - About half of the dark canopy's light and over a quarter of the panel's light under variant 4 come from the nose's
   back sides, which no real light path connects to the cabin.
+
+## The ceiling patches against the panel
+
+In N0 the two small ceiling glow0 patches raise the panel from 39.0 to 59.5 in 8-bit red. In the volume, the diffuse
+light at the panel receiver goes from 0.00063 to 0.00153 in red, 2.4 times. This section checks that rise by
+arithmetic (`tools/ceiling_patches.py`). The panel receiver is the one of `README.md`, "Direction count". It lies at
+(1.23, 1.37, −10.19) in the shuttle frame, and its normal (−0.39, −0.84, +0.38) points down.
+
+What each side of a patch faces:
+
+- Each patch hangs 0.11 m under the fuselage skin, at (±0.66, 1.97, −10.07).
+- The front side faces down and forward, (±0.21, −0.56, −0.80). It looks into the cockpit and meets the canopy frame
+  (`Cabin_Frame`) 1.29 m ahead.
+- The back side faces up and aft. Its ray crosses no cabin surface and meets the inside of the fuselage skin 2.52 m
+  away. So the back side lights the shuttle's inside above and aft of the cockpit, not a closed cavity.
+
+Direct light on the panel:
+
+- The near patch (starboard, 0.84 m away) faces the panel's position with its front side (cosine 0.66). The panel's
+  surface faces away from the patch (cosine −0.28). So neither side lights the panel directly.
+- The far patch (port, 1.98 m) is occluded.
+
+So the panel can get the patches' light only as a bounce, like the lamps' light. The panel faces away from the
+12 W cockpit lamp too (cosine −0.12). Today the volume gives the panel 0.00063 red from all nine lamps (97 W). If all
+of it came from the cockpit lamp alone, a bounce would give at most 0.00063 ÷ 12 W = 0.000053 per watt. The two
+patches send 1.28 W of red from both sides, so a bounce would give at most about 0.000067. The volume gives 0.00090,
+13 times that bound.
+
+The receiver's lobes show where the excess comes from. `volumeLobes` in `volume_receive.glsl` weights the six axial
+lobes by n × n:
+
+| Lobe | Weight | Added red light (N0 − today) |
+|---|---|---|
+| −y, the light from below, which the panel really faces | 0.71 | 0.00000 |
+| −x, the light from the side of the near patch | 0.15 | 0.00062 |
+| +z, the light from aft | 0.14 | 0.00028 |
+
+The −x lobe holds the light that arrives from the whole −x half of the sphere, also from above the panel's plane. The
+near patch lies there, 0.65 m to the −x side and 0.6 m above. So 69% of the rise enters through a lobe that sees the
+patch from behind the panel's surface. This is a different fault from #47: the receiver's basis, not the transport
+through a wall.
