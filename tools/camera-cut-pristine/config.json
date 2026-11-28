@@ -1,0 +1,134 @@
+{
+  "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+  "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "issue3_final_sha": "19e17c5ba364392ca6bf84b00c11a7d709771ded",
+  "candidate_seed": "468dc19d0f5e247819f24bfaea297919439c7b4f",
+  "approval": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "reason": "Inert proposal. No new spending authorized."
+  },
+  "gpu_name": "NVIDIA RTX 2000 Ada Generation",
+  "driver": "595.112.07",
+  "command_timeout_seconds": 1920,
+  "canonical_execution_timeout_seconds": 1980,
+  "worst_case_usd": 0.328,
+  "result_folder": null,
+  "linux_cooked_manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+  "rounds": [
+    [
+      "before",
+      "after"
+    ],
+    [
+      "after",
+      "before"
+    ]
+  ],
+  "real_output_size": [
+    1280,
+    720
+  ],
+  "real_native_render_size": [
+    1280,
+    720
+  ],
+  "real_fsr_render_size": [
+    848,
+    477
+  ],
+  "synthetic_output_size": [
+    160,
+    90
+  ],
+  "synthetic_native_render_size": [
+    160,
+    90
+  ],
+  "synthetic_fsr_render_size": [
+    96,
+    54
+  ],
+  "recovery_limit_followup_frames": 0,
+  "recovery_snapshot_seconds_per_frame": 0.016666666666666666,
+  "steady_frames": 120,
+  "steady_warmup_frames": 24,
+  "steady_measured_frames": 96,
+  "reference_extra_still_captures": 8,
+  "reference_tolerance_stops": 0.0625,
+  "reference_tolerance_srgb_code": 2,
+  "status": "INERT: parent decision required before submission",
+  "baseline_tree": "c71ef26f4f8a9462a917ca2ae1b3c362230e9e9e",
+  "extreme_reference_extra_still_captures": 64,
+  "processes": 4,
+  "diagnostic_processes": 0,
+  "matched_processes": 4,
+  "separate_warmup_processes": 0,
+  "observation_bytes_per_presentation_cut_lane": 8,
+  "observation_bytes_per_presentation_ordinary_lane": 0,
+  "capacity_projection_required": true,
+  "steady_measured_wall_samples": 96,
+  "steady_measured_gpu_samples": 95,
+  "main_baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+  "allocator_blob": "f7aae7bd20d48ea3adf0d565ed476a6d2ec54594",
+  "allocator_patch_sha256": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+  "minimum_free_gpu_mib": 2048,
+  "automatic_retry": false,
+  "submitted": false,
+  "candidate_tree": "76b5d43a9f3f841b19d7d542b93dc0308ba7a43e",
+  "local_fixture_csharp_sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+  "local_verification": "local-verification.json",
+  "pristine_process_timeout_seconds": 340,
+  "retained_diagnostic_job": "e1315547-2360-47f4-b91d-681cf8fe10c0-u1",
+  "retained_diagnostics_sha256": {
+    "diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6",
+    "diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54"
+  },
+  "retained_correctness_limits": [
+    "Prior Linux validation covers outside and one extreme synthetic case per mode on both pins.",
+    "Extreme synthetic shared equality is rejected as a physical oracle by independent local histogram evidence, with tolerance unchanged.",
+    "Linux return validation, ordinary synthetic sources, second extreme source and fixed/continuous controls remain missing. Local full-scope smoke verifies both real cuts but supplies no Linux speed."
+  ],
+  "local_verification_limits": "Full real scope passed before adding derived active/output sizes. The exact final fixture passed minimal cut and ordinary smoke on both pins and modes.",
+  "duration_policy": {
+    "approved": false,
+    "applied": false,
+    "launchable_under_checked_in_policy": false,
+    "checked_in_command_seconds": 840,
+    "checked_in_execution_seconds": 900,
+    "proposed_command_seconds": 1920,
+    "proposed_execution_seconds": 1980,
+    "supported_isolated_cli_config": false,
+    "external_proposed_config": "/tmp/tertius-issue4-duration-policy/endpoint.proposed.json",
+    "external_proposed_config_sha256": "6cc6990f6a024f9cb6c326de260612047841dc42c1eaa395bfd3402024776c6b",
+    "exact_diff": "duration-policy/endpoint-duration-only.patch",
+    "exact_diff_sha256": "4634919df61d04f9f6ec0ce08fd73643d60527fad60cfb22ac36185d88672d84",
+    "offline_proof": "duration-policy/offline-check.json",
+    "prerequisite": "Parent policy decision required. The canonical CLI has no isolated --config or endpoint selector."
+  },
+  "parent_scope_decisions_2026_11_28": {
+    "physical_reference": "Accepted: independent unbinned raw-scene CPU reference for synthetic extreme FSR, within unchanged 1/16-stop tolerance. Historical Linux disagreement retained.",
+    "pristine_timing": "Accepted: both real film cuts and ordinary steady frames, native and FSR, baseline/candidate then candidate/baseline, four fresh processes.",
+    "platform_labels": "Local synthetic/continuous/fixed correctness and retained Linux diagnostics remain separately labeled.",
+    "paid_or_policy_approval": false
+  },
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "output_evidence": {
+    "handler_aggregate_base64_limit_bytes": 8000000,
+    "final_metadata_reserve_base64_bytes": 65536,
+    "archive": "linux-out/return/evidence.tar.gz",
+    "status": "linux-out/return/status.json",
+    "overflow": "Explicit failure; metadata only. Complete raw evidence remains on worker, without automatic retry.",
+    "offline_proof": "output-budget/offline-check.json"
+  }
+}
