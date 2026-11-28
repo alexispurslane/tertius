@@ -83,27 +83,28 @@ vec3 restrainNeutral(vec3 radiance)
 
 // PROTOTYPE (issue #42, stage 1). This switch selects the restraint variant for the pictures of the user's choice.
 // Stage 2 keeps the chosen rule and removes the switch and the other variants.
-//   0: today (eff66e481): the restraint reads each cell face's summed color.
-//   1: Design 1, the paint decides: the capture weights each surface's reflectance by the knee of its saturation.
+//   0: today (eff66e481): the restraint reads each cell face's summed color, and restrains each surface's glow.
+//   1: free. Design 1 (the paint decides) was dropped by the user's decision of 2026-11-28.
 //   2: Design 2, only gray on gray is held back: the capture splits each reflectance into a colored part (color.rgb)
 //      and a gray level (color.w), and the bounce keeps the neutral share of gray level times the light's gray level.
 //   3: Hybrid: Design 2's split, with the knee on the paint and on the light. Each knee moves the colored part that it
 //      drops into the gray level at equal luminance.
-// After the capture, variants 1 to 3 only add sums and multiply them by the light.
+//   4: today's restraint of scattered light, with the glow unrestrained.
+// Variants 2 to 4 send each surface's glow into the volume in full (the user's decision). After the capture, variants
+// 2 and 3 only add sums and multiply them by the light.
 #ifndef RESTRAINT_VARIANT
 #define RESTRAINT_VARIANT 0
 #endif
-// PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 1 to 3 keep in
-// full. It does not act on emission, and the second bounce carries the boosted light on with no second gain. In
-// variant 1 the gain is in the captured weight, mix(share, gain, knee), so the second bounce gets it too.
+// PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 2 and 3 keep in
+// full. It does not act on emission, and the second bounce carries the boosted light on with no second gain.
 #ifndef COLOR_GAIN
 #define COLOR_GAIN 1.0
 #endif
 const vec3 RestraintLuminance = vec3(0.2126, 0.7152, 0.0722);
-// Variants 1 to 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
+// Variants 2 and 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
 // adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
 // the neutral share.
-#if RESTRAINT_VARIANT == 0
+#if RESTRAINT_VARIANT == 0 || RESTRAINT_VARIANT == 4
 const float ReflectanceScale = 1.0;
 #else
 const float ReflectanceScale = 64.0;
@@ -112,9 +113,7 @@ const float ReflectanceScale = 64.0;
 // The reflectance words of one surface of diffuse reflectance `diffuse`, per unit of area.
 vec4 capturedReflectanceOf(vec3 diffuse)
 {
-#if RESTRAINT_VARIANT == 1
-    return vec4(diffuse * mix(NeutralSourceShare, COLOR_GAIN, saturationKnee(diffuse)), 0.0);
-#elif RESTRAINT_VARIANT == 2
+#if RESTRAINT_VARIANT == 2
     float gray = min(diffuse.r, min(diffuse.g, diffuse.b));
     return vec4(diffuse - gray, gray);
 #elif RESTRAINT_VARIANT == 3
@@ -151,8 +150,8 @@ vec3 grayPaintKeeps(vec3 light, float gain)
 // The emitted radiance that one surface sends into the volume.
 vec3 capturedEmission(vec3 glow)
 {
-#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    return grayPaintKeeps(glow, 1.0);
+#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3 || RESTRAINT_VARIANT == 4
+    return glow;
 #else
     return restrainNeutral(glow);
 #endif
@@ -162,9 +161,7 @@ vec3 capturedEmission(vec3 glow)
 // summed area, `light` the radiance that falls on it, and `gain` the color gain of the bounce (1 for the second bounce).
 vec3 reflectedLight(vec4 color, float area, vec3 light, float gain)
 {
-#if RESTRAINT_VARIANT == 1
-    return color.rgb / ReflectanceScale * light;
-#elif RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
+#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
     return (gain * color.rgb * light + color.w * grayPaintKeeps(light, gain)) / ReflectanceScale;
 #else
     return area * restrainNeutral(color.rgb * light / area);
