@@ -1,0 +1,535 @@
+using System.Diagnostics;
+using System.Numerics;
+using System.Text.Json;
+using Silk.NET.Vulkan;
+using Tertius.Assets;
+using Tertius.Demo;
+using Tertius.Host.Scripting;
+using Tertius.Rendering;
+using Tertius.Simulation;
+using static Tertius.Host.Tests.HostTesting;
+
+namespace Tertius.Host.Tests;
+
+/// <summary>Pristine timing proposal. One observed presentation per cut. Prior diagnostic censoring stays separate.</summary>
+[Collection(MeasurementCollection.Name)]
+public sealed class LinuxExposureMeasurements
+{
+    private static readonly List<object> Rows = [];
+    private static bool Fsr = Environment.GetEnvironmentVariable("TERTIUS_LINUX_FSR") == "1";
+    private static bool Steady = Environment.GetEnvironmentVariable("TERTIUS_LINUX_LANE") == "steady";
+    private static readonly bool Validate = Environment.GetEnvironmentVariable("TERTIUS_LINUX_VALIDATE") == "1";
+    private static string Folder = Environment.GetEnvironmentVariable("TERTIUS_LINUX_OUT")
+        ?? throw new InvalidOperationException("Set TERTIUS_LINUX_OUT.");
+    private static readonly bool SmokeFilm = Environment.GetEnvironmentVariable("TERTIUS_LINUX_SMOKE") == "film";
+    private static readonly bool Smoke = Environment.GetEnvironmentVariable("TERTIUS_LINUX_SMOKE") is "1" or "film";
+    private static readonly bool Batch = Environment.GetEnvironmentVariable("TERTIUS_LINUX_BATCH") == "1";
+    private static readonly bool Diagnostic = Environment.GetEnvironmentVariable("TERTIUS_LINUX_DIAGNOSTIC") == "1";
+    private static readonly Dictionary<string, Sample> References = [];
+    private const int RecoveryFrames = 0;
+    private const float StopTolerance = 1f / 16;
+    private const int PixelTolerance = 2;
+
+    [Fact(Explicit = true)]
+    public void ReportWholeCutLatencyAndOrdinaryFrameCosts()
+    {
+        string originalFolder = Folder;
+        string[] modes = Batch ? ["native", "fsr"] : [Fsr ? "fsr" : "native"];
+        string[] lanes = Batch ? ["cut", "steady"] : [Steady ? "steady" : "cut"];
+        foreach (string mode in modes)
+        foreach (string lane in lanes)
+        {
+            Fsr = mode == "fsr";
+            Steady = lane == "steady";
+            Folder = Batch ? Path.Combine(originalFolder, mode, lane) : originalFolder;
+            Rows.Clear();
+            RunLane();
+        }
+    }
+
+    private static void RunLane()
+    {
+        Directory.CreateDirectory(Folder);
+        Console.Error.WriteLine($"LINUX_LANE {(Fsr ? "fsr" : "native")} {(Steady ? "steady" : "cut")}");
+        try
+        {
+            if (Smoke)
+            {
+                if (Steady)
+                {
+                    OrdinarySmoke();
+                    return;
+                }
+                if (SmokeFilm)
+                    Case("real-outside", () => RealCut("outside", 1417));
+                else
+                    Case("synthetic-extreme", () => Synthetic(source: 1361, destination: 1e-12f, compensation: -13, control: "cut"));
+                return;
+            }
+            if (Steady)
+            {
+                Case("steady", RealSteady);
+                return;
+            }
+            Case("real-outside", () => RealCut("outside", 1417));
+            Case("real-return", () => RealCut("return", 1462));
+        }
+        finally
+        {
+            File.WriteAllText(Path.Combine(Folder, "rows.json"), JsonSerializer.Serialize(new
+            {
+                Fsr, Steady, Validate, Smoke, Diagnostic, Stopwatch.Frequency, RecoveryFrames, StopTolerance, PixelTolerance,
+                MeterBins = ExposureMeter.Bins,
+                ObservationBytesPerPresentation = Steady ? 0 : 8,
+                Rows,
+            }, new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }
+
+    private static void Case(string label, Action run)
+    {
+        long start = Stopwatch.GetTimestamp();
+        run();
+        Rows.Add(new { Kind = "case-duration", Label = label,
+            Seconds = (Stopwatch.GetTimestamp() - start) / (double)Stopwatch.Frequency });
+    }
+
+    private static void OrdinarySmoke()
+    {
+        using VulkanRenderer renderer = Renderer(Options(true, AutoExposure.Default), out Boundary boundary);
+        RenderSnapshot snapshot = Ramp(renderer, 3);
+        for (int i = 0; i < 4; i++)
+        {
+            snapshot.Time = i / 60.0;
+            Sample frame = Draw(renderer, boundary, snapshot, capture: false);
+            if (i > 0 && (frame.Draws != 1 || frame.Presentations != 1 || frame.CaptureRequested))
+                throw new InvalidOperationException("Ordinary smoke requested capture or repeated rendering.");
+            Rows.Add(new { Kind = "ordinary-smoke", Index = i, Frame = frame });
+        }
+        Clean(renderer);
+    }
+
+    private static RendererOptions Options(bool synthetic, ExposureSetting exposure) => new()
+    {
+        Width = synthetic ? 160 : 1280,
+        Height = synthetic ? 90 : 720,
+        Validation = Validate,
+        FramesInFlight = 1,
+        CapturesInFlight = false,
+        WarmUpFrames = 0,
+        Exposure = exposure,
+        Upscaling = Fsr ? new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0) : new NoUpscaling(),
+        OutputDither = false,
+        PassTimestamps = true,
+    };
+
+    private static VulkanRenderer Renderer(RendererOptions options, out Boundary boundary)
+    {
+        Boundary? made = null;
+        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+            options: options,
+            createOutput: (device, allocator, extent) => made = new(
+                device, allocator, new HeadlessTarget(device: device, allocator: allocator, extent: extent, bgra: false)),
+            headless: true);
+        boundary = made ?? throw new InvalidOperationException("No output target.");
+        boundary.ExposureBuffer = () => renderer.Exposure.Buffer;
+        Rows.Add(new { Kind = "options", renderer.DeviceName, Options = options });
+        return renderer;
+    }
+
+    private static void RealCut(string destination, int expectedTick)
+    {
+        Sample reference = RealReference(destination);
+        using VulkanRenderer renderer = Renderer(Options(false, AutoExposure.Default), out Boundary boundary);
+        using World world = WorldTesting.NewWorld(backend: out _, debugChecks: false);
+        Script script = FilmScript();
+        SceneInstance scene = DemoScenes.For(ContentFolders.Find()).Single(s => s.Name == script.Scene).Build(world, renderer);
+        var playback = new Playback(renderer, boundary);
+        bool requested = false;
+        string destinationCamera = destination == "outside" ? "cockpit-outside-camera" : "pen-camera";
+        foreach (ScriptStep step in script.Steps)
+        {
+            if (step is CameraStep camera && camera.Entity == destinationCamera)
+            {
+                playback.RequestedAt = Stopwatch.GetTimestamp();
+                playback.RequestDraws = renderer.DrawnFrames;
+                playback.RequestPresentations = boundary.Records.Count;
+                requested = true;
+                playback.StopAt = destination + "-000000";
+            }
+            ScriptRunner.Run(script: script with { Steps = new[] { step } }, world: world, scene: scene, playback: playback);
+            if (requested && playback.Snapshot != null && playback.Name == playback.StopAt)
+                break;
+        }
+        if (world.TickNumber != expectedTick || playback.Last is null || playback.Snapshot is null)
+            throw new InvalidOperationException($"{destination}: expected tick {expectedTick}, got {world.TickNumber}.");
+        ReportRecovery(
+            renderer: renderer, boundary: boundary, snapshot: playback.Snapshot,
+            first: playback.Last, reference: reference, request: playback.RequestedAt,
+            drawStart: playback.RequestDraws, presentationStart: playback.RequestPresentations,
+            label: "film-" + destination, tick: expectedTick);
+        Clean(renderer);
+    }
+
+    private static Script FilmScript() => Script.Load(Path.Combine(
+        Environment.GetEnvironmentVariable("TERTIUS_LINUX_SCRIPTS") ?? throw new InvalidOperationException("No scripts."),
+        "issue4-cut-first-present.json"));
+
+    private static Sample RealReference(string destination)
+    {
+        using VulkanRenderer renderer = Renderer(Options(false, AutoExposure.Default), out Boundary boundary);
+        using World world = WorldTesting.NewWorld(backend: out _, debugChecks: false);
+        string path = Path.Combine(Environment.GetEnvironmentVariable("TERTIUS_LINUX_SCRIPTS")!,
+            destination == "outside" ? "issue4-cut-outside-control.json" : "issue4-cut-return-control.json");
+        Script script = Script.Load(path);
+        SceneInstance scene = DemoScenes.For(ContentFolders.Find()).Single(s => s.Name == script.Scene).Build(world, renderer);
+        var playback = new Playback(renderer, boundary);
+        ScriptRunner.Run(script: script, world: world, scene: scene, playback: playback);
+        RenderSnapshot snapshot = playback.Snapshot ?? throw new InvalidOperationException("No cold snapshot.");
+        Sample? previous = null;
+        Sample last = playback.Last ?? throw new InvalidOperationException("No cold frame.");
+        for (int i = 0; i < 8; i++)
+        {
+            previous = last;
+            last = Draw(renderer, boundary, snapshot, capture: true);
+        }
+        bool settled = Correct(last, previous!);
+        Rows.Add(new { Kind = "cold-reference", Label = "film-" + destination, world.TickNumber,
+            Frames = 9, Settled = settled, Last = last, Previous = previous, Draws = renderer.DrawnFrames });
+        if (!settled)
+            throw new InvalidOperationException("The independent cold reference did not settle.");
+        Clean(renderer);
+        return last;
+    }
+
+    private static void RealSteady()
+    {
+        using VulkanRenderer renderer = Renderer(Options(false, AutoExposure.Default), out Boundary boundary);
+        using World world = WorldTesting.NewWorld(backend: out _, debugChecks: false);
+        Script script = FilmScript();
+        SceneInstance scene = DemoScenes.For(ContentFolders.Find()).Single(s => s.Name == script.Scene).Build(world, renderer);
+        var playback = new Playback(renderer, boundary) { CapturePixels = false };
+        foreach (ScriptStep step in script.Steps)
+        {
+            if (step is FilmStep)
+                break;
+            ScriptRunner.Run(script: script with { Steps = new[] { step } }, world: world, scene: scene, playback: playback);
+        }
+        // Continue actual world ticks, at one film frame per tick. No cuts, captures or PNG work in this lane.
+        for (int i = 0; i < 120; i++)
+        {
+            world.Tick();
+            playback.Capture(world, "steady");
+            Rows.Add(new { Kind = "steady", Index = i, Measured = i >= 24, world.TickNumber,
+                Frame = playback.Last, Draws = renderer.DrawnFrames });
+        }
+        Clean(renderer);
+    }
+
+    private static void Synthetic(float source, float destination, float compensation, string control)
+    {
+        ExposureSetting exposure = control == "fixed" ? new FixedExposure(-2)
+            : AutoExposure.Default with { CompensationStops = compensation };
+        string referenceKey = $"{Fsr}/{destination:R}/{compensation:R}/{control == "fixed"}";
+        Sample reference;
+        if (References.TryGetValue(referenceKey, out Sample? cached))
+        {
+            reference = cached;
+            Rows.Add(new { Kind = "cold-reference-reuse", referenceKey, Last = reference });
+        }
+        else
+        {
+        using (VulkanRenderer cold = Renderer(Options(true, exposure), out Boundary coldBoundary))
+        {
+            RenderSnapshot coldSnapshot = Ramp(cold, destination);
+            Sample? previous = null;
+            Sample last = Draw(cold, coldBoundary, coldSnapshot, capture: true);
+            int referenceCaptures = destination < 1e-10f ? 64 : 8;
+            for (int i = 0; i < referenceCaptures; i++)
+            {
+                previous = last;
+                last = Draw(cold, coldBoundary, coldSnapshot, capture: true);
+            }
+            if (!Correct(last, previous!))
+                throw new InvalidOperationException("The synthetic cold reference did not settle.");
+            Rows.Add(new { Kind = "cold-reference", Label = "synthetic", source, destination, compensation, control,
+                Frames = referenceCaptures + 1, Last = last, Previous = previous, Draws = cold.DrawnFrames });
+            reference = last;
+            References.Add(referenceKey, reference);
+            Clean(cold);
+        }
+        }
+        using VulkanRenderer renderer = Renderer(Options(true, exposure), out Boundary boundary);
+        RenderSnapshot snapshot = Ramp(renderer, source);
+        for (int i = 0; i < 8; i++)
+            Draw(renderer, boundary, snapshot, capture: true);
+        long draws = renderer.DrawnFrames;
+        int presentations = boundary.Records.Count;
+        long request = Stopwatch.GetTimestamp();
+        SetStar(snapshot, destination);
+        if (control != "continuous")
+            snapshot.CameraCuts++;
+        else
+            TestChains.Of(snapshot, (8, Quaternion.Identity));
+        snapshot.Time = 1.0 / 60;
+        Sample first = Draw(renderer, boundary, snapshot, capture: true);
+        ReportRecovery(
+            renderer: renderer, boundary: boundary, snapshot: snapshot, first: first, reference: reference,
+            request: request, drawStart: draws, presentationStart: presentations,
+            label: $"synthetic-{control}-{source:R}-{destination:R}-comp{compensation:R}", tick: -1);
+        Clean(renderer);
+    }
+
+    private static void ReportRecovery(
+        VulkanRenderer renderer, Boundary boundary, RenderSnapshot snapshot, Sample first, Sample reference,
+        long request, long drawStart, int presentationStart, string label, int tick)
+    {
+        var samples = new List<object>();
+        Sample current = first;
+        double? correctMilliseconds = null;
+        long? correctDraws = null;
+        int? correctPresentations = null;
+        BoundaryRecord firstPresentation = boundary.Records[presentationStart];
+        bool firstCorrect = Correct(first, reference);
+        for (int i = 0; i <= RecoveryFrames; i++)
+        {
+            BoundaryRecord? correctPresentation = boundary.Records.Skip(presentationStart)
+                .FirstOrDefault(record => Correct(record, reference));
+            bool correct = correctPresentation != null;
+            samples.Add(new { Index = i, Correct = correct, Frame = current });
+            if (correctPresentation != null)
+            {
+                int index = boundary.Records.IndexOf(correctPresentation) - presentationStart;
+                correctMilliseconds = Milliseconds(correctPresentation.CompletedAt - request);
+                correctDraws = index + 1;
+                correctPresentations = index + 1;
+                break;
+            }
+            if (i == RecoveryFrames)
+                break;
+            // Freeze the first destination pose, but continue its film clock by 1/60 s per presentation.
+            snapshot.Time += 1.0 / 60;
+            current = Draw(renderer, boundary, snapshot, capture: true);
+        }
+        Rows.Add(new { Kind = "cut", Label = label, Tick = tick, RequestAt = request,
+            FirstPresentationMilliseconds = Milliseconds(firstPresentation.CompletedAt - request),
+            FirstEnqueueMilliseconds = Milliseconds(firstPresentation.SubmittedAt - request),
+            FirstApiReturnMilliseconds = Milliseconds(first.EndAt - request),
+            FirstApiCorrect = firstCorrect,
+            FirstPresentationCorrect = Correct(firstPresentation, reference),
+            CorrectMilliseconds = correctMilliseconds,
+            CorrectDraws = correctDraws, CorrectPresentations = correctPresentations,
+            RightCensored = correctMilliseconds is null,
+            FollowupFramesObserved = samples.Count - 1,
+            CorrectFollowupFrames = correctMilliseconds is null ? (int?)null : samples.Count - 1,
+            CorrectSnapshotSeconds = correctMilliseconds is null ? (double?)null : (samples.Count - 1) / 60.0,
+            TotalShadingDrawsFirstApi = first.Draws, TotalShadingDrawsObserved = renderer.DrawnFrames - drawStart,
+            FirstApiPresentations = first.Presentations,
+            ExactFirstPresentationAttribution = true,
+            Reference = reference, Frames = samples,
+            Presentations = boundary.Records.Skip(presentationStart).ToArray() });
+    }
+
+    private static bool Correct(Sample actual, Sample reference) =>
+        actual.Center.Length == 3 && reference.Center.Length == 3
+        && actual.Stops is float stops && reference.Stops is float expected
+        && Math.Abs(stops - expected) <= StopTolerance
+        && actual.Center.Zip(reference.Center).All(pair => Math.Abs(pair.First - pair.Second) <= PixelTolerance);
+
+    private static bool Correct(BoundaryRecord actual, Sample reference) =>
+        actual.Center.Length == 3 && reference.Center.Length == 3
+        && actual.AppliedStops is float stops && reference.Stops is float expected
+        && Math.Abs(stops - expected) <= StopTolerance
+        && actual.Center.Zip(reference.Center).All(pair => Math.Abs(pair.First - pair.Second) <= PixelTolerance);
+
+    private static Sample Draw(VulkanRenderer renderer, Boundary boundary, RenderSnapshot snapshot, bool capture)
+    {
+        long draws = renderer.DrawnFrames;
+        int presentations = boundary.Records.Count;
+        var sink = new PixelSink();
+        if (capture)
+            renderer.CaptureNextFrame(sink);
+        long start = Stopwatch.GetTimestamp();
+        renderer.Render(snapshot, 1f);
+        long end = Stopwatch.GetTimestamp();
+        GpuTimings? timings = renderer.LastFrameStats.GpuTimings;
+        if (renderer.DrawnFrames - draws != boundary.Records.Count - presentations)
+            throw new InvalidOperationException("Draw and presentation totals disagree.");
+        if (Smoke && presentations == 0 && boundary.Records.Count - presentations > 1)
+            Rows.Add(new { Kind = "multiple-presentation-smoke", Draws = renderer.DrawnFrames - draws,
+                Presentations = boundary.Records.Skip(presentations).ToArray(),
+                FinalCaptureStops = renderer.LastFrameStats.Exposure?.Stops, FinalCaptureCenter = sink.Center });
+        if (capture)
+        {
+            BoundaryRecord shown = boundary.Records[^1];
+            float? reported = renderer.LastFrameStats.Exposure?.Stops;
+            if (reported != shown.AppliedStops || !sink.Center.SequenceEqual(shown.Center))
+                throw new InvalidOperationException("Per-presentation observation differs from the final capture.");
+        }
+        return new Sample(start, end, renderer.DrawnFrames - draws, boundary.Records.Count - presentations,
+            renderer.LastFrameStats.Exposure?.Stops, sink.Center,
+            timings?.Frame, timings?.SpanMilliseconds, timings?.Passes.ToArray() ?? [], capture)
+        {
+            ActiveSize = [(int)renderer.LastScene.Constants.Viewport.X, (int)renderer.LastScene.Constants.Viewport.Y],
+            OutputSize = [(int)renderer.LastScene.Constants.OutputViewport.X, (int)renderer.LastScene.Constants.OutputViewport.Y],
+        };
+    }
+
+    private static RenderSnapshot Ramp(VulkanRenderer renderer, float irradiance)
+    {
+        var snapshot = new RenderSnapshot
+        {
+            Camera = new() { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = MathF.PI / 3 },
+            CameraCuts = 1,
+            Ambient = new() { Intensity = 0 },
+        };
+        TestChains.Of(snapshot, (7, Quaternion.Identity));
+        const int width = 256;
+        byte[] pixels = new byte[width * 4 * 4];
+        for (int x = 0; x < width; x++)
+        {
+            double linear = 0.9 * Math.Pow(2, -8 * (x + 0.5) / width);
+            double srgb = linear <= 0.0031308 ? 12.92 * linear : 1.055 * Math.Pow(linear, 1 / 2.4) - 0.055;
+            byte value = (byte)Math.Round(srgb * 255);
+            for (int y = 0; y < 4; y++)
+            {
+                int index = (y * width + x) * 4;
+                pixels[index] = value;
+                pixels[index + 1] = value;
+                pixels[index + 2] = value;
+                pixels[index + 3] = 255;
+            }
+        }
+        MaterialId material = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 1, Reflectance: 0,
+            BaseColorMap: renderer.CreateTexture(new TextureData(Width: width, Height: 4, Rgba: pixels))));
+        snapshot.Instances.Add(RenderInstance.Create(
+            mesh: renderer.CreateMesh(Primitives.Plane(5)), material: material, position: new(0, 0, -3),
+            rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2), scale: Vector3.One,
+            boundingRadius: 0, hemisphere: HemisphereUp.Along(Vector3.UnitY), chainDepth: TestChains.CamerasFrame,
+            flags: RenderFlags.Visible, entityIndex: 0, part: 0));
+        SetStar(snapshot, irradiance);
+        return snapshot;
+    }
+
+    private static void SetStar(RenderSnapshot snapshot, float irradiance)
+    {
+        const double distance = 1.5e11;
+        Vector3 position = Vector3.UnitZ * (float)distance;
+        snapshot.Lights.Clear();
+        snapshot.Lights.Add(new PointRenderLight(
+            EntityIndex: 1_000_000, EntityGeneration: 0, Position: position, PreviousPosition: position,
+            Color: new(1f, 0.96f, 0.9f), Power: (float)(4 * Math.PI * distance * distance * irradiance),
+            Radius: (float)(distance * Math.Sin(0.00467)), CastsShadow: true, ChainDepth: TestChains.Root));
+    }
+
+    private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+
+    private static void Clean(VulkanRenderer renderer)
+    {
+        string[] messages = renderer.ValidationMessages.ToArray();
+        Rows.Add(new { Kind = "validation", Messages = messages });
+        if (messages.Length > 0)
+            throw new InvalidOperationException("Vulkan validation emitted messages.");
+    }
+
+    private sealed record Sample(long StartAt, long EndAt, long Draws, int Presentations,
+        float? Stops, int[] Center, long? GpuFrame, double? GpuMilliseconds, PassTiming[] Passes, bool CaptureRequested)
+    {
+        public int[] ActiveSize { get; init; } = [];
+        public int[] OutputSize { get; init; } = [];
+    }
+    private sealed record BoundaryRecord(long SubmittedAt, long CompletedAt, float? AppliedStops, int[] Center);
+
+    private sealed class Playback(VulkanRenderer renderer, Boundary boundary) : IPlayback
+    {
+        public string? StopAt { get; set; }
+        public string? Name { get; private set; }
+        public bool CapturePixels { get; init; } = true;
+        public long RequestedAt { get; set; }
+        public long RequestDraws { get; set; }
+        public int RequestPresentations { get; set; }
+        public Sample? Last { get; private set; }
+        public RenderSnapshot? Snapshot { get; private set; }
+        public bool WaitForTick() => true;
+        public bool Capture(World world, string name)
+        {
+            world.PublishRenderSnapshot();
+            Snapshot = world.RenderSnapshots.AcquireLatest() ?? world.RenderSnapshots.ReadBuffer;
+            Last = Draw(renderer, boundary, Snapshot, CapturePixels);
+            Name = name;
+            return name != StopAt;
+        }
+    }
+
+    private sealed class PixelSink : ICaptureSink
+    {
+        public int[] Center { get; private set; } = [];
+        public void Take(in CapturedImage image)
+        {
+            int center = 4 * (image.Height / 2 * image.Width + image.Width / 2);
+            Center = new[] { (int)image.Rgba[center], (int)image.Rgba[center + 1], (int)image.Rgba[center + 2] };
+        }
+    }
+
+    // A completed offscreen Vulkan submission is the presentation boundary. It does not include compositor/vblank latency.
+    private sealed class Boundary(VulkanDevice device, DeviceAllocator allocator, HeadlessTarget target) : IOutputTarget
+    {
+        private readonly GpuBuffer? observation = Steady ? null : GpuBuffer.Create(
+            device: device, allocator: allocator, size: 8, usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback, name: "measurement presentation observation");
+        private GpuImage? acquired;
+        public Func<GpuBuffer>? ExposureBuffer { get; set; }
+        public List<BoundaryRecord> Records { get; } = [];
+        public Format Format => target.Format;
+        public Extent2D Extent => target.Extent;
+        public bool EncodeSrgbInShader => target.EncodeSrgbInShader;
+        public bool BgraOrder => target.BgraOrder;
+        public bool CanCapture => target.CanCapture;
+        public GpuImage? Acquire(FrameResources frame) => acquired = target.Acquire(frame);
+        public unsafe void FinishRecording(BarrierBatch barriers, CommandBuffer commandBuffer)
+        {
+            target.FinishRecording(barriers, commandBuffer);
+            if (observation is null)
+                return;
+            GpuImage image = acquired ?? throw new InvalidOperationException("No acquired output.");
+            GpuBuffer exposure = ExposureBuffer?.Invoke() ?? throw new InvalidOperationException("No exposure buffer.");
+            barriers.Image(image, ImageUse.TransferSource);
+            barriers.Buffer(exposure, BufferUse.TransferSource);
+            barriers.Buffer(observation, BufferUse.TransferDestination);
+            barriers.Flush(device.Vk, commandBuffer);
+            var pixel = new BufferImageCopy
+            {
+                BufferOffset = 4,
+                ImageSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: 0, baseArrayLayer: 0, layerCount: 1),
+                ImageOffset = new((int)Extent.Width / 2, (int)Extent.Height / 2, 0),
+                ImageExtent = new(1, 1, 1),
+            };
+            device.Vk.CmdCopyImageToBuffer(commandBuffer: commandBuffer, srcImage: image.Handle,
+                srcImageLayout: ImageLayout.TransferSrcOptimal, dstBuffer: observation.Handle,
+                regionCount: 1, pRegions: &pixel);
+            var applied = new BufferCopy(srcOffset: 4, dstOffset: 0, size: 4);
+            device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: exposure.Handle,
+                dstBuffer: observation.Handle, regionCount: 1, pRegions: &applied);
+            barriers.Buffer(observation, BufferUse.HostRead);
+            barriers.Flush(device.Vk, commandBuffer);
+        }
+        public unsafe void SubmitAndPresent(FrameResources frame)
+        {
+            target.SubmitAndPresent(frame);
+            long submitted = Stopwatch.GetTimestamp();
+            Fence fence = frame.Fence;
+            device.Vk.WaitForFences(device.Device, 1, &fence, true, ulong.MaxValue).Check("linux presentation fence");
+            long completed = Stopwatch.GetTimestamp();
+            float? applied = observation is null ? null : *(float*)observation.Mapped;
+            int[] center = observation is null ? [] : new[] {
+                (int)((byte*)observation.Mapped)[4], (int)((byte*)observation.Mapped)[5], (int)((byte*)observation.Mapped)[6] };
+            Records.Add(new(submitted, completed, applied, center));
+        }
+        public void Resize(Extent2D extent) => target.Resize(extent);
+        public void Dispose()
+        {
+            observation?.Dispose();
+            target.Dispose();
+        }
+    }
+}

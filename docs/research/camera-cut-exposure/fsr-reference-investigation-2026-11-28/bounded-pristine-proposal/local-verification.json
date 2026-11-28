@@ -1,0 +1,144 @@
+{
+  "status": "passed",
+  "platform": "Mac Vulkan; no Linux speed claim",
+  "rows": [
+    {
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "label": "film-outside",
+      "tick": 1417,
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "0 followup frames; no recovery duration"
+    },
+    {
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "label": "film-return",
+      "tick": 1462,
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "0 followup frames; no recovery duration"
+    },
+    {
+      "tree": "before",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "captures": 0,
+      "observation_bytes": 0
+    },
+    {
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "label": "film-outside",
+      "tick": 1417,
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "0 followup frames; no recovery duration"
+    },
+    {
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "label": "film-return",
+      "tick": 1462,
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "0 followup frames; no recovery duration"
+    },
+    {
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "captures": 0,
+      "observation_bytes": 0
+    },
+    {
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "label": "film-outside",
+      "tick": 1417,
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "none"
+    },
+    {
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "label": "film-return",
+      "tick": 1462,
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "none"
+    },
+    {
+      "tree": "after",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "captures": 0,
+      "observation_bytes": 0
+    },
+    {
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "label": "film-outside",
+      "tick": 1417,
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "none"
+    },
+    {
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "label": "film-return",
+      "tick": 1462,
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "censoring": "none"
+    },
+    {
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "captures": 0,
+      "observation_bytes": 0
+    }
+  ],
+  "fixture_sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+  "full_scope_fixture_sha256": "fed86224f0ff8c2ad778bb4feff11f0abbc135fcbfb037c0ef4d0f74bfddc119",
+  "difference": "Final fixture only adds derived active/output sizes to sample payloads. It passed fresh minimal cut/ordinary smoke on both pins and modes.",
+  "normal_and_gpu_boundaries_preserved": true,
+  "artifact_sizes_bytes": 1966951,
+  "new_gpu_submissions": 0
+}

@@ -1,0 +1,6 @@
+{
+  "exit": 1,
+  "reason": "RuntimeError: INERT: new Issue #4 paid approval and coordinator review are required before worker execution.",
+  "created_worker_output": false,
+  "new_gpu_submissions": 0
+}

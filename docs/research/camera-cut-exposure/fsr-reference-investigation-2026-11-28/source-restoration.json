@@ -1,0 +1,7 @@
+{
+  "production_source_hashes_restored": true,
+  "original_fixture_restored": true,
+  "shared_checkout_builds_or_source_mutation": false,
+  "new_gpu_submissions": 0,
+  "local_binaries": "Local source copies retain the last smoke assemblies. They are labeled with the proposed fixture hash and are not timed Linux evidence."
+}

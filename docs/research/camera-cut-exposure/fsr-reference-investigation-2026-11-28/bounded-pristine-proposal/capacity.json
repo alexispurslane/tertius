@@ -1,0 +1,60 @@
+{
+  "per_tree_mode": [
+    {
+      "tree": "before",
+      "mode": "native",
+      "diagnostic_case_seconds": {
+        "real-outside": 65.211157495,
+        "synthetic-extreme": 5.003751521,
+        "steady": 10.724461149
+      },
+      "one_timed_visit_seconds_upper_estimate": 176.75895085899998,
+      "max_real_draw_wall_seconds": 0.746937216
+    },
+    {
+      "tree": "before",
+      "mode": "fsr",
+      "diagnostic_case_seconds": {
+        "real-outside": 18.747725541,
+        "synthetic-extreme": 5.239620609,
+        "steady": 9.968305554
+      },
+      "one_timed_visit_seconds_upper_estimate": 81.377530151,
+      "max_real_draw_wall_seconds": 0.709194967
+    },
+    {
+      "tree": "after",
+      "mode": "native",
+      "diagnostic_case_seconds": {
+        "real-outside": 67.160506309,
+        "synthetic-extreme": 4.538382487,
+        "steady": 10.934809457
+      },
+      "one_timed_visit_seconds_upper_estimate": 182.5315645575,
+      "max_real_draw_wall_seconds": 0.7839053885
+    },
+    {
+      "tree": "after",
+      "mode": "fsr",
+      "diagnostic_case_seconds": {
+        "real-outside": 16.966310517,
+        "synthetic-extreme": 4.827500552,
+        "steady": 10.195669213
+      },
+      "one_timed_visit_seconds_upper_estimate": 78.7598819595,
+      "max_real_draw_wall_seconds": 0.7251464825
+    }
+  ],
+  "margin_factor": 1.25,
+  "projected_remaining_seconds": 1318.5698188175,
+  "model_limit": "Retained diagnostic validation and timestamps can overestimate pristine work. This is a capacity estimate, not a completion guarantee.",
+  "asset_setup_measured_seconds": 157.143902483047,
+  "initial_builds_measured_seconds": 106.01216487993952,
+  "asset_setup_hard_cap_seconds": 220,
+  "initial_builds_hard_cap_seconds": 280,
+  "command_timeout_seconds": 1920,
+  "execution_timeout_seconds": 1980,
+  "canonical_ceiling_usd": 0.328,
+  "projected_command_seconds_from_measured_phases": 1667.514903021233,
+  "projected_command_seconds_with_setup_build_caps": 1838.5698188175
+}
