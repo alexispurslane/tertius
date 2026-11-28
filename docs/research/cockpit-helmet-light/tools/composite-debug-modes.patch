@@ -1,0 +1,59 @@
+diff --git a/src/Tertius.Host/ScriptCommand.cs b/src/Tertius.Host/ScriptCommand.cs
+index 0adf92ba5..e9ee3af4a 100644
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -537,6 +537,8 @@ public static partial class ScriptCommand
+                 handedOver: () =>
+                 {
+                     readings.Add(renderer.LastFrameStats);
++                    if (System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_VOLUME_FRAME") == readings.Exposures.Count.ToString(System.Globalization.CultureInfo.InvariantCulture))
++                        renderer.DebugDumpVolume(System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_VOLUME_DUMP") ?? "volume.bin");
+                     // The timed span starts after the first shown frame, which holds the creation of the pipelines and
+                     // the warm-up draws of a still at the GPU's low clock.
+                     if (readings.Exposures.Count == 1)
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index 01283fe8f..59dff902a 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -91,6 +91,20 @@ void main()
+ #ifdef LIGHT_VOLUME
+     applyLightVolume(s, V, factors, screenTraceOn, indirectDiffuse, indirectSpecular);
+ #endif
++    int debugMode = int(frame.shadowParams.w + 0.5);
++    if (debugMode != 0)
++    {
++        vec3 vd = vec3(0), vs = vec3(0);
++#ifdef LIGHT_VOLUME
++        applyLightVolume(s, V, factors, screenTraceOn, vd, vs);
++#endif
++        vec3 value = debugMode == 1 ? s.position : debugMode == 2 ? s.normal : debugMode == 3 ? s.geometricNormal
++                   : debugMode == 4 ? vd : debugMode == 5 ? vs : debugMode == 6 ? vec3(s.roughness, factors.diffuse.r, factors.specular.r)
++                   : directDiffuse + directSpecular;
++        outColor = vec4(value, 1.0);
++        writeDiffuse(vec4(0.0));
++        return;
++    }
+     float share = glossyShare(s.roughness);
+     if (screenTraceOn && share > 0.0)
+     {
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index ce922ea67..6121a2327 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1311,6 +1311,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+         );
+ 
++    public void DebugDumpVolume(string path)
++    {
++        uint[] words = ReadBufferWords(Graph.Passes.OfType<LightVolumePass>().Single().Buffer);
++        System.IO.File.WriteAllBytes(path, System.Runtime.InteropServices.MemoryMarshal.AsBytes(words.AsSpan()).ToArray());
++        float[] hdr = ReadHdr();
++        System.IO.File.WriteAllBytes(path + ".hdr", System.Runtime.InteropServices.MemoryMarshal.AsBytes(hdr.AsSpan()).ToArray());
++    }
++
++    internal uint[] ReadVolumeBufferForProbe() => ReadBufferWords(Graph.Passes.OfType<LightVolumePass>().Single().Buffer);
++
+     internal uint ReadVolumeLightEvaluations() =>
+         ReadBufferWords(
+             Graph.Passes.OfType<LightVolumePass>().Single().Buffer,

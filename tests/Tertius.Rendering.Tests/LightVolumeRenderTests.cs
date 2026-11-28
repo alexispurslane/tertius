@@ -199,17 +199,6 @@ public sealed class LightVolumeRenderTests
     }
 
     [Fact]
-    public void ANeutralOffscreenEmitterAddsFarLessIndirectLightThanAColoredOneOfTheSamePeakRadiance()
-    {
-        float colored = MeasureOffscreenEmitterRed(emissive: new(8, 0, 0), exposureStops: 0);
-        float neutral = MeasureOffscreenEmitterRed(emissive: new(8, 8, 8), exposureStops: 0);
-
-        colored.Should().BeGreaterThan(0.01f, "a saturated red emitter keeps its full indirect contribution");
-        neutral.Should().BeGreaterThan(0.0001f, "neutral emission is restrained rather than removed");
-        neutral.Should().BeLessThan(colored * 0.1f, "low-saturation emission is restrained relative to color");
-    }
-
-    [Fact]
     public void ChangingExposureKeepsTheVolumesSceneRadianceUnchanged()
     {
         float baseReflector = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 0);

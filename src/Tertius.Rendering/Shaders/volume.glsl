@@ -3,14 +3,20 @@
 #include "volume_layout.glsl"
 const float EmissionScale = 4.0;
 const float NeutralSourceShare = 0.02;
+// The color words of a cell face sum products as small as area x 0.02 x reflectance in integers, and one fragment adds
+// up to about 256 area units. One step per unit biased a gray fragment by up to 15%. 64 steps per unit keep about 200
+// steps for one fragment of 0.65 gray paint at the neutral share.
+const float ReflectanceScale = 64.0;
 struct SurfaceBucket
 {
     ivec4 areaNormal; // xyz oriented area vector, w area
-    uvec4 color;      // rgb area times diffuse reflectance
-    // Rasterization accumulates area times emission as fixed-point integers.
-    // Shading replaces these words with area times total outgoing radiance in float bits, in every bucket with area.
-    // A raster write adds at least the 256 units of one sample's projected area, so a bucket with nonzero emission
-    // words has area, and the restriction and the source pass read only float bits.
+    // The paint sums of the restraint (capturedPaint), in ReflectanceScale steps per unit of area x reflectance: rgb
+    // area times the paints' weighted colored parts, w area times their gray levels.
+    uvec4 color;
+    // rgb holds one of two things, by pass. After the capture (volume_surface.frag): area times emission, as integers
+    // at EmissionScale. After the shading (volume_shade.frag): area times total outgoing radiance, as float bits, in
+    // every bucket with area. A raster write adds at least the 256 units of one sample's projected area, so a bucket
+    // with nonzero emission words has area, and the restriction and the source pass read only float bits. w is unused.
     uvec4 source;
 };
 #ifndef VOLUME_SET
@@ -66,14 +72,59 @@ vec4 parentOutgoing(ivec3 c, int level, int direction)
     return outgoingOf(volume.field[fieldIndex(level + 1, direction, cellIndex(level + 1, coarse))]);
 }
 
-// Low-saturation indirect sources are restrained to NeutralSourceShare so neutral bounce
-// preserves contrast while saturated colors keep their full indirect strength. Scaling all
-// channels by a function of saturation alone preserves hue and keeps the light field
-// independent of camera exposure.
-vec3 restrainNeutral(vec3 radiance)
+// THE RESTRAINT (issue #42): how much of each surface's bounce light the volume keeps. Gray light on gray paint keeps
+// NeutralSourceShare, so a gray room's bounce does not flatten its contrast, and saturated light keeps its full
+// strength. The rule judges one surface and one light. It splits each color into its gray level, the smallest
+// channel, and its colored part, the color minus the gray level. The colored part keeps the weight of the color's
+// saturation (restraintWeight), and the gray level keeps NeutralSourceShare. Nothing moves from a colored part into a
+// gray level, so a faint tint gives a dim wash of its own hue.
+//
+// The paint's half runs in the capture, per fragment (capturedPaint): each cell face sums area times the paint's
+// weighted colored part in color.rgb and area times its gray level in color.w. The light's half runs where each light
+// exists (grayPaintKeeps): per lamp in the first bounce (shapeLight sums it into volumeGrayPaintKeeps), and on the
+// incoming bounce light in the second bounce. After that every step only adds and multiplies (reflectedLight), so one
+// surface's light does not depend on the grid cell that holds it or on its neighbours in the cell. Glow enters in full.
+// Three functions hold the rule: colorSplit, restraintWeight and grayPaintKeeps.
+
+// The colored part of `c` in rgb and its gray level in w.
+vec4 colorSplit(vec3 c)
 {
-    float peak = max(radiance.r, max(radiance.g, radiance.b));
-    float valley = min(radiance.r, min(radiance.g, radiance.b));
-    float chroma = smoothstep(0.58, 0.78, (peak - valley) / max(peak, 1e-12));
-    return radiance * mix(NeutralSourceShare, 1.0, chroma);
+    float gray = min(c.r, min(c.g, c.b));
+    return vec4(c - gray, gray);
+}
+
+// The part of its colored part that a color keeps, from its saturation (max - min) / max: mix(share, 1, ramp) with the
+// ramp min(1, (saturation / 0.78)^3), from NeutralSourceShare for a gray color to 1 at saturation 0.78 and above.
+// `split` is the color as colorSplit splits it.
+float restraintWeight(vec4 split)
+{
+    float colored = max(split.r, max(split.g, split.b));
+    float peak = colored + split.w;
+    float ramp = min(1.0, pow((peak > 0.0 ? colored / peak : 0.0) / 0.78, 3.0));
+    return mix(NeutralSourceShare, 1.0, ramp);
+}
+
+// The light that gray paint of reflectance 1 keeps of the radiance `light` that falls on it: the light's colored part
+// at its weight, plus its gray level at NeutralSourceShare.
+vec3 grayPaintKeeps(vec3 light)
+{
+    vec4 split = colorSplit(light);
+    return restraintWeight(split) * split.rgb + NeutralSourceShare * split.w;
+}
+
+// The color words that a surface of diffuse reflectance `paint` adds per unit of area: its colored part at its weight
+// in rgb and its gray level in w, at ReflectanceScale steps per unit.
+vec4 capturedPaint(vec3 paint)
+{
+    vec4 split = colorSplit(paint);
+    return ReflectanceScale * vec4(restraintWeight(split) * split.rgb, split.w);
+}
+
+// Area times the diffuse radiance that a cell face reflects. `color` is the face's color words, `light` the radiance
+// that falls on it and `grayKept` what gray paint keeps of that light: grayPaintKeeps of one light, or its sum over
+// the lamps. The colored paint takes the whole light, and the gray paint what it keeps.
+vec3 reflectedLight(uvec4 color, vec3 light, vec3 grayKept)
+{
+    vec4 sums = vec4(color);
+    return (sums.rgb * light + sums.w * grayKept) / ReflectanceScale;
 }

@@ -1019,14 +1019,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
             // Those of each frame set and each deform set, the two of the exposure set, the two lists of each screen
-            // tracer set, and the tile records of key and fill in the G-buffer set and in the key fill tiles set.
+            // tracer set, the tile records of key and fill, and the environment irradiance contributions.
             new(
                 DescriptorType.StorageBuffer,
                 (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
                     + 2
                     + (ScreenTraceStorageBuffers + ScreenTraceVolumeBuffers) * ScreenTraceSets
                     + (VolumeSet.Handle == 0 ? 0u : 2u)
-                    + 2
+                    + 3
             ),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
@@ -1141,8 +1141,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The layouts of the prefilter set, which holds the radiance map and <paramref name="environmentSampler"/> as its
-    /// immutable sampler, and of the levels set, which holds four storage images.
+    /// The layouts of the prefilter set (radiance map, sampler and diffuse contributions) and the levels set.
     /// </summary>
     private (DescriptorSetLayout Prefilter, DescriptorSetLayout Levels) CreateEnvironmentSetLayouts(
         Sampler environmentSampler
@@ -1152,6 +1151,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             ImmutableSampler(binding: 1, stages: ShaderStageFlags.ComputeBit, sampler: &environmentSampler),
+            StorageBuffer(binding: 2, stages: ShaderStageFlags.ComputeBit),
         ];
         Span<DescriptorSetLayoutBinding> levels =
         [

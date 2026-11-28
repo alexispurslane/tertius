@@ -1,36 +1,24 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #include "cube_faces.glsl"
+#include "environment_irradiance_parts.glsl"
 
-// Level 0 of one map's irradiance cube (EnvironmentPrefilterPass.cs, https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance"):
-// D(n) at the center of each texel, the mean of the radiance map's level of SourceFaceSize texels over the hemisphere of n,
-// each source texel weighted by its solid angle times max(n·ω, 0), in all four channels. IrradianceCube.Convolve is the C#
-// copy. The dispatch convolves the run of faces from firstFace of map m: it reads cube m of the radiance map and writes
-// layers 6m + firstFace on of the cube, one face per WorkgroupsPerFace workgroups.
-//
-// Lanes invocations share a texel of the cube, so a workgroup holds 64 / Lanes texels that follow each other in layer, row
-// and column order. The workgroup walks the source in rounds of 64 texels: each invocation puts one source texel into
-// shared memory, its direction, its solid angle and its light, and lane j of each cube texel then sums the round's texels
-// j, j + Lanes, ... in order. The texel adds its lanes' sums in lane order, so one map always gives the same bits on one
-// GPU.
-
+// Convolve each freshly captured face into all diffuse directions. The combine pass adds the faces and normalizes.
 const uint Invocations = 64u;
 const uint Lanes = 8u;             // IrradianceCube.Lanes
 const uint SourceFaceSize = 32u;    // IrradianceCube.SourceFaceSize
 
 layout(local_size_x = 64) in;
-
 layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Level 0 of the irradiance cubes, six layers per map, in binding 0 of the cube's levels set
-// (DescriptorLayouts.EnvironmentLevelsSet). The downsample writes the other levels from it.
-layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray irradianceLevel0;
 
-// EnvironmentPrefilterPushConstants in GpuTypes.cs, of which this shader reads only the map.
-layout(push_constant, std430) uniform PrefilterPush
+// EnvironmentIrradiancePushConstants in GpuTypes.cs.
+layout(push_constant, std430) uniform IrradiancePush
 {
-    layout(offset = 76) uint map;  // m: the dispatch reads cube m and writes layers of map m
-    uint firstFace;                // the first of the faces that the dispatch writes, whose workgroups cover them exactly
+    uint map;
+    uint faces;
+    uint draw;
+    uint blendFrames;
 } prefilter;
 
 // One round of the source: xyz the unit direction ω of a texel's center, w its solid angle, and its light.
@@ -44,14 +32,17 @@ void main()
 {
     uint index = gl_LocalInvocationIndex;
     uint lane = index % Lanes;
-    uint size = uint(imageSize(irradianceLevel0).x);
     uint texel = gl_WorkGroupID.x * (Invocations / Lanes) + index / Lanes;
-    // The texels run face by face, from the dispatch's first face.
-    uint faceIndex = texel / (size * size);
-    uint inLayer = texel - faceIndex * size * size;
-    uint layer = prefilter.firstFace + faceIndex;
-    uvec2 xy = uvec2(inLayer % size, inLayer / size);
-    vec3 n = normalize(faceRay(layer, (vec2(xy) + 0.5) / float(size)));
+    uint layer = texel / IrradianceFaceTexels;
+    uint inLayer = texel % IrradianceFaceTexels;
+    uvec2 xy = uvec2(inLayer % IrradianceFaceSize, inLayer / IrradianceFaceSize);
+    vec3 n = normalize(faceRay(layer, (vec2(xy) + 0.5) / float(IrradianceFaceSize)));
+    // Each z workgroup selects one set bit in capture face order, including when the turn wraps.
+    uint faces = prefilter.faces;
+    for (uint skipped = 0u; skipped < gl_WorkGroupID.z; skipped++)
+        faces &= faces - 1u;
+    uint captureFace = uint(findLSB(faces));
+    uint slot = 6u * prefilter.map + captureFace;
 
     // The source: the level of SourceFaceSize texels, or level 0 of a smaller map. Both are powers of two, so the level
     // is the difference of their logarithms, and each face holds a multiple of 64 texels.
@@ -62,13 +53,11 @@ void main()
 
     vec4 sum = vec4(0.0);
     float weight = 0.0;
-    for (uint first = 0u; first < 6u * faceTexels; first += Invocations)
+    for (uint first = 0u; first < faceTexels; first += Invocations)
     {
         uint source = first + index;
-        uint sourceLayer = source / faceTexels;
-        uint inSourceLayer = source - sourceLayer * faceTexels;
-        uvec2 sourceXy = uvec2(inSourceLayer % sourceSize, inSourceLayer / sourceSize);
-        vec3 ray = faceRay(sourceLayer, (vec2(sourceXy) + 0.5) / float(sourceSize));
+        uvec2 sourceXy = uvec2(source % sourceSize, source / sourceSize);
+        vec3 ray = faceRay(captureFace, (vec2(sourceXy) + 0.5) / float(sourceSize));
         sourceDirections[index] = vec4(normalize(ray), texelSolidAngle(sourceXy, sourceSize));
         // The exact ray through a texel center at an integer level reads that texel alone. The layer coordinate float(m)
         // is an integer, which Vulkan rounds to itself.
@@ -105,7 +94,10 @@ void main()
             total += laneSums[index + j];
             totalWeight += laneWeights[index + j];
         }
-        // The source texel whose center lies nearest n has n·ω > 0, so the total weight is positive.
-        imageStore(irradianceLevel0, ivec3(xy, 6u * prefilter.map + layer), total / totalWeight);
+        uint part = slot * IrradianceTexels + texel;
+        irradiance.parts[part].target = total;
+        irradiance.parts[part].weight = totalWeight;
+        if (texel == 0u)
+            irradiance.endDraw[slot] = prefilter.draw + prefilter.blendFrames - 1u;
     }
 }

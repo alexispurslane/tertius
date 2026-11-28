@@ -793,8 +793,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// What the batcher prepares for the maps in the frame that the renderer draws next: no map, or the faces of each map of
     /// the snapshot's served chain that <see cref="EnvironmentMap.FacesFor"/> chooses, with their latest irradiance
-    /// readings. It writes the served chain, and changes no state of the maps but a growth, so a frame that throws before
-    /// its submission leaves the maps' drawn chain as it was.
+    /// readings. It writes the served chain. Apart from a growth, it changes only the map's description of this draw: the
+    /// faces and the blend length of each map, which the prefilter reads. So a frame that throws before its submission
+    /// leaves the maps' drawn chain as it was.
     /// </summary>
     private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool everyFace)
     {

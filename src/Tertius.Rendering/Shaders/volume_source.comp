@@ -36,7 +36,11 @@ void main()
         front += area;
         vec3 radiance = uintBitsToFloat(bucket.source.rgb) / float(an.w);
         if (pass.bounceNumber != 0u)
-            radiance += restrainNeutral(vec3(bucket.color.rgb) * volume.bounce[k].rgb / float(an.w));
+        {
+            // The incoming bounce light is judged as one light (the restraint, volume.glsl).
+            vec3 incoming = volume.bounce[k].rgb;
+            radiance += reflectedLight(bucket.color, incoming, grayPaintKeeps(incoming)) / float(an.w);
+        }
         source += area * radiance;
     }
     float clear = 1.0 - min(1.0, max(front, back));
