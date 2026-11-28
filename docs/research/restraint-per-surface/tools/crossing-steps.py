@@ -4,7 +4,8 @@ slabs do not cover. For each pair of neighboring frames it computes the change o
 largest channel) and the largest change of one pixel in one channel (8-bit levels). The film holds two frames per
 camera position, so a pair inside one position shows the frame-to-frame noise and a pair across two positions shows
 the camera's own change too.
-usage: crossing-steps.py <film.mkv> [<film.mkv>...]
+usage: crossing-steps.py [--second] <film.mkv> [<film.mkv>...]
+--second reads the regions of the second-bounce scene (restraint-second-bounce) instead.
 Prints, per film: the largest region-mean step with its frame, the largest per-pixel step with its frame, the same at
 the position changes near the 0.25 m grid's step (x = 0.12 to 0.13 m), and the mean color of the top band
 before and after the grid's step."""
@@ -17,6 +18,9 @@ WIDTH, HEIGHT = 640, 360
 # x0, y0, x1, y1 in the 640 x 360 frame. "receiver" is the panel left of the slabs. "top" is the band at the top of
 # the receiver where main shows a red patch at the grid's step.
 REGIONS = {"receiver": (40, 40, 400, 300), "top": (40, 8, 400, 60)}
+# The second-bounce scene: "ceiling" is the underside of the gray ceiling slab, which only the red floor's wash lights.
+# "receiver" is the receiver's red-lit middle, and "upper" its gray-lit top left of the ceiling slab.
+SECOND = {"ceiling": (430, 75, 590, 100), "receiver": (40, 120, 340, 280), "upper": (220, 10, 350, 60)}
 # Frame n shows camera position order[n // 2]: out from x = 0 to 0.24 m in 97 positions, and back.
 ORDER = list(range(97)) + list(range(96, -1, -1))
 
@@ -33,7 +37,11 @@ def crop(f, region):
 
 
 def main():
-    for path in sys.argv[1:]:
+    global REGIONS
+    paths = sys.argv[1:]
+    if paths and paths[0] == "--second":
+        REGIONS, paths = SECOND, paths[1:]
+    for path in paths:
         f = frames(path)
         print(f"{path}: {len(f)} frames")
         for name, region in REGIONS.items():
@@ -54,9 +62,9 @@ def main():
             quiet = [n for n in range(len(f) - 1) if n % 2 == 0]
             print(f"    noise (pairs inside one position): mean step up to {mean_step[quiet].max():.2f}, "
                   f"pixel step up to {pixel_step[quiet].max():.0f}")
-            if name == "top":
+            if name in ("top", "ceiling"):
                 before, after = means[ORDER.index(48) * 2], means[ORDER.index(52) * 2]
-                print(f"    top band mean RGB before the step {np.round(before, 1)}, after {np.round(after, 1)}")
+                print(f"    {name} mean RGB before the step {np.round(before, 1)}, after {np.round(after, 1)}")
 
 
 if __name__ == "__main__":

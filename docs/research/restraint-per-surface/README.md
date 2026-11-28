@@ -144,6 +144,24 @@ The largest one-frame change of the region's mean, in 8-bit display levels (`too
 
 By the line orchestrator's rule (a step above 10%), the weighted split stays the rule.
 
+## The second-bounce crossing at gain 1
+
+The scene restraint-second-bounce (see `tools/prepare-render.py`): a red floor slab lit from above by a white star, a gray ceiling slab above it whose underside only the floor's wash reaches, and the gray receiver behind both. Both slabs span the place where the 0.25 m grid's edge moves at x = 0.125 m. The camera path is the crossing of #22. These films were rendered at gain 1 with each lamp judged alone. The crossings at gain 4 that the line orchestrator ordered still wait for the slot.
+
+[`evidence/second-bounce-frame-100.png`](evidence/second-bounce-frame-100.png): frame 100 (just before the step) of today, the weighted split with ramp B, and the product rule on the mean paint with ramp B, from top to bottom.
+
+The largest one-frame change of each region's mean, in 8-bit display levels (`tools/crossing-steps.py --second`):
+
+| Region | today | weighted split, ramp B, per lamp | product rule on the mean paint, ramp B |
+|---|---:|---:|---:|
+| ceiling underside | 2.92 (91 to 94, x1.03) | 2.92 | 2.92 |
+| receiver, red-lit middle | 0.01 | 0.00 | 0.00 |
+| receiver, gray-lit top | 0.08 | 0.08 | 0.08 |
+
+- No rule makes a step on the receiver. The red floor shares no cell face with gray paint, so today's restraint already passes its light in full.
+- The ceiling's step at the grid's step is the same 2.92 levels (3%) in all three rules, so the restraint does not cause it. It belongs to the transport.
+- The ceiling's underside shows gray (91, 90, 90), not red. Gray light from elsewhere in the scene outweighs the floor's red wash on it, so this scene at gain 1 tests the second bounce of colored light only weakly.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
