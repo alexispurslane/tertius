@@ -1,0 +1,91 @@
+{
+  "scene": "demo-surface",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "camera",
+      "entity": "overview"
+    },
+    {
+      "do": "run",
+      "ticks": 90
+    },
+    {
+      "do": "camera",
+      "entity": "sky-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 60
+    },
+    {
+      "do": "camera",
+      "entity": "follow-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 82
+    },
+    {
+      "do": "camera",
+      "entity": "terminal-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 229
+    },
+    {
+      "do": "camera",
+      "entity": "follow-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 412
+    },
+    {
+      "do": "camera",
+      "entity": "apron-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 113
+    },
+    {
+      "do": "camera",
+      "entity": "follow-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 385
+    },
+    {
+      "do": "camera",
+      "entity": "seat-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 45
+    },
+    {
+      "do": "camera",
+      "entity": "cockpit-outside-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 45
+    },
+    {
+      "do": "camera",
+      "entity": "pen-camera"
+    },
+    {
+      "do": "film",
+      "name": "settled-return",
+      "frames": 1,
+      "every": 1
+    }
+  ]
+}

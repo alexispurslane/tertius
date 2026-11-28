@@ -1,0 +1,29 @@
+{
+  "at": "2026-11-28T13:38:39.917457+00:00",
+  "local_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "local_config_restored": true,
+  "local_gpu_command_seconds": 840,
+  "local_gpu_execution_seconds": 900,
+  "checkout_status_after_restore": "",
+  "endpoints_verified": true,
+  "endpoint_updates": [],
+  "endpoint_default_checks": [
+    {
+      "id": "vrq1d36fdt7o5l",
+      "kind": "pre-existing",
+      "before_timeout_ms": 7200000,
+      "after_timeout_ms": 7200000,
+      "unchanged": true
+    },
+    {
+      "id": "shmmav4u60m5u8",
+      "kind": "pre-existing",
+      "before_timeout_ms": 900000,
+      "after_timeout_ms": 900000,
+      "unchanged": true
+    }
+  ],
+  "preexisting_removed_by_normal_routing": [],
+  "checkout_clean": true,
+  "restoration_complete": true
+}

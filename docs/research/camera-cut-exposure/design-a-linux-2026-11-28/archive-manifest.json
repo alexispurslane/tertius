@@ -1,0 +1,326 @@
+{
+  "original_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-linux-proposal",
+  "files": [
+    {
+      "path": "proposal/parent-approval.json",
+      "bytes": 1276,
+      "sha256": "56d7fd8b08281b02dfa9afe274947cae0fd8131f7c2ceb0c6a988ae66935f538"
+    },
+    {
+      "path": "proposal/final-launch-verification.json",
+      "bytes": 1764,
+      "sha256": "f97d633bffbc06457df7f10553854ed29c85c7a3d27396109cc57de06f136161"
+    },
+    {
+      "path": "proposal/single-submission-consumed.json",
+      "bytes": 1989,
+      "sha256": "35f3120afb17b02ceccc9b93231c738f32e4694dee516103d585e07f7b40317b"
+    },
+    {
+      "path": "proposal/client-start.json",
+      "bytes": 156,
+      "sha256": "31d2953e9774bff1e1a240873af4bc44506418e9a4d8ec010bb4d51a9bde4c2d"
+    },
+    {
+      "path": "proposal/canonical-pending-checkpoint.json",
+      "bytes": 104070,
+      "sha256": "167e1312bdcde1a4b62e0c71b88345c3c22ed286f8d2ee29bd0a52afd373fa00"
+    },
+    {
+      "path": "proposal/job-status-checkpoint.json",
+      "bytes": 214,
+      "sha256": "a1205f41dfbddd4951ee92a11605a0683c20cf4a838cc22b211ae57cf8b6e03a"
+    },
+    {
+      "path": "proposal/measured-tree-identity.json",
+      "bytes": 712,
+      "sha256": "7b4a8e7945a9a10b6427715840c8ff73e712f5bd0cbbedfa2aa7f4eb219fee9f"
+    },
+    {
+      "path": "proposal/terminal-recovery-checkpoint.json",
+      "bytes": 701,
+      "sha256": "6f89c919d9c99e46a92b8a788cf9e37c413c36326e17bc6b41136718cf2d23d5"
+    },
+    {
+      "path": "proposal/canonical-exit.json",
+      "bytes": 95,
+      "sha256": "6b3d04d7cdd452bd86d5a6a0259d456f4b3cc8f2d1481171cc47469657ab99d8"
+    },
+    {
+      "path": "proposal/canonical-stdout.log",
+      "bytes": 319,
+      "sha256": "d1dffce04383fb4ba12c3adcdd64e917e2cd8cdc26b1da34e5d3ef9959377766"
+    },
+    {
+      "path": "proposal/canonical-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "proposal/canonical-audit.json",
+      "bytes": 103958,
+      "sha256": "eea1b12c02049149ffecf97ee392c5e89cb7503dd598abd518c85507e1c0f471"
+    },
+    {
+      "path": "proposal/run-single-approved.py",
+      "bytes": 1880,
+      "sha256": "877111b2ebc8789f367b5f84dcd07361d15284bbfa0c71020273c97cc5e6ed30"
+    },
+    {
+      "path": "proposal/final-launch.json",
+      "bytes": 2300,
+      "sha256": "44913211288742680136295198dbf71ba5c036d445b1be934802fb1b25b5566c"
+    },
+    {
+      "path": "proposal/final-launch.ps1",
+      "bytes": 103437,
+      "sha256": "7175ac7e52fa1adf3cd344104fba9b7768e85f003ff97110e3cfad4e28454986"
+    },
+    {
+      "path": "proposal/linux-config.json",
+      "bytes": 3760,
+      "sha256": "4530ed7f64e7d75cb0f390ee211c6a5b1ec25d2dde3fc6da145e957bf07824b3"
+    },
+    {
+      "path": "proposal/reviewed-linux-config.json",
+      "bytes": 2864,
+      "sha256": "52ddb776352328ef5d9765f5df74568489bf3818fa9617c9f98a21f4b25c83fa"
+    },
+    {
+      "path": "proposal/reviewed-proposal.json",
+      "bytes": 1290,
+      "sha256": "d6a8ac990b6b37c326a31471f6c1d43544c0d72fdc792514df80a005961ccb88"
+    },
+    {
+      "path": "proposal/proposal-evidence-manifest.json",
+      "bytes": 6834,
+      "sha256": "c4669c3a047c6f8d1ed1de03d8a50bda8835c027cd1717e0ed381478dde9cae8"
+    },
+    {
+      "path": "proposal/shared-input-source-verification.json",
+      "bytes": 7139,
+      "sha256": "9480190b1d6c593998ade82a23a845bd20d84e963b97a657b389329daed22497"
+    },
+    {
+      "path": "proposal/local-verification-summary.json",
+      "bytes": 166960,
+      "sha256": "17f315f88f55d4cfcbd3ff43f5248dc7472421aa6efd4f235d80077f0094ffe5"
+    },
+    {
+      "path": "proposal/PLAN.md",
+      "bytes": 7546,
+      "sha256": "09a64b5c29ca189eb5a2705f4a6d2617ccb689d4870abc6e2fa5d54d949c4a2b"
+    },
+    {
+      "path": "proposal/linux-analyze.py",
+      "bytes": 10518,
+      "sha256": "c0ffbb6f4f93a9f6348955e049f69f02547a6c258cb72b77ae097c592f333db6"
+    },
+    {
+      "path": "proposal/linux-worker.py",
+      "bytes": 21449,
+      "sha256": "f35cb52252624260cf70b56cfde412a6886678f23229149f490d4fbf09c71498"
+    },
+    {
+      "path": "proposal/linux-fixture.py",
+      "bytes": 28238,
+      "sha256": "80ca3faf2f28a072a333de6ec18d0f6108c322d4b39003c6eb7460b4dadf64ea"
+    },
+    {
+      "path": "proposal/linux-emit-job.py",
+      "bytes": 4476,
+      "sha256": "f476f7f70ba1d9d18ad9b440f02421632e70c2a165371b4d65a5e254e49e00d5"
+    },
+    {
+      "path": "proposal/linux-scripts/issue4-cut-first-present.json",
+      "bytes": 1458,
+      "sha256": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480"
+    },
+    {
+      "path": "proposal/linux-scripts/issue4-cut-outside-control.json",
+      "bytes": 1212,
+      "sha256": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929"
+    },
+    {
+      "path": "proposal/linux-scripts/issue4-cut-return-control.json",
+      "bytes": 1325,
+      "sha256": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791"
+    },
+    {
+      "path": "linux-run/linux-out/active-extents.json",
+      "bytes": 121589,
+      "sha256": "80d1741c4bfb73e653088359dd0c24dd6a5b5e708c2ade79b00b836a981a8f37"
+    },
+    {
+      "path": "linux-run/linux-out/after-ExposurePass.cs.patch",
+      "bytes": 1352,
+      "sha256": "a9604e4eddf3e0e13526aee1c158086cef4e803539c5ed393924265ade3b346f"
+    },
+    {
+      "path": "linux-run/linux-out/after-GpuTimer.cs.patch",
+      "bytes": 488,
+      "sha256": "4f9388ec35072b1fd1e61bcdd827f8a1475b78bbaf3f97f35c208e2390724304"
+    },
+    {
+      "path": "linux-run/linux-out/after-VulkanRenderer.cs.patch",
+      "bytes": 698,
+      "sha256": "c379a13500f87b00c9282f7899b7cce872e31237e9b888b0fd0dc15f712ded2c"
+    },
+    {
+      "path": "linux-run/linux-out/after-diagnostic-build.log",
+      "bytes": 76,
+      "sha256": "eca656f3ec405ca0003bd2d92cca4c83461eb21f57279f8761e6748e49f0fed7"
+    },
+    {
+      "path": "linux-run/linux-out/after-pristine-binaries.json",
+      "bytes": 387,
+      "sha256": "513316577a4ed9a2b9c6a64198e8e6ea263ea918bf1f3e55eb082bacb9ab4eac"
+    },
+    {
+      "path": "linux-run/linux-out/after-pristine-build.log",
+      "bytes": 76,
+      "sha256": "b21348d51e895edaeb647f94220c72644cf79ff5c449c87956287d5a79af5411"
+    },
+    {
+      "path": "linux-run/linux-out/asset-source-before.json",
+      "bytes": 13658,
+      "sha256": "d681d81223d087d7a5c8e50f45dcf21183c0df6ede4121cba02240ce22172183"
+    },
+    {
+      "path": "linux-run/linux-out/assets-before.json",
+      "bytes": 14387,
+      "sha256": "f8573d21172d205eba87e5f357b21d57186f2af7d7282bf6ffb33fbcfd996c75"
+    },
+    {
+      "path": "linux-run/linux-out/assets.log",
+      "bytes": 37904,
+      "sha256": "b87b694ba6e5c86bfb761487fbb9a506576e3492f86afab90d5bd5e57f18706a"
+    },
+    {
+      "path": "linux-run/linux-out/before-ExposurePass.cs.patch",
+      "bytes": 1184,
+      "sha256": "50e84a327b837a2a314804ed1dec3e9336947b2dd8e7689623c4b51bfec18bf4"
+    },
+    {
+      "path": "linux-run/linux-out/before-GpuTimer.cs.patch",
+      "bytes": 490,
+      "sha256": "5afdf20830498ae9e5a74903b6242c0e770d786ccaecfac8eecd5017648832bb"
+    },
+    {
+      "path": "linux-run/linux-out/before-VulkanRenderer.cs.patch",
+      "bytes": 700,
+      "sha256": "219610b0342df687d09fc702141acab76ee170e1f9ef58aeffa887c6ce23bf83"
+    },
+    {
+      "path": "linux-run/linux-out/before-diagnostic-build.log",
+      "bytes": 76,
+      "sha256": "7d572991158a473d7cc57ff9c76334675a9348bdab8ab078a406d39ed9bf26ef"
+    },
+    {
+      "path": "linux-run/linux-out/before-pristine-binaries.json",
+      "bytes": 387,
+      "sha256": "7f1dbc0e124c057bcca4998fc9541cbfeb44dad211013eac69688e18ce654eba"
+    },
+    {
+      "path": "linux-run/linux-out/before-pristine-build.log",
+      "bytes": 76,
+      "sha256": "c8a8951085d4095a819a74b055c25cc67a191fed67f435af2c9471959844d934"
+    },
+    {
+      "path": "linux-run/linux-out/capacity.json",
+      "bytes": 1650,
+      "sha256": "85d6542fd47d9d941ec0e5e4153987e82d99cd876680fd664b9dc633e4ba1094"
+    },
+    {
+      "path": "linux-run/linux-out/commands.jsonl",
+      "bytes": 2100,
+      "sha256": "b876a976445d994afb8cacedc25f1153e9e889231c6152c9a72148b06b71981f"
+    },
+    {
+      "path": "linux-run/linux-out/device.csv",
+      "bytes": 142,
+      "sha256": "09dcc984280a008a2dec68c85d845cff1a484d14a41edd94dfbc2f31790567a4"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-after/fsr/cut/rows.json.gz",
+      "bytes": 3474,
+      "sha256": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-after/fsr/steady/rows.json.gz",
+      "bytes": 20175,
+      "sha256": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-after/native/cut/rows.json.gz",
+      "bytes": 3336,
+      "sha256": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-after/native/steady/rows.json.gz",
+      "bytes": 19692,
+      "sha256": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-after.log",
+      "bytes": 18776,
+      "sha256": "2189bb5cdeb4e2745108b077b37a099246250e986867b4a4b0d876e8ecc6d549"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-before/fsr/cut/rows.json.gz",
+      "bytes": 35146,
+      "sha256": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-before/fsr/steady/rows.json.gz",
+      "bytes": 20087,
+      "sha256": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-before/native/cut/rows.json.gz",
+      "bytes": 34465,
+      "sha256": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-before/native/steady/rows.json.gz",
+      "bytes": 19242,
+      "sha256": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+    },
+    {
+      "path": "linux-run/linux-out/diagnostic-before.log",
+      "bytes": 30118,
+      "sha256": "1a2dcfed67b47c757c987800adc3475ba68d174d948801ee2009a38ee045112e"
+    },
+    {
+      "path": "linux-run/linux-out/harness.json",
+      "bytes": 4227,
+      "sha256": "9ae572a266fff052b7d50fd4c10e82ca561da7c5ba022d14e1d643b85a916681"
+    },
+    {
+      "path": "linux-run/linux-out/initial-memory.csv",
+      "bytes": 13,
+      "sha256": "d1a3b35a0510488e01a10ddffc036395614f098c615532ce03ba44763bfffc42"
+    },
+    {
+      "path": "linux-run/linux-out/mirror.json",
+      "bytes": 221,
+      "sha256": "be6866838250abd41967f7393dbbab437c95dccbd3a7d1a05a02d58838a4e7f6"
+    },
+    {
+      "path": "linux-run/linux-out/phase.json",
+      "bytes": 123,
+      "sha256": "024d0e6d2890eab65dd34c4b3b158f77834ad9f1c23a666ccbef38fc1c348b3e"
+    },
+    {
+      "path": "linux-run/linux-out/restoration.json",
+      "bytes": 180,
+      "sha256": "2f6f848dca9b00cdc9a577a0f2ad53a784da70913cd952acf74f73b50d72b3b1"
+    },
+    {
+      "path": "linux-run/result.json",
+      "bytes": 304737,
+      "sha256": "6990ee87c51fbf4173b23bfc86109a53bd0bcad42b90bab5b2ac775d9a753791"
+    }
+  ],
+  "archive_sha256": "1e6151cb331d80b0f2c0c452dfe3e11c533ff5cdedd20f63db59a510b411b23b"
+}

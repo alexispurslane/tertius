@@ -20,14 +20,13 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The format of the plan's bits: bit 0 marks an individual reflection ray (screen_trace.glsl).</summary>
     public const Format PlanFormat = Format.R8Uint;
 
-    /// <summary>The format of a record's light: rgb the ray's light, a its hit distance.</summary>
-    public const Format LightFormat = Format.R16G16B16A16Sfloat;
+    /// <summary>The format of a record's light: rgb linear scene radiance in W/(m² sr), a bounded hit distance in m.</summary>
+    public const Format LightFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>
-    /// The format of the hit light: rgb the light that leaves a pixel toward a reflection ray, pre-exposed and at
-    /// most MaxRadiance, so below the largest half float, and a the pixel's moved mark, 1 or 0.
+    /// The format of the hit light: rgb the linear scene radiance that leaves a pixel toward a reflection ray, in W/(m² sr), and a the pixel's moved mark, 1 or 0.
     /// </summary>
-    public const Format HitLightFormat = Format.R16G16B16A16Sfloat;
+    public const Format HitLightFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>The format of a record's ray: the direction's octahedral code, the half bits of log2 of its density, and RayTraced.</summary>
     public const Format RayFormat = Format.R16G16B16A16Uint;

@@ -1,0 +1,686 @@
+{
+  "status": "passed",
+  "platform": "Mac Vulkan; offscreen presentation",
+  "total_pngs": 134,
+  "rows": [
+    {
+      "mode": "native",
+      "destination": "outside",
+      "tick": 1417,
+      "used_stops": -7.6409826,
+      "raw_target_stops": -7.6409817,
+      "independent_cold_stops": -7.6409883,
+      "independent_settled_stops": -7.6409974,
+      "center_scene_radiance": [
+        18.790012,
+        18.143549,
+        16.356485
+      ],
+      "center_srgb": [
+        56,
+        54,
+        50
+      ],
+      "reference_center_srgb": [
+        56,
+        54,
+        50
+      ],
+      "draws": 1,
+      "presentations": 1,
+      "render_extent": [
+        1280,
+        720
+      ],
+      "output_extent": [
+        1280,
+        720
+      ],
+      "png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-captures/native/film/outside-000000.png"
+    },
+    {
+      "mode": "native",
+      "destination": "return",
+      "tick": 1462,
+      "used_stops": 2.87346,
+      "raw_target_stops": 2.87346,
+      "independent_cold_stops": 2.87346,
+      "independent_settled_stops": 2.87346,
+      "center_scene_radiance": [
+        0.017343502,
+        0.016008977,
+        0.014000392
+      ],
+      "center_srgb": [
+        71,
+        67,
+        61
+      ],
+      "reference_center_srgb": [
+        71,
+        67,
+        61
+      ],
+      "draws": 1,
+      "presentations": 1,
+      "render_extent": [
+        1280,
+        720
+      ],
+      "output_extent": [
+        1280,
+        720
+      ],
+      "png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-captures/native/film/return-000000.png"
+    },
+    {
+      "mode": "fsr",
+      "destination": "outside",
+      "tick": 1417,
+      "used_stops": -7.6406617,
+      "raw_target_stops": -7.6406612,
+      "independent_cold_stops": -7.6407037,
+      "independent_settled_stops": -7.6406984,
+      "center_scene_radiance": [
+        18.841076,
+        18.192617,
+        16.603144
+      ],
+      "center_srgb": [
+        56,
+        55,
+        51
+      ],
+      "reference_center_srgb": [
+        56,
+        55,
+        51
+      ],
+      "draws": 1,
+      "presentations": 1,
+      "render_extent": [
+        848,
+        477
+      ],
+      "output_extent": [
+        1280,
+        720
+      ],
+      "png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-captures/fsr/film/outside-000000.png"
+    },
+    {
+      "mode": "fsr",
+      "destination": "return",
+      "tick": 1462,
+      "used_stops": 2.8750825,
+      "raw_target_stops": 2.8750823,
+      "independent_cold_stops": 2.8750825,
+      "independent_settled_stops": 2.8750825,
+      "center_scene_radiance": [
+        0.016977064,
+        0.015667476,
+        0.0136735905
+      ],
+      "center_srgb": [
+        70,
+        66,
+        60
+      ],
+      "reference_center_srgb": [
+        70,
+        66,
+        60
+      ],
+      "draws": 1,
+      "presentations": 1,
+      "render_extent": [
+        848,
+        477
+      ],
+      "output_extent": [
+        1280,
+        720
+      ],
+      "png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-captures/fsr/film/return-000000.png"
+    }
+  ],
+  "png_manifest": [
+    {
+      "path": "native/film/outside-000000.png",
+      "sha256": "1cfc3c21618e707e3896365cfdde29d51424fcc35d1f987399a3a1e335d478d6"
+    },
+    {
+      "path": "native/film/outside-000001.png",
+      "sha256": "d8af32c13aa4822d18d147a4fc6a44536ca633afa5b6f547a304fe753c16e411"
+    },
+    {
+      "path": "native/film/outside-000002.png",
+      "sha256": "8e59baabfc17349fe3be308eda65d12ea6db652b9b5bfb219235a9e72bcbffb3"
+    },
+    {
+      "path": "native/film/outside-000003.png",
+      "sha256": "d67393c3c7df33dfeea9fbf2fbbcdf25b8faabd595fae5a6f29ec95bf1cd2403"
+    },
+    {
+      "path": "native/film/outside-000004.png",
+      "sha256": "dfa58575439be3d9d5bee90053c7f5500cfb738eef16835419bfccdd9af4bf41"
+    },
+    {
+      "path": "native/film/outside-000005.png",
+      "sha256": "91c4e9ac4f8e95ff6ea19d07aba6e5d9409ffb46ed8e8a460d2ccd63039171c4"
+    },
+    {
+      "path": "native/film/outside-000006.png",
+      "sha256": "ef3799adb88b0df046cfd37845708fbe410f7589a275d4c25a82c712366291f7"
+    },
+    {
+      "path": "native/film/outside-000007.png",
+      "sha256": "87edf1cdcfb13ced5e10ad2fe5e89fa08ae2fa08d7e51a8739e8f8164f0c18ef"
+    },
+    {
+      "path": "native/film/outside-000008.png",
+      "sha256": "34d92712a141a9e1e85cd00a5abd94b343b6b2975a88e5f7e51b6d286bd93950"
+    },
+    {
+      "path": "native/film/outside-000009.png",
+      "sha256": "158cc23881b1a2accc46062e3b7ba9b8c85e1ea63784db97c3f4ee55bd73a86c"
+    },
+    {
+      "path": "native/film/outside-000010.png",
+      "sha256": "5bd9182653b59c54210467b9aba8b91f98441d35c38259b1cf5a143ff780f28a"
+    },
+    {
+      "path": "native/film/outside-000011.png",
+      "sha256": "05a22ea902bbe01b39061dd2a02b703fa3c2e84ebc36fd9d74bac7a2700714ba"
+    },
+    {
+      "path": "native/film/outside-000012.png",
+      "sha256": "db2a4f0cb29e2672fa4ad6370bf8929e8fb0d3824ac6b0a23a41b448fa249878"
+    },
+    {
+      "path": "native/film/outside-000013.png",
+      "sha256": "e40cae65eea95bfc3baa838f714c0034892cb6af074a89ff7e00e5ab9bef66eb"
+    },
+    {
+      "path": "native/film/outside-000014.png",
+      "sha256": "568b5f9f94fae2ad9c5b665f8fdae4eb4b75dc7175d25462492c86b12ee9101b"
+    },
+    {
+      "path": "native/film/outside-000015.png",
+      "sha256": "65881f47054d5451c7e3630ff8231415cd922da91db0edb38fde53684d2eb29e"
+    },
+    {
+      "path": "native/film/outside-000016.png",
+      "sha256": "478387d885dceab79b122370a674b96d6cd255e00b4b888985125cc9037a0fba"
+    },
+    {
+      "path": "native/film/outside-000017.png",
+      "sha256": "ccf2e65fb32ff3a2b3503138e1543add81890cbe2fd2bbefb5852337502e1577"
+    },
+    {
+      "path": "native/film/outside-000018.png",
+      "sha256": "96bf21de495ca23f9d21c56d6c5e73b284b6fa3f2447309bd1c7f5537b3386da"
+    },
+    {
+      "path": "native/film/outside-000019.png",
+      "sha256": "9d47cdd5723ff585c9be976bd3e6fde42ad67f5cd8ff22f77b119fcf23209759"
+    },
+    {
+      "path": "native/film/outside-000020.png",
+      "sha256": "1662da1c2ac3acb0634467f70f183589f94e4aecf7b7ee3d118b07f55066a222"
+    },
+    {
+      "path": "native/film/outside-000021.png",
+      "sha256": "a54ac1232a9b89b5ff35c9bc35d03b9876eba31b0c3290f6a5a1637372ae08ec"
+    },
+    {
+      "path": "native/film/outside-000022.png",
+      "sha256": "c230a73fe67493ede428ecc19f743801b02d9db4bd50169589fccea63bb924d4"
+    },
+    {
+      "path": "native/film/outside-000023.png",
+      "sha256": "bcef4f4f82faae206855662fd1e684c56a5989f7dfa2c21ee75cccca4907c97f"
+    },
+    {
+      "path": "native/film/outside-000024.png",
+      "sha256": "25a7116ddd82e4eefa3a43c22070be8ebcc452dfb4274e5b9a67dbd587a85f62"
+    },
+    {
+      "path": "native/film/outside-000025.png",
+      "sha256": "abc7a05e6eae53c0b365d9c4f6ab304b289c1a6b3bb5828ea60a75b7cfcc487f"
+    },
+    {
+      "path": "native/film/outside-000026.png",
+      "sha256": "948a86b1d4bf640ec74767e79b9c28340c503f5c3a4765d524d1f9ec1ed1acfb"
+    },
+    {
+      "path": "native/film/outside-000027.png",
+      "sha256": "f1b4f8ed407c2c25c3a4312558240092d37dbbbd026bbcd08edc6bfe7a6c838b"
+    },
+    {
+      "path": "native/film/outside-000028.png",
+      "sha256": "82bc1f6ccf01434e1b893da480aadd79d2bcd693fbd0a1096cb7b28ae4bd855c"
+    },
+    {
+      "path": "native/film/outside-000029.png",
+      "sha256": "3ef8f1d25a6576354d62acdf35462d6247b08c9506dcc56972d1ae139aaf6a70"
+    },
+    {
+      "path": "native/film/outside-000030.png",
+      "sha256": "c02ea29eb9855425b4b50b737752a71629851e0ed672ce9855a30a8dfd99d78b"
+    },
+    {
+      "path": "native/film/outside-000031.png",
+      "sha256": "0b2430a7626cb3d7e3154d2c3fbd2ef694215cccf77b9921a71c211d8c42de40"
+    },
+    {
+      "path": "native/film/outside-000032.png",
+      "sha256": "4769cdf26ff975b07c0aeb1e256c74bc03e3c1e5340d44ae0a139ff6a154bbc7"
+    },
+    {
+      "path": "native/film/outside-000033.png",
+      "sha256": "c20e0cf418988b8c29fc132a3091ed46d837723849494ee2f1ddf1514ffe6838"
+    },
+    {
+      "path": "native/film/outside-000034.png",
+      "sha256": "eaafa7df36fd26b04468d537d58dcecae4c72e02bf5bee0fe8b2ef680f6edd0b"
+    },
+    {
+      "path": "native/film/outside-000035.png",
+      "sha256": "57f50957b22faa6234dfd9d0dd05501027a0e42ad100961ee833c6f7b0eed3e0"
+    },
+    {
+      "path": "native/film/outside-000036.png",
+      "sha256": "620c075e4f2a822a9aa76e950f197ebc4015cd5e4937cb4b08734bbf47f027c9"
+    },
+    {
+      "path": "native/film/outside-000037.png",
+      "sha256": "6e2c521b2e2d90b850bed673c55be5fd0dd64322d2df911ceabfe8301a1b0b36"
+    },
+    {
+      "path": "native/film/outside-000038.png",
+      "sha256": "0f953a5e9a163e161ef7662d7eed8ea585b5756f58029c4b49eb249f19c0e645"
+    },
+    {
+      "path": "native/film/outside-000039.png",
+      "sha256": "63aa55ecd490ffbe33d10df2a0d51d024f57e849a347b3a28fbab02bc4af1899"
+    },
+    {
+      "path": "native/film/outside-000040.png",
+      "sha256": "cb7c668da9b31ea97831e5d7baa9d2e558c58c189684a90aff081c541a80996d"
+    },
+    {
+      "path": "native/film/outside-000041.png",
+      "sha256": "5f71e6bd4f56330c954aaba4f0438015f79475fc010c78b6af7a2da572638705"
+    },
+    {
+      "path": "native/film/outside-000042.png",
+      "sha256": "54ad6f6649b760f3362d4dccaf960be19cc105de9b6e03ac5149bd87520f8787"
+    },
+    {
+      "path": "native/film/outside-000043.png",
+      "sha256": "868c6cc90de1fab9d45e3d2514da04890d182a9e73e4b7466e9fe745d140aee7"
+    },
+    {
+      "path": "native/film/outside-000044.png",
+      "sha256": "552be6cf73554ea4a97e8bf33d531e4457abc4540520e41b8170cc91840ce94f"
+    },
+    {
+      "path": "native/film/return-000000.png",
+      "sha256": "ba270496af4e67c543775d1a8e2e4c36b0e951dd4fe0e9b6a0e3a7e34dfe24ea"
+    },
+    {
+      "path": "native/film/return-000001.png",
+      "sha256": "ccd89e26e93b4bbe4dc068aef645cc21b9262125ec2c709240f0b8d60e36e3be"
+    },
+    {
+      "path": "native/film/seat-tail-000000.png",
+      "sha256": "c49c6435ab49bc75f3ff89093f672f5335feaefff404444e3e60544733f8fb75"
+    },
+    {
+      "path": "native/film/seat-tail-000001.png",
+      "sha256": "4ef7aa5bbf73d6ff411002412ed98908ddf9b3a0ad3758e50cfc97581857718d"
+    },
+    {
+      "path": "native/outside/settled-00.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-01.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-02.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-03.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-04.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-05.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-06.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-07.png",
+      "sha256": "4970145f6d739270db870870da1f3f6a426c227b06158f921b247d6fff9c2e0e"
+    },
+    {
+      "path": "native/outside/settled-outside-000000.png",
+      "sha256": "03e918cc04877fe40db95a91609e782ddbea7b7c651ddfac55f854b99275041f"
+    },
+    {
+      "path": "native/return/settled-00.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-01.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-02.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-03.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-04.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-05.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-06.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-07.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "native/return/settled-return-000000.png",
+      "sha256": "e4ad488561ae84c5e922362e44951abd95e119deee1385b4a7635bfa23201209"
+    },
+    {
+      "path": "fsr/film/outside-000000.png",
+      "sha256": "6ce44ee17bbd802b5801a0d6e0e2eb7c9773a17848a5b94ac50352a561f43d18"
+    },
+    {
+      "path": "fsr/film/outside-000001.png",
+      "sha256": "3232718582b7d7f95c62072c5ab3979933059e41fdce444470ad24ce08dd03ea"
+    },
+    {
+      "path": "fsr/film/outside-000002.png",
+      "sha256": "1e96ab27b5cfd598f771b710ed8ff5d9f5f1a6c2ae4ad991d98cdd286c4d08ae"
+    },
+    {
+      "path": "fsr/film/outside-000003.png",
+      "sha256": "fd5c37a034628849a122d0f67f6b15bb235db86d48fa751011f12b88fb03affe"
+    },
+    {
+      "path": "fsr/film/outside-000004.png",
+      "sha256": "fe6a788f342ffa26a2e1cb45097df57ccc598a6197631be8e106652ed3d37c4c"
+    },
+    {
+      "path": "fsr/film/outside-000005.png",
+      "sha256": "025c37b50e623cc69f2885126a73cb3d102f1e2c703ef52ee133f0b484ebdec7"
+    },
+    {
+      "path": "fsr/film/outside-000006.png",
+      "sha256": "5602a017d10aaaa83a05a56fc713e1f60d4155f18c95b993c9dca4ddfc7d50bd"
+    },
+    {
+      "path": "fsr/film/outside-000007.png",
+      "sha256": "9740ee55beb9cbbd126bc256910401631b21b0dda0c9b92a52a1ef62d04a81af"
+    },
+    {
+      "path": "fsr/film/outside-000008.png",
+      "sha256": "46729da15ffc1db7bef2a1155aa9d3f4b38c55c3bb842d1c19712f4e52f32005"
+    },
+    {
+      "path": "fsr/film/outside-000009.png",
+      "sha256": "09928665c03c4a25d0a1b5b747688b80f91ee379576a5d841c16a10d22fef0c8"
+    },
+    {
+      "path": "fsr/film/outside-000010.png",
+      "sha256": "41ff4a0a707524eadafe0a716ca9394a7c405517fe70ac3563fcfeae1cc61d2f"
+    },
+    {
+      "path": "fsr/film/outside-000011.png",
+      "sha256": "64af40ceea8d69ab66173cd10c3244feb81eb4fa674cb45111604bc74202bf73"
+    },
+    {
+      "path": "fsr/film/outside-000012.png",
+      "sha256": "49d26d734123abc29099c082011a11aa75510de2050337042821819090c85997"
+    },
+    {
+      "path": "fsr/film/outside-000013.png",
+      "sha256": "9583b70e5f2a522619d83cdf5314437d1875765e3df65ef1c257ea665c5a9b73"
+    },
+    {
+      "path": "fsr/film/outside-000014.png",
+      "sha256": "4106285dcc34290f6660191957fc1b5d01ba1f2461d4850f101f89ca4ab4f570"
+    },
+    {
+      "path": "fsr/film/outside-000015.png",
+      "sha256": "46b192a1c9d2fc261699d6cc3dc424b6968372406aed372a04b61866cb1da6f8"
+    },
+    {
+      "path": "fsr/film/outside-000016.png",
+      "sha256": "749ab82afc81a7d2bf35811c1ec23231d902417fc1fc7832af864dc6a5312cdb"
+    },
+    {
+      "path": "fsr/film/outside-000017.png",
+      "sha256": "b25871d6fc43690869ec39e0428ce756c2598b8ace5d9d837bb2e67b2d15dddc"
+    },
+    {
+      "path": "fsr/film/outside-000018.png",
+      "sha256": "5979ab607a7eb904145ced0c20ea557608ead557fbc6bfaad75c3437321c0edd"
+    },
+    {
+      "path": "fsr/film/outside-000019.png",
+      "sha256": "036d3d96518777675a5b75fed401a2073388787c8b67662a4f49d248420a98d3"
+    },
+    {
+      "path": "fsr/film/outside-000020.png",
+      "sha256": "ca4f09d7932d6b64749872a65124ac7c61efb2634adf550186052b03ab3849a3"
+    },
+    {
+      "path": "fsr/film/outside-000021.png",
+      "sha256": "df057f532ebf28c088260e23823abee4db0688ccb3daf59fae3a36b18a73065b"
+    },
+    {
+      "path": "fsr/film/outside-000022.png",
+      "sha256": "6f9203bc8d9cb4c1d0eff1be9ce7f2c382bcd8292eaefd7c7e0df785d64714e5"
+    },
+    {
+      "path": "fsr/film/outside-000023.png",
+      "sha256": "6d00a12d804a8f9d5d8f7d0f8f114c89357df9197bc787b9b2c9abbeb48b80ef"
+    },
+    {
+      "path": "fsr/film/outside-000024.png",
+      "sha256": "61ebd2d383be4aae6479358883437c89930c397fb42f3c44ac1c069c0e2cb545"
+    },
+    {
+      "path": "fsr/film/outside-000025.png",
+      "sha256": "a4860197acdc9da6f970a4d4ad21eb4f5fbaf54debad5d306f2dc98a11471111"
+    },
+    {
+      "path": "fsr/film/outside-000026.png",
+      "sha256": "a123841d0efd27d6d2fc21f3fe836161db2fac3dbad9e9fb539b6f16664b30f1"
+    },
+    {
+      "path": "fsr/film/outside-000027.png",
+      "sha256": "2853f113e14905c03e90b8ae487caf027773428a25615a0ea0bcd483c1d3e539"
+    },
+    {
+      "path": "fsr/film/outside-000028.png",
+      "sha256": "a937b357f788d900ac58d07b20dd0ca6fb4eb5694e16b5faedcb5ea0b350873f"
+    },
+    {
+      "path": "fsr/film/outside-000029.png",
+      "sha256": "8b41cc8d1118ecb0dfb45e70a6cc8dc0866938a77928b325adf6635d4b9f244e"
+    },
+    {
+      "path": "fsr/film/outside-000030.png",
+      "sha256": "43649e68cee3871add3643ef9ec7d624adc8eb502052ff9d11f6b0b237d102aa"
+    },
+    {
+      "path": "fsr/film/outside-000031.png",
+      "sha256": "1d1a5d30e73382809a7b30d9328cd2988bab5c43d8ad8c1bbe32bc32242dee7c"
+    },
+    {
+      "path": "fsr/film/outside-000032.png",
+      "sha256": "5e4eda377babc1aa266cf988e52cfb206571c6379073c3558dafcb18ba40d226"
+    },
+    {
+      "path": "fsr/film/outside-000033.png",
+      "sha256": "e836b2a551c949029e8216ca81c8c0be48e634df76b7f98b3e0bd991da94fbec"
+    },
+    {
+      "path": "fsr/film/outside-000034.png",
+      "sha256": "aefafbd579c3f242bfa74b4742e4af7b141baf4060ef5f711d0a5603c01d6dac"
+    },
+    {
+      "path": "fsr/film/outside-000035.png",
+      "sha256": "3f9022da412f8f1ea30636eb9d765ab268a72492b871f218bf6a36d386f56fcb"
+    },
+    {
+      "path": "fsr/film/outside-000036.png",
+      "sha256": "ec02816375ceb6ffa3d1afc9b20a36bc8f5a8bf10a3d4da297fb6d7aa0559737"
+    },
+    {
+      "path": "fsr/film/outside-000037.png",
+      "sha256": "39d4ca022ca46718b933df6a0b087df53a51c320f30ce2f9cd6d7ec3e0cdca46"
+    },
+    {
+      "path": "fsr/film/outside-000038.png",
+      "sha256": "80cb72272bdfb40dad63efc6a86f36eaf8489d12eceac486c5c7ea5547c278ae"
+    },
+    {
+      "path": "fsr/film/outside-000039.png",
+      "sha256": "ec33521fa598aaca7bab47fde32c7cba6082daf077136bc2be08a02e010e6bcf"
+    },
+    {
+      "path": "fsr/film/outside-000040.png",
+      "sha256": "9de3a54e7f094bdfa2ee5e49182294dcc14bdfbce1cb40cad65b3b4d0c4fbb5a"
+    },
+    {
+      "path": "fsr/film/outside-000041.png",
+      "sha256": "d85cf94743726c317677b55750fd3d0ebccb7ab0000d27e891847872841e254c"
+    },
+    {
+      "path": "fsr/film/outside-000042.png",
+      "sha256": "9dc9181c217e95ddd0231fe46d88f20781605fd0d8532acb64efc92176421936"
+    },
+    {
+      "path": "fsr/film/outside-000043.png",
+      "sha256": "194816651f4043c7d82741a2c7576a8c85f5e1b256e0a532561ad4eda72db164"
+    },
+    {
+      "path": "fsr/film/outside-000044.png",
+      "sha256": "22a982b04661c53b6677779d0a6a914fd5d44f1cfb3f2a413666252c133935dd"
+    },
+    {
+      "path": "fsr/film/return-000000.png",
+      "sha256": "2fd25a80fa197cc4af4928eb2187e7549e73cbf3b843a689da4ee2f068609354"
+    },
+    {
+      "path": "fsr/film/return-000001.png",
+      "sha256": "6ce2e1cc4f428861dee08ef33345f95278a3fd2f2c2b4e7ce857e6702f32ba64"
+    },
+    {
+      "path": "fsr/film/seat-tail-000000.png",
+      "sha256": "f11ab615760707c38ce194c387bde02f4bb000ab429a76e65c0f8fca73a5e1f1"
+    },
+    {
+      "path": "fsr/film/seat-tail-000001.png",
+      "sha256": "8642ee49a576d310c1024a2f99847486c5c74c7a1babd39018a021972f7b8b34"
+    },
+    {
+      "path": "fsr/outside/settled-00.png",
+      "sha256": "e0628855cceb975e32e3a5809682c9af96483234a80444fca374172914d7a31e"
+    },
+    {
+      "path": "fsr/outside/settled-01.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-02.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-03.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-04.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-05.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-06.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-07.png",
+      "sha256": "87f671bc22e6b63adf160010ecc9ece011fc68b62bdd24e2b681baae1d6aba6a"
+    },
+    {
+      "path": "fsr/outside/settled-outside-000000.png",
+      "sha256": "9fbaa9cde17b46e63d550dfd333a68d7d9c446c0dcaa8197b2bccb20d97c37e9"
+    },
+    {
+      "path": "fsr/return/settled-00.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-01.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-02.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-03.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-04.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-05.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-06.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-07.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    },
+    {
+      "path": "fsr/return/settled-return-000000.png",
+      "sha256": "32eded1233a080ffd277b10462b1b43846fe1ae884ae17008736fa2ab24d26ea"
+    }
+  ],
+  "performance_claim": false
+}

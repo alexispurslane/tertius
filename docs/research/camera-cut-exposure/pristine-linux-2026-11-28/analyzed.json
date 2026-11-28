@@ -1,0 +1,403 @@
+{
+  "status": "all observation gates passed",
+  "visits": [
+    [
+      "r1-before",
+      "before"
+    ],
+    [
+      "r1-after",
+      "after"
+    ],
+    [
+      "r2-after",
+      "after"
+    ],
+    [
+      "r2-before",
+      "before"
+    ]
+  ],
+  "rows": [
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 14.684108
+    },
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 17.266587
+    },
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 7.965721,
+        "minimum": 7.293283,
+        "maximum": 9.070071
+      },
+      "gpu_ms": {
+        "median": 6.585728,
+        "minimum": 6.467936,
+        "maximum": 7.481952
+      }
+    },
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 12.863581
+    },
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 16.308322
+    },
+    {
+      "visit": "r1-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 6.22705,
+        "minimum": 6.072581,
+        "maximum": 7.460557
+      },
+      "gpu_ms": {
+        "median": 4.745024,
+        "minimum": 4.604096,
+        "maximum": 5.934112
+      }
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 14.308229
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 18.604323
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 8.1899665,
+        "minimum": 7.384546,
+        "maximum": 9.136512
+      },
+      "gpu_ms": {
+        "median": 6.806016,
+        "minimum": 6.70576,
+        "maximum": 7.694176
+      }
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 12.406171
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 16.572962
+    },
+    {
+      "visit": "r1-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 6.309758,
+        "minimum": 6.159359,
+        "maximum": 6.97515
+      },
+      "gpu_ms": {
+        "median": 4.834528,
+        "minimum": 4.720128,
+        "maximum": 5.436096
+      }
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 14.376669
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 18.945989
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 8.189423999999999,
+        "minimum": 8.063486,
+        "maximum": 9.254505
+      },
+      "gpu_ms": {
+        "median": 6.811648,
+        "minimum": 6.700544,
+        "maximum": 7.697664
+      }
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 12.742699
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 16.553682
+    },
+    {
+      "visit": "r2-after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 6.330713,
+        "minimum": 6.17986,
+        "maximum": 7.043661
+      },
+      "gpu_ms": {
+        "median": 4.828704,
+        "minimum": 4.720736,
+        "maximum": 5.44256
+      }
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 14.754008
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 16.745066
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 7.950563,
+        "minimum": 7.82221,
+        "maximum": 8.919006
+      },
+      "gpu_ms": {
+        "median": 6.583488,
+        "minimum": 6.481248,
+        "maximum": 7.48528
+      }
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 12.689077
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 15.758632
+    },
+    {
+      "visit": "r2-before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 6.234301500000001,
+        "minimum": 6.082788,
+        "maximum": 7.00872
+      },
+      "gpu_ms": {
+        "median": 4.736384,
+        "minimum": 4.612064,
+        "maximum": 5.337568
+      }
+    }
+  ],
+  "paired_round_differences": [
+    {
+      "round": "r1",
+      "mode": "native",
+      "wall_median_candidate_minus_baseline_ms": 0.22424550000000032,
+      "gpu_median_candidate_minus_baseline_ms": 0.22028800000000004
+    },
+    {
+      "round": "r1",
+      "mode": "fsr",
+      "wall_median_candidate_minus_baseline_ms": 0.08270800000000023,
+      "gpu_median_candidate_minus_baseline_ms": 0.0895039999999998
+    },
+    {
+      "round": "r2",
+      "mode": "native",
+      "wall_median_candidate_minus_baseline_ms": 0.2388609999999991,
+      "gpu_median_candidate_minus_baseline_ms": 0.22815999999999992
+    },
+    {
+      "round": "r2",
+      "mode": "fsr",
+      "wall_median_candidate_minus_baseline_ms": 0.09641149999999943,
+      "gpu_median_candidate_minus_baseline_ms": 0.09231999999999996
+    }
+  ],
+  "shared_real_references_within_tolerance": true,
+  "gpu_wall_alignment": "GPU identities 25..119 are inside the measured wall interval. Identity 24 is excluded. The last wall draw has no GPU result."
+}

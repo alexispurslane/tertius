@@ -1,0 +1,6 @@
+{'worker_rejected': False, 'skipped': {'linux-out/rows.json.gz': 6100000}, 'returned': ['linux-out/compressed-output-size.json']}
+Traceback (most recent call last):
+  File "/tmp/tertius-issue4-output-budget/reproduce_old_gate.py", line 28, in <module>
+    assert rejected or not skipped, 'Worker advertised success although canonical collect omitted required measurement rows'
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Worker advertised success although canonical collect omitted required measurement rows

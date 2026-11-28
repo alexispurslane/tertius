@@ -466,33 +466,23 @@ public sealed class EnvironmentMapsPerFrameTests
         return snapshot;
     }
 
-    /// <summary>
-    /// <paramref name="snapshot"/> with its count of camera cuts set to <paramref name="cuts"/>: a test that changes the
-    /// camera's frame sends one more cut, as the simulation's snapshot builder does.
-    /// </summary>
-    private static RenderSnapshot WithCuts(RenderSnapshot snapshot, long cuts)
-    {
-        snapshot.CameraCuts = cuts;
-        return snapshot;
-    }
-
     /// <summary>The level-0 center of every face of map <paramref name="map"/>, in layer order.</summary>
     private static Vector3[] Centers(VulkanRenderer renderer, int map) =>
         [.. Enumerable.Range(0, CubeFaces.Count).Select(layer => RoomScenes.Center(renderer, map, (CubeFace)layer))];
 
     /// <summary>
     /// Draws frames 0, 1 and 2 of a new renderer inside a dome that glows A, B and C in turn: the camera in frame 2 under
-    /// frame 1 under the root, then in frame 1, then in frame 2 again. Each change of the camera's frame counts one more
-    /// camera cut, as the simulation's snapshot builder counts it. Returns the colors.
+    /// frame 1 under the root, then in frame 1, then in frame 2 again. Continuous handoffs keep the camera's cut count.
+    /// Returns the colors.
     /// </summary>
     private static Vector3[] LeaveAndEnterAChild(VulkanRenderer renderer)
     {
         Vector3[] colors = [new(1, 0, 0), new(0, 1, 0), new(0, 0, 1)];
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId[] domes = [.. colors.Select(color => EnvironmentScenes.Emissive(renderer, color))];
-        EnvironmentScenes.Still(renderer, WithCuts(DomeScene(plane, domes[0], 2, 1, 0), cuts: 0), time: 0);
-        EnvironmentScenes.Still(renderer, WithCuts(DomeScene(plane, domes[1], 1, 0), cuts: 1), time: Step);
-        EnvironmentScenes.Still(renderer, WithCuts(DomeScene(plane, domes[2], 2, 1, 0), cuts: 2), time: 2 * Step);
+        EnvironmentScenes.Still(renderer, DomeScene(plane, domes[0], 2, 1, 0), time: 0);
+        EnvironmentScenes.Still(renderer, DomeScene(plane, domes[1], 1, 0), time: Step);
+        EnvironmentScenes.Still(renderer, DomeScene(plane, domes[2], 2, 1, 0), time: 2 * Step);
         return colors;
     }
 
@@ -547,14 +537,14 @@ public sealed class EnvironmentMapsPerFrameTests
             var after = new Vector3(0, 1, 0);
             EnvironmentScenes.Still(
                 renderer,
-                WithCuts(DomeScene(plane, EnvironmentScenes.Emissive(renderer, before), 1, 0), cuts: 0),
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, before), 1, 0),
                 time: 0
             );
 
             // The root's map keeps its frame and its frame below, but the growth to three maps makes its images anew.
             EnvironmentScenes.Still(
                 renderer,
-                WithCuts(DomeScene(plane, EnvironmentScenes.Emissive(renderer, after), 2, 1, 0), cuts: 1),
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, after), 2, 1, 0),
                 time: Step
             );
 
@@ -951,10 +941,9 @@ public sealed class EnvironmentMapsPerFrameTests
         MaterialId green = EnvironmentScenes.Emissive(renderer, new(0, 1, 0));
         MaterialId matte = EnvironmentScenes.Matte(renderer);
         var center = new Vector3(0, 0, -6);
-        // The growth's frame change counts one more camera cut, as the simulation's snapshot builder counts it.
         RenderSnapshot Scene(MaterialId dome, params long[] chain)
         {
-            RenderSnapshot snapshot = WithCuts(DomeScene(plane, dome, chain), cuts: chain.Length == 3 ? 1 : 0);
+            RenderSnapshot snapshot = DomeScene(plane, dome, chain);
             snapshot.Instances.Add(
                 FacingTheCamera(plane: plane, material: matte, center: center, chainDepth: TestChains.CamerasFrame)
             );

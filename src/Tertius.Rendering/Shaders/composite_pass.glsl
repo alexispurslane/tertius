@@ -1,6 +1,6 @@
 // The composite (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9, "The composite"): at each lit pixel, the light of section 1
-// into the scene-referred HDR image. Direct radiance and emission are already in scene units. Only the bounded
-// history samples restore their material factors and remove their producing exposure. The environment and volume stay
+// into the scene-referred HDR image. Direct radiance and emission are already in scene units. Glossy
+// history samples restore their material factors in scene units. The environment and volume stay
 // in scene units. Glossy surfaces blend their reflection history with the environment.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
 // skin, and 0 elsewhere (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D"). composite.frag and composite_scatter.frag,
@@ -16,10 +16,11 @@
 
 // Set 3 of the composite layout, the light set owned by CompositePass: the direct light's two parts, and the slow
 // histories of the indirect diffuse and indirect specular signals. Direct images hold scene radiance; histories
-// hold demodulated, pre-exposed estimates. Under
+// hold demodulated linear scene radiance. Under
 // NoScreenTrace, bindings 2 and 3 hold the direct images, which the composite does not read.
 layout(set = 3, binding = 0, rgba32f) uniform readonly image2D directDiffuseLight;
 layout(set = 3, binding = 1, rgba32f) uniform readonly image2D directSpecularLight;
+#define TERTIUS_SCENE_SPECULAR
 #include "specular_history.glsl"
 layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 
@@ -97,7 +98,7 @@ void main()
     if (screenTraceOn && share > 0.0)
     {
         vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;
-        vec3 sceneGlossy = reflectionSharedAt(pixel, glossy) / exposureScale();
+        vec3 sceneGlossy = reflectionSharedAt(pixel, glossy);
         indirectSpecular = mix(indirectSpecular, sceneGlossy, share);
     }
     outColor = vec4(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, 1.0);

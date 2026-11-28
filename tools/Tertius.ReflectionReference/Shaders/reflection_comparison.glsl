@@ -2,6 +2,7 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
+#define TERTIUS_SCENE_SPECULAR
 #include "specular_history.glsl"
 layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 layout(location = 0) in vec3 inRay;
@@ -28,7 +29,7 @@ void main()
     vec3 outgoing = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;
     vec3 position = normalize(viewRayThrough(gl_FragCoord.xy)) * distance;
 #if PROBE_GROUP == 0
-    outLight = vec2(distance > 0.0 ? outgoing.r : 0.0, texelFetch(gbufferEmissive, pixel, 0).r);
+    outLight = vec2(distance > 0.0 ? outgoing.r : 0.0, texelFetch(gbufferEmissive, pixel, 0).r) * exposureScale();
     outMaterial = vec2(s.roughness, s.reflectance);
     outColor = vec2(s.baseColor.r, s.metallic);
 #elif PROBE_GROUP == 1

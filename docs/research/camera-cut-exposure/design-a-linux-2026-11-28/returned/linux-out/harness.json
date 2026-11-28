@@ -1,0 +1,93 @@
+{
+  "config": {
+    "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "issue3_final_sha": "19e17c5ba364392ca6bf84b00c11a7d709771ded",
+    "candidate_seed": "468dc19d0f5e247819f24bfaea297919439c7b4f",
+    "approval": {
+      "coordinator_reviewed": true,
+      "issue4_explicit_paid_approval": true,
+      "authorized_submissions": 1,
+      "automatic_retry": false,
+      "reason": "One corrected submission authorized by parent, for the reviewed design-a-linux-proposal only.",
+      "source_thread": "7c88f39f-7b8e-43cf-bbe4-fb2fffbc3765",
+      "source_message_id": "message:mcp:6a71c67f-fc5e-4574-a803-e66a83c74ee5:thread-send:d8d5cd5e-b6cb-46c0-ba9c-1c02ebe33f4f",
+      "source_position": 2308,
+      "source_updated_at": "2026-11-28T06:27:31.502Z",
+      "exact_scope": "Approved one corrected #4 GPU submission for the reviewed design-a-linux-proposal only: baseline b002351eb48d33f008f8333e53e61345de3260cd, candidate 588b6d2747560c73aac542fb25ce80eec1ba8db7, 840s command/900s execution, max $0.1552, no automatic retry. Independently verified identical allocator blobs and baseline src delta. Resume same lead to record approval, emit/check final launch, submit once and collect durable outcome/cost. Keep existing asset/memory/capacity/reference gates, distinguish first and first-correct offscreen latency and ordinary unobserved frame times. If complete, publish evidence then hand off for ready/CI/metrics/merge; if partial, identify exact missing results and return with evidence. No new review or duplicate run."
+    },
+    "gpu_name": "NVIDIA RTX 2000 Ada Generation",
+    "driver": "595.112.07",
+    "command_timeout_seconds": 840,
+    "canonical_execution_timeout_seconds": 900,
+    "worst_case_usd": 0.1552,
+    "result_folder": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-linux-proposal/linux-run",
+    "linux_cooked_manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+    "rounds": [
+      [
+        "before",
+        "after"
+      ],
+      [
+        "after",
+        "before"
+      ]
+    ],
+    "real_output_size": [
+      1280,
+      720
+    ],
+    "real_native_render_size": [
+      1280,
+      720
+    ],
+    "real_fsr_render_size": [
+      848,
+      477
+    ],
+    "synthetic_output_size": [
+      160,
+      90
+    ],
+    "synthetic_native_render_size": [
+      160,
+      90
+    ],
+    "synthetic_fsr_render_size": [
+      96,
+      54
+    ],
+    "recovery_limit_followup_frames": 90,
+    "recovery_snapshot_seconds_per_frame": 0.016666666666666666,
+    "steady_frames": 120,
+    "steady_warmup_frames": 24,
+    "steady_measured_frames": 96,
+    "reference_extra_still_captures": 8,
+    "reference_tolerance_stops": 0.0625,
+    "reference_tolerance_srgb_code": 2,
+    "status": "Authorized one corrected submission. No automatic retry.",
+    "baseline_tree": "c71ef26f4f8a9462a917ca2ae1b3c362230e9e9e",
+    "extreme_reference_extra_still_captures": 64,
+    "processes": 6,
+    "diagnostic_processes": 2,
+    "matched_processes": 4,
+    "separate_warmup_processes": 0,
+    "observation_bytes_per_presentation_cut_lane": 8,
+    "observation_bytes_per_presentation_ordinary_lane": 0,
+    "capacity_projection_required": true,
+    "steady_measured_wall_samples": 96,
+    "steady_measured_gpu_samples": 95,
+    "main_baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "allocator_blob": "f7aae7bd20d48ea3adf0d565ed476a6d2ec54594",
+    "allocator_patch_sha256": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+    "minimum_free_gpu_mib": 2048,
+    "automatic_retry": false,
+    "submitted": false,
+    "candidate_tree": "76b5d43a9f3f841b19d7d542b93dc0308ba7a43e",
+    "local_fixture_csharp_sha256": "6f04a6f6b86bcfcab97b02a8b7e2933f2b904edabf91185403eb5464931c4e53",
+    "local_verification": "local-verification-summary.json"
+  },
+  "fixture_csharp_sha256": "6f04a6f6b86bcfcab97b02a8b7e2933f2b904edabf91185403eb5464931c4e53",
+  "worker_sha256": "f35cb52252624260cf70b56cfde412a6886678f23229149f490d4fbf09c71498",
+  "fixture_module_sha256": "80ca3faf2f28a072a333de6ec18d0f6108c322d4b39003c6eb7460b4dadf64ea"
+}

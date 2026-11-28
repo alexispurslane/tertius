@@ -1,0 +1,21 @@
+{
+  "id": "f236f0d9-689b-43ad-9bd4-58f0fd11d73e-u2",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 691085,
+  "delayTime": 6535,
+  "error": null,
+  "files": [
+    "linux-out/return/evidence.tar.gz",
+    "linux-out/return/status.json"
+  ],
+  "skipped": {},
+  "steps": [
+    {
+      "exitCode": 0,
+      "seconds": 679.7159785680706,
+      "command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c"
+    }
+  ],
+  "publication_note": "Successful command log and step command bytes omitted. Original result hash is retained in archive-manifest.json."
+}

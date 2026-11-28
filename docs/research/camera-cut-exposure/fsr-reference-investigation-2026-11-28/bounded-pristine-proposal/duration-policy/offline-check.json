@@ -1,0 +1,72 @@
+{
+  "status": "PASS",
+  "network_and_child_processes": "forbidden by audit hook",
+  "canonical_submit_called": false,
+  "real_api_created": false,
+  "budget_admission_attempted": false,
+  "canonical_source_sha256": "2d8a59260b5aef504cd6fc00be1dcf682fd37c278f7b43e0f55b6012eb3418a6",
+  "handler_source_sha256": "d9f9a0cbb2bc703eedf62219b3385b4e376719dc3f8040f685ad008a36089fab",
+  "worker_source_sha256": "41fb5a08a80459b8d3e72d964212ece0526664d087caff379f9cf663f213235c",
+  "checked_in_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "external_proposed_config": "/tmp/tertius-issue4-duration-policy/endpoint.proposed.json",
+  "external_proposed_config_sha256": "6cc6990f6a024f9cb6c326de260612047841dc42c1eaa395bfd3402024776c6b",
+  "exact_diff_sha256": "4634919df61d04f9f6ec0ce08fd73643d60527fad60cfb22ac36185d88672d84",
+  "cases": [
+    {
+      "config": "checked-in",
+      "requested_command_seconds": 1920,
+      "command_seconds": 840,
+      "execution_seconds": 900,
+      "canonical_cost_usd": 0.1552,
+      "handler_margin_seconds": 60
+    },
+    {
+      "config": "external-proposal",
+      "requested_command_seconds": 1920,
+      "command_seconds": 1920,
+      "execution_seconds": 1980,
+      "canonical_cost_usd": 0.328,
+      "handler_margin_seconds": 60
+    },
+    {
+      "config": "only-command-limit-raised",
+      "requested_command_seconds": 1920,
+      "command_seconds": 1920,
+      "execution_seconds": 900,
+      "canonical_cost_usd": 0.1552,
+      "handler_margin_seconds": -1020
+    },
+    {
+      "config": "only-execution-limit-raised",
+      "requested_command_seconds": 1920,
+      "command_seconds": 840,
+      "execution_seconds": 900,
+      "canonical_cost_usd": 0.1552,
+      "handler_margin_seconds": 60
+    }
+  ],
+  "cli_config_override": "rejected before key lookup",
+  "python_config_injection": "Config.load(path) and submit(config=...) exist; no isolated CLI or endpoint selector",
+  "fake_existing_endpoint_timeout_ms_after_reuse": 900000,
+  "proposed_new_endpoint_timeout_ms": 1980000,
+  "handler_command_ceiling_seconds": 7140.0,
+  "observed_handler_seconds": [
+    1920.0
+  ],
+  "proposal_worker_refused_before_output": true,
+  "unchanged_daily_cap_usd_on_2026_11_28": 5.0,
+  "unchanged_total_cap_usd": 30.0,
+  "unchanged_gpu_workers": 5,
+  "unchanged_cpu": true,
+  "queue_and_execution_ttl_seconds": 7200,
+  "latest_start_seconds_after_submission_for_full_proposed_execution": 5220,
+  "obsolete_compressed_row_gate_removed": true,
+  "proposal_worker_sha256": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+  "proposal_output_globs": [
+    "linux-out/return/*"
+  ],
+  "proposal_final_metadata_reserve_base64_bytes": 65536,
+  "output_completeness_proof": "../output-budget/offline-check.json",
+  "handler_total_base64_output_limit_bytes": 8000000,
+  "arithmetic_is_not_a_live_endpoint_test": true
+}

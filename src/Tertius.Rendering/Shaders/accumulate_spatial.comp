@@ -138,7 +138,11 @@ void accumulateAt(ivec2 pixel, uint evidence)
     {
         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
         uint turn = fixTurnAt(pixel, spacing);
+#ifdef TERTIUS_SCENE_SPECULAR
+        vec3 sum = slow;
+#else
         vec3 sum = slow * historyLength;
+#endif
         vec2 guideSum = guide * historyLength;
         float weights = historyLength;
         for (int y = -1; y <= 1; y++)
@@ -148,12 +152,21 @@ void accumulateAt(ivec2 pixel, uint evidence)
                 if (x == 0 && y == 0 || !insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
                     continue;
                 vec4 other = imageLoad(scratch, neighbor);
+#ifdef TERTIUS_SCENE_SPECULAR
+                float combined = weights + other.a;
+                sum += (other.rgb - sum) * (other.a / combined);
+#else
                 sum += other.rgb * other.a;
+#endif
                 weights += other.a;
                 if (reflectionSharingPrototype && parameters.light == SpecularLight)
                     guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
             }
+#ifdef TERTIUS_SCENE_SPECULAR
+        slow = sum;
+#else
         slow = sum / weights;
+#endif
         guide = guideSum / weights;
     }
 
@@ -165,6 +178,18 @@ void accumulateAt(ivec2 pixel, uint evidence)
         // a flat box has a σ of exactly 0 under any driver's rounding. The plain moments cancel to a few ulps of the
         // mean's square there, and NVIDIA's arithmetic left a σ of about 1e-4 of the light (ticket tc-8142).
         vec4 own = imageLoad(fastHistory, pixel);
+        vec3 momentScale = vec3(1.0);
+#ifdef TERTIUS_SCENE_SPECULAR
+        momentScale = max(own.rgb, vec3(1.17549435e-38));
+        for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                ivec2 neighbor = pixel + ivec2(x, y);
+                if (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+                    continue;
+                momentScale = max(momentScale, imageLoad(fastHistory, neighbor).rgb);
+            }
+#endif
         vec3 moments = vec3(0.0);
         vec3 squares = vec3(0.0);
         float count = 0.0;
@@ -174,14 +199,14 @@ void accumulateAt(ivec2 pixel, uint evidence)
                 ivec2 neighbor = pixel + ivec2(x, y);
                 if (!(x == 0 && y == 0) && (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor))))
                     continue;
-                vec3 offset = imageLoad(fastHistory, neighbor).rgb - own.rgb;
+                vec3 offset = (imageLoad(fastHistory, neighbor).rgb - own.rgb) / momentScale;
                 moments += offset;
                 squares += offset * offset;
                 count += 1.0;
             }
         vec3 meanOffset = moments / count;
-        vec3 mean = own.rgb + meanOffset;
-        vec3 sigma = sqrt(max(squares / count - meanOffset * meanOffset, vec3(0.0)));
+        vec3 mean = own.rgb + meanOffset * momentScale;
+        vec3 sigma = sqrt(max(squares / count - meanOffset * meanOffset, vec3(0.0))) * momentScale;
         // The box holds every excursion that the history's own samples explain: at least retainedSigmas retained
         // deviations, in the chroma of the history, which holds the excess (https://github.com/alexispurslane/tertius/wiki/bounce-light-confidence,
         // section 7). The reflections' narrow box takes none. Motion evidence drops the widening for this draw, so that
@@ -218,8 +243,7 @@ void accumulateAt(ivec2 pixel, uint evidence)
     storeTrace(pixel, 4, vec4(tracedBefore, historyLength, 0.0, 0.0));
 #endif
 
-    // Step 5. The fix, the clamp and the anti-lag give values that are not half floats, so the store takes the nearest
-    // ones (half_store.glsl).
+    // Step 5. Glossy light retains float32 values. Diffuse half-float feedback rounds before its store.
     imageStore(slowHistory, pixel, slowHistoryValue(vec4(slow, historyLength)));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuide, pixel, vec4(nearestHalf(guide), 0.0, 0.0));

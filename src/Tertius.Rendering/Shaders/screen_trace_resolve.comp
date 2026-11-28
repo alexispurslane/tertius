@@ -108,7 +108,7 @@ void main()
         }
         hitDistance = reflection.light.a;
     }
-    imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
+    imageStore(specularSample, pixel, vec4(specularLight, hitDistance));
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
     imageStore(specularSampleAge, pixel, uvec4(sampleAgeOf(ageCode, movesOnScreenAt(pixel) || moved)));
 #endif

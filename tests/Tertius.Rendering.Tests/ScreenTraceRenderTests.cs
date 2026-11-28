@@ -686,20 +686,25 @@ public sealed class ScreenTraceRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AnImpostorsGlowReachesAMirrorOnlyWhenItsEntityHoldsNoLight(bool holdsLight)
+    [InlineData(false, 0f, 4f)]
+    [InlineData(true, 0f, 4f)]
+    [InlineData(false, -64f, 1e18f)]
+    [InlineData(true, -64f, 1e18f)]
+    [InlineData(false, 64f, 1e18f)]
+    [InlineData(true, 64f, 1e18f)]
+    public void AnImpostorsGlowReachesAMirrorOnlyWhenItsEntityHoldsNoLight(bool holdsLight, float stops, float radiance)
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
             screenTrace: ScreenTrace.Default,
             warmUpFrames: 0,
-            impostors: true
+            impostors: true,
+            exposure: new FixedExposure(stops)
         );
         try
         {
-            RenderSnapshot scene = GlowingPanelOverAMirror(renderer, new(4f), holdsLight);
+            RenderSnapshot scene = GlowingPanelOverAMirror(renderer, new(radiance), holdsLight);
             Draw(renderer, scene, frames: 3);
 
             renderer.LastFrameStats.Impostors.Should().BePositive("the receiver sees a billboard, not the mesh panel");
@@ -708,7 +713,9 @@ public sealed class ScreenTraceRenderTests
             if (holdsLight)
                 reflected.Should().BeLessThan(0.01f, "the billboard's light mark suppresses its baked glow");
             else
-                reflected.Should().BeGreaterThan(1f, "the same billboard without a light mark sends its glow");
+                reflected
+                    .Should()
+                    .BeGreaterThan(radiance * 0.25f, "the same billboard without a light mark sends its glow");
         }
         finally
         {

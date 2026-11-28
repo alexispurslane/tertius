@@ -1,0 +1,201 @@
+{
+  "status": "all observation gates passed",
+  "visits": [
+    [
+      "before",
+      "before"
+    ],
+    [
+      "after",
+      "after"
+    ]
+  ],
+  "rows": [
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 32.526375
+    },
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 31.339959
+    },
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 17.407375000000002,
+        "minimum": 16.862041,
+        "maximum": 23.431167
+      },
+      "gpu_ms": {
+        "median": 15.99375,
+        "minimum": 15.629,
+        "maximum": 17.640334
+      }
+    },
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 30.02275
+    },
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": false,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 26.747333
+    },
+    {
+      "visit": "before",
+      "tree": "before",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 12.783667000000001,
+        "minimum": 12.469167,
+        "maximum": 14.017417
+      },
+      "gpu_ms": {
+        "median": 11.513042,
+        "minimum": 11.223,
+        "maximum": 12.750833
+      }
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 32.57175
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 35.273625
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "native",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 17.673083,
+        "minimum": 17.208333,
+        "maximum": 19.307708
+      },
+      "gpu_ms": {
+        "median": 16.3695,
+        "minimum": 15.943083,
+        "maximum": 17.913292
+      }
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-outside",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 35.303042
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "cut",
+      "case": "film-return",
+      "first_correct": true,
+      "draws": 1,
+      "presentations": 1,
+      "followups": 0,
+      "latency_ms": 30.714917
+    },
+    {
+      "visit": "after",
+      "tree": "after",
+      "mode": "fsr",
+      "lane": "steady",
+      "wall_samples": 96,
+      "gpu_samples_within_wall_interval": 95,
+      "capture_requests": 0,
+      "observation_bytes": 0,
+      "wall_ms": {
+        "median": 15.549021,
+        "minimum": 12.679333,
+        "maximum": 23.392833
+      },
+      "gpu_ms": {
+        "median": 12.944042,
+        "minimum": 11.399292,
+        "maximum": 19.655042
+      }
+    }
+  ],
+  "paired_round_differences": [],
+  "shared_real_references_within_tolerance": true,
+  "gpu_wall_alignment": "GPU identities 25..119 are inside the measured wall interval. Identity 24 is excluded. The last wall draw has no GPU result.",
+  "local_replay_only": true,
+  "pairing_logic_replayed_with_reused_rows": true,
+  "not_a_matched_run": true,
+  "full_scope_sizes": "Full-scope payload predates size fields. Exact final fields separately passed minimal smoke.",
+  "inert_gate_still_refuses": true,
+  "worker_sha256": "0bb1eb13aee383c46ebab30384ff91d0db5dfd6bc68144694016f254c024baa6",
+  "analyzer_sha256": "9769eeabafdb3321db25bfb250ecc456ebb4df7685aa5ab2b2be2fdd211d8b3f"
+}

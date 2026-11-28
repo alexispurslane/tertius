@@ -1,0 +1,9 @@
+{
+  "id": "886d3f2c-6e01-406e-a4f4-50b51d417e1f-u1",
+  "status": "FAILED",
+  "runpodStatus": "FAILED",
+  "executionTime": 7915,
+  "delayTime": 5517,
+  "error": "{\"error_type\": \"<class 'OSError'>\", \"error_message\": \"[Errno 7] Argument list too long: 'nix'\", \"error_traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/tertius-worker/lib/python3.12/site-packages/runpod/serverless/modules/rp_job.py\\\", line 262, in run_job\\n    handler_return = handler(job)\\n                     ^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/worker.py\\\", line 24, in run\\n    return handler.handle(job[\\\"input\\\"], baked=BAKED, work=work, shell=SHELL)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/handler.py\\\", line 74, in handle\\n    result[\\\"status\\\"] = run_commands(job.get(\\\"commands\\\", []), work, shell, seconds, result[\\\"steps\\\"], log)\\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/handler.py\\\", line 153, in run_commands\\n    process = subprocess.Popen([*shell, command], cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT,\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/lib/python3.12/subprocess.py\\\", line 1026, in __init__\\n    self._execute_child(args, executable, preexec_fn, close_fds,\\n  File \\\"/usr/lib/python3.12/subprocess.py\\\", line 1955, in _execute_child\\n    raise child_exception_type(errno_num, err_msg, err_filename)\\nOSError: [Errno 7] Argument list too long: 'nix'\\n\", \"hostname\": \"rdbu7v3vrgdxmz-64410ee1\", \"worker_id\": \"rdbu7v3vrgdxmz\", \"runpod_version\": \"2.2.1\"}",
+  "files": []
+}

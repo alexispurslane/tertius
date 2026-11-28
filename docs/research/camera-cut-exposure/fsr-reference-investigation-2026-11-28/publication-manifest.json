@@ -1,0 +1,114 @@
+{
+  "local-raw-evidence.tar.gz": {
+    "bytes": 13103193,
+    "sha256": "1a4623ece7a55f7e2e866695835c655fc8bd13e2bea6f7ce07a3a8acd840f28e"
+  },
+  "README.md": {
+    "bytes": 15285,
+    "sha256": "94a3d972b088c9f1cf4cf1ab99b2a3389256ee3719c007b86581734d5c6376b1"
+  },
+  "raw-manifest.json": {
+    "bytes": 120111,
+    "sha256": "2638caf28547d6bd520bc9407ac0a8a6d5c0099d8188be855051e9cf964535af"
+  },
+  "analysis.json": {
+    "bytes": 43472,
+    "sha256": "f8904ecc298013504a1b787c7eee13ff689d999db6173a7a18a9f7d711f2afbe"
+  },
+  "source-restoration.json": {
+    "bytes": 326,
+    "sha256": "5d34855933f0000a86040ee576ebd4ab5ea54378f7d7e1dab32cd131705d366a"
+  },
+  "analyze.py": {
+    "bytes": 7680,
+    "sha256": "6654a641b1a1356bc4bc2a8bf4b3629f162a82b4a79ba95d5703ac1ef3003558"
+  },
+  "bounded-pristine-proposal/worker.py": {
+    "bytes": 20044,
+    "sha256": "0bb1eb13aee383c46ebab30384ff91d0db5dfd6bc68144694016f254c024baa6"
+  },
+  "bounded-pristine-proposal/local-harness-evidence.tar.gz": {
+    "bytes": 133780,
+    "sha256": "b899f228b7bd97cb7a2aca012a253b5f18f52c6a16e4d2fe8ce7b7ab60afa856"
+  },
+  "bounded-pristine-proposal/fixture.py": {
+    "bytes": 28182,
+    "sha256": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f"
+  },
+  "bounded-pristine-proposal/fixture.cs.txt": {
+    "bytes": 27574,
+    "sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d"
+  },
+  "bounded-pristine-proposal/config.json": {
+    "bytes": 4297,
+    "sha256": "641d023eef0007d3c1cb4cb09e71dbe3baf1a4bf3d01405a192ace2634c2248b"
+  },
+  "bounded-pristine-proposal/capacity.json": {
+    "bytes": 2001,
+    "sha256": "7b093dabfe440dd726ce4d655f6325e52bf6d60dd3a3f68bd29c059ab7649712"
+  },
+  "bounded-pristine-proposal/inert-gate.json": {
+    "bytes": 202,
+    "sha256": "99c97e2454312c725b389498b0164e770e665637c7f60e4682ac8c6a2d608630"
+  },
+  "bounded-pristine-proposal/analyze_runs.py": {
+    "bytes": 5273,
+    "sha256": "9769eeabafdb3321db25bfb250ecc456ebb4df7685aa5ab2b2be2fdd211d8b3f"
+  },
+  "bounded-pristine-proposal/local-verification.json": {
+    "bytes": 3522,
+    "sha256": "f4f59ca3f15b9e8301873ab4dca534395087372491974a1b488722c7205e434f"
+  },
+  "bounded-pristine-proposal/full-scope-tested-fixture.cs.txt": {
+    "bytes": 27187,
+    "sha256": "fed86224f0ff8c2ad778bb4feff11f0abbc135fcbfb037c0ef4d0f74bfddc119"
+  },
+  "bounded-pristine-proposal/analyzer-local-replay.json": {
+    "bytes": 4800,
+    "sha256": "5c1880744ce1e4b632cbd367b75d0bea5eb34e733b037dce92e7b60d71cab4b0"
+  },
+  "bounded-pristine-proposal/linux-scripts/issue4-cut-first-present.json": {
+    "bytes": 1458,
+    "sha256": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480"
+  },
+  "bounded-pristine-proposal/linux-scripts/issue4-cut-outside-control.json": {
+    "bytes": 1212,
+    "sha256": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929"
+  },
+  "bounded-pristine-proposal/linux-scripts/issue4-cut-return-control.json": {
+    "bytes": 1325,
+    "sha256": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": {
+    "bytes": 34465,
+    "sha256": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": {
+    "bytes": 19242,
+    "sha256": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": {
+    "bytes": 35146,
+    "sha256": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": {
+    "bytes": 20087,
+    "sha256": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": {
+    "bytes": 3336,
+    "sha256": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": {
+    "bytes": 19692,
+    "sha256": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": {
+    "bytes": 3474,
+    "sha256": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174"
+  },
+  "bounded-pristine-proposal/retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": {
+    "bytes": 20175,
+    "sha256": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54"
+  }
+}

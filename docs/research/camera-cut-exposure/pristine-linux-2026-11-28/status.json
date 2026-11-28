@@ -1,0 +1,26 @@
+{
+  "status": "complete",
+  "required_evidence_returned": true,
+  "error": null,
+  "missing_required": [],
+  "phase": {
+    "phase": "complete",
+    "elapsed_seconds": 678.5547538429964
+  },
+  "restoration": {
+    "all_diagnostic_source_restored": true,
+    "elapsed_seconds": 678.5542446100153,
+    "note": "A failed phase is not valid timed evidence. No automatic resubmission."
+  },
+  "archive_bytes": 358027,
+  "archive_base64_bytes": 477372,
+  "archive_sha256": "97dbfcf1b9836e6ea23a463ad78168a29cd32de3bde0541f0403ce56ff2856aa",
+  "archived_files": 48,
+  "verified_redundant_copies": 0,
+  "handler_output_limit_bytes": 8000000,
+  "final_metadata_reserve_base64_bytes": 65536,
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "returned_base64_bytes": 478396
+}

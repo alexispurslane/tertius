@@ -4,12 +4,12 @@ using static Tertius.Rendering.Tests.ExposureScenes;
 
 namespace Tertius.Rendering.Tests;
 
-/// <summary>The meter's exposure-buffer visibility without a screen tracer or upscaler supplying an earlier compute read.</summary>
+/// <summary>The analytic meter reads scene luminance and adaptation synchronizes exposure without a tracer or upscaler.</summary>
 [Collection(GpuCollection.Name)]
 public sealed class ExposureSynchronizationTests
 {
     [Fact]
-    public void TheMeterMakesTheProducingExposureVisibleToComputeWithoutScreenTracing()
+    public void TheAdaptationSynchronizesItsExposureWriteWithoutScreenTracing()
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
@@ -21,31 +21,32 @@ public sealed class ExposureSynchronizationTests
         );
         try
         {
-            var visibility = new MeterVisibility();
-            renderer.Graph.Add(FrameGraph.Stage.Exposure, visibility);
+            var visibility = new AdaptVisibility();
+            renderer.Graph.Add(FrameGraph.Stage.ExposureAdapt, visibility);
             RenderSnapshot snapshot = Sunlit();
             AddGraySquare(renderer, snapshot);
             for (int frame = 0; frame < 3; frame++)
             {
                 Gpu.Star(snapshot: snapshot, irradiance: frame == 1 ? 16 : 1);
-                float usedStops = Still(renderer: renderer, snapshot: snapshot, time: frame / 15.0).Stops;
+                Still(renderer: renderer, snapshot: snapshot, time: frame / 15.0);
 
                 visibility
                     .Stages.Should()
                     .HaveFlag(
                         PipelineStageFlags2.ComputeShaderBit,
-                        "the meter reads the producing exposure before any later consumer or adaptation"
+                        "the adaptation reads and writes exposure even when no tracer supplied an earlier compute read"
                     );
-                visibility.Access.Should().HaveFlag(AccessFlags2.ShaderStorageReadBit);
+                visibility
+                    .Access.Should()
+                    .HaveFlag(AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit);
                 float[] hdr = renderer.ReadHdr();
                 uint[] expected = new uint[ExposureMeter.Bins];
-                float scale = MathF.Pow(2, usedStops);
                 for (int y = 0; y < Height; y += 2)
                 for (int x = 0; x < Width; x += 2)
                 {
                     int offset = (y * Width + x) * 4;
                     Vector3 source = new(hdr[offset], hdr[offset + 1], hdr[offset + 2]);
-                    expected[ExposureMeter.BinOf(ExposureMeter.Luminance(source * scale))]++;
+                    expected[ExposureMeter.BinOf(ExposureMeter.Luminance(source))]++;
                 }
                 renderer.ReadExposureHistogram().Should().Equal(expected);
                 Gpu.AssertClean(renderer);
@@ -57,12 +58,12 @@ public sealed class ExposureSynchronizationTests
         }
     }
 
-    /// <summary>Observes the real buffer dependency immediately after the meter dispatch, without changing it.</summary>
-    private sealed class MeterVisibility : RenderPass
+    /// <summary>Observes the real buffer dependency immediately after adaptation, without changing it.</summary>
+    private sealed class AdaptVisibility : RenderPass
     {
         public PipelineStageFlags2 Stages { get; private set; }
         public AccessFlags2 Access { get; private set; }
-        public override string Name => "meter visibility";
+        public override string Name => "adaptation visibility";
 
         public override void Record(FrameContext context)
         {

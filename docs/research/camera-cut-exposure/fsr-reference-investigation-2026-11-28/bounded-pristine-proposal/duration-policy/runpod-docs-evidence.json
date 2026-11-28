@@ -1,0 +1,61 @@
+{
+  "source": "Public documentation only. No Runpod API request or live behavior test.",
+  "pages": [
+    {
+      "url": "https://docs.runpod.io/serverless/endpoints/send-requests.md",
+      "retrieved_date": "2026-11-28",
+      "full_markdown_sha256": "156e3fe26aa22f9a01969b71cf2bce7e803b68ac0a07c7a1cac478e289e4e93f",
+      "external_snapshot": "/tmp/tertius-issue4-duration-policy/send-requests.md",
+      "excerpts": [
+        {
+          "line": 130,
+          "text": "> Setting `executionTimeout` in a request overrides the default endpoint setting for that specific job only."
+        },
+        {
+          "line": 134,
+          "text": "* **`ttl`**: Total lifespan of the job. Timer starts when submitted and covers queue time, execution time, and everything in between. When TTL expires, the job is deleted regardless of state."
+        },
+        {
+          "line": 135,
+          "text": "* **`executionTimeout`**: Maximum time the job can actively run once a worker picks it up. Only enforced during execution."
+        },
+        {
+          "line": 139,
+          "text": "> TTL is a hard limit. If TTL expires while a job is running, the job is immediately removed and status checks return 404, even if the job would have completed successfully."
+        }
+      ]
+    },
+    {
+      "url": "https://docs.runpod.io/serverless/endpoints/endpoint-configurations.md",
+      "retrieved_date": "2026-11-28",
+      "full_markdown_sha256": "883a81051bea6cc4caa224a22d04f8661ed2c9638197963be8340d9ca667680a",
+      "external_snapshot": "/tmp/tertius-issue4-duration-policy/endpoint-configurations.md",
+      "excerpts": [
+        {
+          "line": 125,
+          "text": "Maximum duration for a single job. When exceeded, the job fails and the worker stops. Keep enabled to prevent runaway jobs. Console default: 600s (10 min). REST v2 default: `timeout` is 300000 ms (5 min). Range: 5s to 7 days."
+        },
+        {
+          "line": 127,
+          "text": "Configure in **Advanced** settings, or override per-request via `executionTimeout` in the [job policy](https://docs.runpod.io/serverless/endpoints/send-requests.md#execution-policies)."
+        },
+        {
+          "line": 131,
+          "text": "Total lifespan of a job in the system. When TTL expires, job data is deleted regardless of state (queued, running, or completed). Default: 24 hours. Range: 10s to 7 days."
+        },
+        {
+          "line": 133,
+          "text": "The timer starts at submission, not execution. If a job queues for 45 minutes with a 1-hour TTL, only 15 minutes remain for execution."
+        },
+        {
+          "line": 135,
+          "text": "REST v2 has no endpoint-level job TTL field when you [create an endpoint](https://docs.runpod.io/api-reference-v2/serverless/create-a-serverless-endpoint.md). Set `ttl` per request in the [job policy](https://docs.runpod.io/serverless/endpoints/send-requests.md#execution-policies) instead."
+        },
+        {
+          "line": 139,
+          "text": "> TTL is a hard limit. If it expires while a job is running, the job is immediately removed and status checks return 404. Set TTL to cover both expected queue time and execution time."
+        }
+      ]
+    }
+  ]
+}

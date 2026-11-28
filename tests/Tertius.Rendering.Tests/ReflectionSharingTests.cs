@@ -456,6 +456,28 @@ public sealed class ReflectionSharingTests
             .OnlyContain(value => float.IsFinite(value) && value >= 0);
     }
 
+    [Fact]
+    public void SharingRetainsTinyColorChannelsBesideABrightColorChannel()
+    {
+        (
+            float[] Values,
+            float[] History,
+            float[] Uploaded,
+            double SharedSum,
+            double UnfilteredSum,
+            float[] Samples
+        ) result = DrawPulse(roughness: 0.2f, sharing: true, boundary: false, surfaceCase: 11);
+        int center = 2 * (Height / 2 * Width + Width / 2);
+
+        result.Values[center + 1].Should().BePositive("the unfiltered red channel is finite scene radiance");
+        result.Values[center].Should().BePositive("the green channel must not erase red while normalizing the fit");
+        result
+            .Values[center - 2]
+            .Should()
+            .BePositive("the admitted neighbor receives finite red radiance from the fit");
+        result.Values.Should().OnlyContain(value => float.IsFinite(value));
+    }
+
     private static (
         float[] Values,
         float[] History,

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Corrected Linux capacity stop</title>
+<style>
+:root { color-scheme: light dark; --foreground: light-dark(#20242a,#eef0f4); --muted-foreground: light-dark(#59636f,#b5bdc8); --border: light-dark(#d1d7de,#454c58); --chart-1: light-dark(#2064b3,#7ab7ff); --chart-2: light-dark(#a45b12,#ffc273); --font-sans: system-ui,sans-serif; }
+html,body { margin:0; font-family:var(--font-sans); color:var(--foreground); }
+svg { width:100%; height:auto; display:block; }
+p { font-size:14px; line-height:1.5; color:var(--muted-foreground); margin:12px 0; }
+</style>
+<svg viewBox="0 0 700 240" role="img" aria-labelledby="title desc">
+<title id="title">Remaining work exceeded the command allowance</title>
+<desc id="desc">The worker projected 1612.709 seconds of remaining work, with 317.072 seconds left. Neither matched timing round started.</desc>
+<g fill="var(--foreground)" font-size="17">
+<text x="0" y="28">Remaining command allowance</text><text x="0" y="117">Projected remaining work</text>
+</g>
+<rect x="0" y="43" width="114.146" height="28" rx="3" fill="var(--chart-1)"/>
+<rect x="0" y="132" width="580.575" height="28" rx="3" fill="var(--chart-2)"/>
+<g fill="var(--foreground)" font-size="15">
+<text x="124" y="63">317.072 s</text><text x="590" y="152">1612.709 s</text>
+</g>
+<path d="M0 187H648" stroke="var(--border)"/>
+<g fill="var(--muted-foreground)" font-size="14">
+<text x="0" y="210">0</text><text x="167" y="210">500</text><text x="343" y="210">1000</text><text x="523" y="210">1500</text><text x="0" y="235">Seconds after diagnostics and pristine rebuilds</text>
+</g>
+</svg>
+<p>The projection includes the reviewed 25% margin and 20-second reserve. Diagnostic overhead can overestimate pristine work. This is a capacity estimate.</p>
+<p>Job e1315547-2360-47f4-b91d-681cf8fe10c0-u1 ended FAILED. Linux acceptance remains HOLD. Source: returned/linux-out/capacity.json.</p>
+</html>

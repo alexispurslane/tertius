@@ -15,9 +15,6 @@ public sealed class HitLightImageTests
 {
     private const string GuidedSwitch = "TERTIUS_GUIDED_RAYS";
 
-    /// <summary>The cap of the tracer's light, ShaderInput.MaxRadiance: below the largest half float.</summary>
-    private const float MaxRadiance = ShaderInput.MaxRadiance;
-
     private const int Width = 160,
         Height = 90;
 
@@ -112,20 +109,49 @@ public sealed class HitLightImageTests
         }
     }
 
-    [Fact]
-    public void AGlowAboveTheLargestRadianceStoresAtMostMaxRadiance()
+    [Theory]
+    [InlineData(100_000f)]
+    [InlineData(1e30f)]
+    public void AHitRetainsPhysicalEmissionAboveTheHalfFloatBudgetWithFiniteBoundedRaySamples(float glow)
     {
-        // A half float holds at most 65,504, and a driver that is not Metal stores infinity above it. The plan caps the
-        // light at MaxRadiance, as every light of the tracer. The G-buffer already caps the glow, so the sun is bright too:
-        // a wall's reflection light adds its specular part to its capped diffuse part.
-        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(glow: 100_000, starIrradiance: 1e6f);
+        (VulkanRenderer renderer, RenderSnapshot scene) = GlossyFloorBeforeAWall(glow: glow, starIrradiance: 0);
         try
         {
-            Draw(renderer, scene, frames: 2);
+            scene.Ambient.Intensity = 0;
+            // The first draw has no reprojected glossy light, so emission is the only source.
+            Draw(renderer, scene, frames: 1);
 
+            float expected = MathF.Min(glow, ShaderInput.RadianceLimit);
             float[] stored = renderer.ReadImage(renderer.ScreenTraceImages.HitLight);
+            float[] samples = renderer.ReadImage(renderer.ScreenTraceImages.Specular.Sample(0));
             float most = Enumerable.Range(0, Width * Height).Max(pixel => stored[4 * pixel]);
-            most.Should().Be(MaxRadiance, "the panel and the sunlit wall send more than the cap");
+            most.Should()
+                .BeApproximately(
+                    expected,
+                    expected * 1e-5f,
+                    "the black panel sends its public emission in scene units"
+                );
+            for (int pixel = 0; pixel < Width * Height; pixel++)
+            {
+                for (int channel = 0; channel < 3; channel++)
+                {
+                    stored[4 * pixel + channel].Should().BeInRange(0, expected * 1.00001f);
+                    samples[4 * pixel + channel]
+                        .Should()
+                        .BeInRange(
+                            0,
+                            4 * expected * 1.00001f,
+                            "the ray weight is at most four and no other light enters this scene"
+                        );
+                }
+                stored[4 * pixel + 3].Should().BeOneOf(0, 1);
+                samples[4 * pixel + 3].Should().BeInRange(0, float.MaxValue);
+            }
+            Enumerable
+                .Range(0, Width * Height)
+                .Max(pixel => samples[4 * pixel])
+                .Should()
+                .BePositive("the mirror floor must actually receive the panel's emission");
         }
         finally
         {

@@ -25,7 +25,8 @@ internal sealed unsafe class ExposureResources : IDisposable
 {
     /// <summary>
     /// The size of the exposure buffer: <c>exposureStops</c> at offset 0, <c>previousStops</c> at offset 4, the stops that
-    /// the frame before used, and padding to 16 bytes.
+    /// the previous display used, <c>historyStops</c> at offset 8 for the producing exposure of completed indirect histories,
+    /// and padding to 16 bytes.
     /// </summary>
     private const ulong ExposureBytes = 16;
 
@@ -98,7 +99,7 @@ internal sealed unsafe class ExposureResources : IDisposable
     /// <summary>The exposure buffer: <c>exposureStops</c> of frame.glsl, at binding 11 of every frame set.</summary>
     public GpuBuffer Buffer { get; }
 
-    /// <summary>The histogram: 256 <c>uint</c> counts of the surface pixels of the last metered frame.</summary>
+    /// <summary>The histogram: 2304 <c>uint</c> counts of the surface pixels of the last metered frame.</summary>
     public GpuBuffer Histogram { get; }
 
     /// <summary>Set 1 of <see cref="DescriptorLayouts.ExposureLayout"/>: the histogram at binding 0 and the exposure buffer at binding 1.</summary>

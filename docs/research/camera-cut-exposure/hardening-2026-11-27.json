@@ -1,0 +1,1262 @@
+{
+  "base_head": "ac083fac0700e661494b4fce099078a0d7b8f8cb",
+  "integrated_source_parent": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+  "runtime_source_sha256": {
+    "src/Tertius.Core/Seams/RenderSeam.cs": "1cbbdff5e352d51492c0c493e281da404ba9e52102cd2533bbd733c9d4461c8f",
+    "src/Tertius.Rendering/Frame/ExposureResources.cs": "61d46ea3b54336fc899bc380bd7a67fd18aae9a07138529a6d1d9235b36b5a51",
+    "src/Tertius.Rendering/Frame/FrameHistory.cs": "9d6cf55307bf5029896c11f034ef5c3e86c553942809a143d39a32db0a2c2ce3",
+    "src/Tertius.Rendering/Frame/TemporalSignal.cs": "5efb2f252d763f7d61b6718ccad9fadca793193ace845665d4c1a000175c1280",
+    "src/Tertius.Rendering/Passes/ExposurePass.cs": "d71391fcddc2f808f6b833f778382c3c09e7e2123cd23d3e2c86931f0aadd0b9",
+    "src/Tertius.Rendering/Passes/LightPyramidPass.cs": "cd08e4c845b841bf15d66cc4777d511e33ee77beef971562ccb5c3d8535bce09",
+    "src/Tertius.Rendering/Passes/UpscalePass.cs": "297c7448b2241129a59d4484151e1eee45c55a05574caea9260984b4dfdba4dc",
+    "src/Tertius.Rendering/Scene/GpuTypes.cs": "190b7682b599ba05d97b137565139887ac5b478adcf0c3d30abefceb8e3c0047",
+    "src/Tertius.Rendering/Shaders/accumulate_temporal.comp": "e7a6761dc6073602f272552e8ec2b7558ce36a70959d6d44b37a0c601f4576ea",
+    "src/Tertius.Rendering/Shaders/exposure_adapt.comp": "bc4afc6124cea977677931c0d7968a6b7bd9af216143e74e4a5935d4065ec239",
+    "src/Tertius.Rendering/Shaders/exposure_meter.comp": "1eec06cd6eb95fd60703694aba8863d4ee21b3ef90402c240159dc9f4cbe37cb",
+    "src/Tertius.Rendering/Shaders/frame.glsl": "f8a365e0810381c0c8a621d90e929b4666b492769584ecb72684562bb624a9c6",
+    "src/Tertius.Rendering/Shaders/fsr_exposure.comp": "30eb92fc363a480290c4274b39a5becce3b9647cf78cfd2d820cd7fef1411952",
+    "src/Tertius.Rendering/Shaders/meter.glsl": "86a88e65b76c2d594d456ce07adcd28961624a3e2ba7dd5467878689de8c83ac",
+    "src/Tertius.Rendering/Shaders/screen_trace.glsl": "63809356d8997875e0dfc9ecf9f3ffc6e7f05802020c319ecd79fe9ec9f0879d",
+    "src/Tertius.Rendering/Shading/ExposureMeter.cs": "765d4ce9c3f8838af20d1d0c752677c6d0951e99a62b8bde0039faac8fa0f2e9",
+    "src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs": "524433dd9275ae3a4813e59ed30d85c35b8f1eebfe2da93e1b424086d4b9f565",
+    "src/Tertius.Rendering/VulkanRenderer.cs": "1ceb8dded552effb43667d8a42c2f6148c2347f5c11d349b1a7e531b878ec4a9",
+    "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs": "5cf5f7df20ba651948e236bf15810eadce8303c54d05c1c1bc0f003ba6c7a19f"
+  },
+  "coverage": {
+    "base": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+    "source": "resolved stage-0 index before the Rendering mutator",
+    "reports": [
+      "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-coverage/Release/Rendering.cobertura.xml",
+      "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-coverage/Checked/Simulation.cobertura.xml",
+      "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-coverage/Checked/Rendering.cobertura.xml"
+    ],
+    "files": [
+      {
+        "file": "src/Tertius.Core/Seams/RenderSeam.cs",
+        "instrumented": 0,
+        "covered": 0,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Frame/ExposureResources.cs",
+        "instrumented": 0,
+        "covered": 0,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+        "instrumented": 9,
+        "covered": 9,
+        "uncovered": [],
+        "covered_branches": 6,
+        "total_branches": 6,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+        "instrumented": 1,
+        "covered": 1,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+        "instrumented": 6,
+        "covered": 6,
+        "uncovered": [],
+        "covered_branches": 4,
+        "total_branches": 4,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Passes/LightPyramidPass.cs",
+        "instrumented": 1,
+        "covered": 1,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Passes/UpscalePass.cs",
+        "instrumented": 5,
+        "covered": 5,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Scene/GpuTypes.cs",
+        "instrumented": 0,
+        "covered": 0,
+        "uncovered": [],
+        "covered_branches": 0,
+        "total_branches": 0,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+        "instrumented": 5,
+        "covered": 5,
+        "uncovered": [],
+        "covered_branches": 4,
+        "total_branches": 4,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs",
+        "instrumented": 4,
+        "covered": 4,
+        "uncovered": [],
+        "covered_branches": 4,
+        "total_branches": 4,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+        "instrumented": 2,
+        "covered": 2,
+        "uncovered": [],
+        "covered_branches": 2,
+        "total_branches": 2,
+        "partial_branches": {}
+      },
+      {
+        "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+        "instrumented": 3,
+        "covered": 3,
+        "uncovered": [],
+        "covered_branches": 6,
+        "total_branches": 6,
+        "partial_branches": {}
+      }
+    ]
+  },
+  "mutations": {
+    "scope": "Rendering camera-cut implementation relative to f97afc5663c5406f92307f4ff93a37e5fd532a93",
+    "initial_results": {
+      "killed": 36,
+      "survived": 2,
+      "build-failed": 2
+    },
+    "resolution": "S23 and S24 killed by added GPU behavior tests; C13 and C14 replaced with compilable mutations and killed. Initial baseline fixture failures are unscored.",
+    "rows": [
+      {
+        "id": "C01",
+        "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+        "line": 14,
+        "change": "old narrow scene meter floor",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -40)",
+          "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -80)"
+        ],
+        "seconds": 7.782387957908213,
+        "original": "public const float LowestStops = -160;",
+        "replacement": "public const float LowestStops = -16;",
+        "classes": [
+          "SceneExposureMeterTests"
+        ]
+      },
+      {
+        "id": "C02",
+        "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+        "line": 26,
+        "change": "black and subnormals enter a nonblack bin",
+        "result": "killed",
+        "killed_by": [
+          "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 4194304)",
+          "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 1)",
+          "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 8388607)"
+        ],
+        "seconds": 9.989993125200272,
+        "original": "return 0;",
+        "replacement": "return 1;",
+        "classes": [
+          "SceneMeterFloatTests"
+        ]
+      },
+      {
+        "id": "C03",
+        "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+        "line": 115,
+        "change": "scene target incorrectly depends on previous exposure",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: 64)",
+          "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: -64)"
+        ],
+        "seconds": 4.411000666208565,
+        "original": "float averageTarget = MathF.Log2(MiddleGray) - mean;",
+        "replacement": "float averageTarget = MathF.Log2(MiddleGray) - (mean - usedStops);",
+        "classes": [
+          "SceneExposureMeterTests"
+        ]
+      },
+      {
+        "id": "C04",
+        "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+        "line": 222,
+        "change": "only the first view receives early metering",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.ConsecutiveCutsMeterARevisitedViewAfterItsLightChanges",
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+        ],
+        "seconds": 32.077718541026115,
+        "original": "drawn is null || CutsFrom(snapshot)",
+        "replacement": "drawn is null",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      },
+      {
+        "id": "C05",
+        "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+        "line": 235,
+        "change": "a discontinuous camera switch leaves environment faces stale",
+        "result": "killed",
+        "killed_by": [
+          "FrameHistoryTests.ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps",
+          "FrameHistoryTests.ASwitchToACameraInAnotherFrameRefreshesEveryFaceOfTheMaps"
+        ],
+        "seconds": 4.410767000168562,
+        "original": "(still && draw == 0) || CutsFrom(snapshot)",
+        "replacement": "still && draw == 0",
+        "classes": [
+          "FrameHistoryTests"
+        ]
+      },
+      {
+        "id": "C06",
+        "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+        "line": 271,
+        "change": "continuous frame handoff retains incompatible coordinate histories",
+        "result": "killed",
+        "killed_by": [
+          "FrameHistoryTests.AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize",
+          "FrameHistoryTests.AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain"
+        ],
+        "seconds": 4.416093582287431,
+        "original": "|| !KeepsTheFrame(snapshot)",
+        "replacement": "|| false",
+        "classes": [
+          "FrameHistoryTests"
+        ]
+      },
+      {
+        "id": "C07",
+        "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+        "line": 85,
+        "change": "a cut uses ordinary late adaptation",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+        ],
+        "seconds": 41.81332229170948,
+        "original": "WriteExposure(context, phase: 1);",
+        "replacement": "WriteExposure(context, phase: 0);",
+        "classes": [
+          "CameraCutExposureTests",
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "C08",
+        "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+        "line": 89,
+        "change": "the late cut dispatch overwrites the producing history exposure",
+        "result": "killed",
+        "killed_by": [
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+        ],
+        "seconds": 11.114859333261847,
+        "original": "context.History.MetersNewView ? 2u : 0u",
+        "replacement": "0u",
+        "classes": [
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "C09",
+        "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+        "line": 86,
+        "change": "shown exposure diagnostics never receive early cut exposure",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 1361, destination: 0.00100000005)",
+          "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 0.00100000005, destination: 1361)",
+          "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+        ],
+        "seconds": 32.17133975028992,
+        "original": "context.Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: context.Frame.Index);",
+        "replacement": "",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      },
+      {
+        "id": "C10",
+        "file": "src/Tertius.Rendering/Passes/LightPyramidPass.cs",
+        "line": 44,
+        "change": "light pyramid reads cut exposure without a compute dependency",
+        "result": "killed",
+        "killed_by": [
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)"
+        ],
+        "seconds": 8.027427583001554,
+        "original": "context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+        "replacement": "",
+        "classes": [
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "C11",
+        "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+        "line": 335,
+        "change": "accumulator exposure consumer declares the wrong pipeline stage",
+        "result": "killed",
+        "killed_by": [
+          "AccumulatorRenderTests.WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame",
+          "AccumulatorRenderTests.TheRetainedDeviationTakesTheExposureRatio"
+        ],
+        "seconds": 53.80062195844948,
+        "original": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+        "replacement": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);",
+        "classes": [
+          "AccumulatorRenderTests"
+        ]
+      },
+      {
+        "id": "C12",
+        "file": "src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs",
+        "line": 1006,
+        "change": "FSR reset uses a prior display exposure ratio",
+        "result": "killed",
+        "killed_by": [
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+        ],
+        "seconds": 8.476255125366151,
+        "original": "frame.Inputs.Frame.Reset || executions == 0 ? 1u : 0u",
+        "replacement": "0u",
+        "classes": [
+          "Fsr3UpscalerTests"
+        ]
+      },
+      {
+        "id": "S01",
+        "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+        "line": 5,
+        "change": "largest finite scene luminance loses the final histogram slice",
+        "result": "killed",
+        "killed_by": [
+          "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+        ],
+        "seconds": 41.746332166716456,
+        "original": "const uint HistogramBins = 2304u;",
+        "replacement": "const uint HistogramBins = 2048u;",
+        "classes": [
+          "SceneMeterFloatTests"
+        ]
+      },
+      {
+        "id": "S02",
+        "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+        "line": 7,
+        "change": "GPU scene range collapses to the old floor",
+        "result": "killed",
+        "killed_by": [
+          "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+        ],
+        "seconds": 42.64899683278054,
+        "original": "const float LowestStops = -160.0;",
+        "replacement": "const float LowestStops = -16.0;",
+        "classes": [
+          "SceneMeterFloatTests"
+        ]
+      },
+      {
+        "id": "S03",
+        "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+        "line": 20,
+        "change": "GPU black/subnormal floor uses a nonblack bin",
+        "result": "killed",
+        "killed_by": [
+          "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+        ],
+        "seconds": 47.830002875067294,
+        "original": "return 0u;",
+        "replacement": "return 1u;",
+        "classes": [
+          "SceneMeterFloatTests"
+        ]
+      },
+      {
+        "id": "S04",
+        "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+        "line": 24,
+        "change": "phantom histogram counts survive the workgroup clear",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)",
+          "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+        ],
+        "seconds": 75.7410229574889,
+        "original": "localBins[bin] = 0u;",
+        "replacement": "localBins[bin] = 1u;",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      },
+      {
+        "id": "S05",
+        "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+        "line": 35,
+        "change": "surface counts never reach the global histogram",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+        ],
+        "seconds": 30.421951125375926,
+        "original": "uint count = localBins[bin];",
+        "replacement": "uint count = 0u;",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      },
+      {
+        "id": "S06",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 0 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 13.640233917161822,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 0u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S07",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 1 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 12.855538667179644,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 1u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S08",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 2 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 12.945538790896535,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 2u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S09",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 3 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 12.575905249454081,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 3u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S10",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 4 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+        ],
+        "seconds": 13.197320125065744,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 4u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S11",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 5 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+        ],
+        "seconds": 13.958546042442322,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 5u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S12",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 6 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+        ],
+        "seconds": 16.03366299998015,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 6u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S13",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 7 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 2048)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1792)",
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 13.138521749526262,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 7u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S14",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 53,
+        "change": "scan omits histogram slice 8 of 9",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+        ],
+        "seconds": 12.83963350020349,
+        "original": "cumulative[i + 256u * part] += before[part];",
+        "replacement": "if (part != 8u) cumulative[i + 256u * part] += before[part];",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S15",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 56,
+        "change": "last histogram bin is excluded from the total",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+        ],
+        "seconds": 13.520730749703944,
+        "original": "float total = float(cumulative[HistogramBins - 1u]);",
+        "replacement": "float total = float(cumulative[HistogramBins - 2u]);",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S16",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 57,
+        "change": "dark quantile trim is ignored",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1280)"
+        ],
+        "seconds": 13.97948041651398,
+        "original": "float low = adapt.darkShare * total;",
+        "replacement": "float low = 0.0;",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S17",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 58,
+        "change": "bright quantile trim is ignored",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+        ],
+        "seconds": 13.793672958388925,
+        "original": "float high = (1.0 - adapt.brightShare) * total;",
+        "replacement": "float high = total;",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S18",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 89,
+        "change": "highlight protection is omitted",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+        ],
+        "seconds": 14.325105999596417,
+        "original": "min(log2(MiddleGray) - mean, -brightEdge) + adapt.compensationStops",
+        "replacement": "log2(MiddleGray) - mean + adapt.compensationStops",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S19",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 89,
+        "change": "configured compensation is ignored",
+        "result": "killed",
+        "killed_by": [
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+          "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+        ],
+        "seconds": 15.614341374486685,
+        "original": "+ adapt.compensationStops,",
+        "replacement": "+ 0.0,",
+        "classes": [
+          "SceneExposureHistogramTests"
+        ]
+      },
+      {
+        "id": "S20",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 37,
+        "change": "late cut fails to finish its previous displayed exposure",
+        "result": "killed",
+        "killed_by": [
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+        ],
+        "seconds": 9.111899583600461,
+        "original": "previousStops = exposureStops;",
+        "replacement": "previousStops = historyStops;",
+        "classes": [
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "S21",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 93,
+        "change": "empty cut inherits an unrelated source view exposure",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+          "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+        ],
+        "seconds": 31.33319920860231,
+        "original": "target = clamp(0.0, adapt.minStops, adapt.maxStops);",
+        "replacement": "target = used;",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      },
+      {
+        "id": "S22",
+        "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+        "line": 96,
+        "change": "cut histories are mislabeled with the display exposure",
+        "result": "killed",
+        "killed_by": [
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+        ],
+        "seconds": 8.231894291937351,
+        "original": "historyStops = used;",
+        "replacement": "historyStops = target;",
+        "classes": [
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "S23",
+        "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+        "line": 310,
+        "change": "accumulator rescales indirect history from the previous display exposure",
+        "result": "killed",
+        "killed_by": [
+          "AccumulatorRenderTests+CutHistoryExposure.TheFrameAfterACutRescalesRetainedLightFromItsProducingExposure"
+        ],
+        "seconds": 7.783383125439286,
+        "original": "historyRatio(exposureStops, historyStops)",
+        "replacement": "historyRatio(exposureStops, previousStops)",
+        "classes": [
+          "*CutHistoryExposure"
+        ]
+      },
+      {
+        "id": "S24",
+        "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+        "line": 428,
+        "change": "screen tracer rescales indirect history from the previous display exposure",
+        "result": "killed",
+        "killed_by": [
+          "AccumulatorRenderTests+CutHistoryExposure.TheTracerRescalesACutsPreviousReflectionFromItsProducingExposure"
+        ],
+        "seconds": 43.874046167358756,
+        "original": "historyRatio(exposureStops, historyStops)",
+        "replacement": "historyRatio(exposureStops, previousStops)",
+        "classes": [
+          "*CutHistoryExposure"
+        ]
+      },
+      {
+        "id": "S25",
+        "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+        "line": 27,
+        "change": "FSR reset ratio depends on unrelated source display exposure",
+        "result": "killed",
+        "killed_by": [
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+        ],
+        "seconds": 53.17590079084039,
+        "original": "reset != 0u ? 1.0",
+        "replacement": "false ? 1.0",
+        "classes": [
+          "Fsr3UpscalerTests"
+        ]
+      },
+      {
+        "id": "S26",
+        "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+        "line": 28,
+        "change": "FSR ratio overflows across supported exposure endpoints",
+        "result": "killed",
+        "killed_by": [
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: False, expected: 1.84467441E+19)",
+          "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: False, expected: 5.42101086E-20)"
+        ],
+        "seconds": 10.640610207803547,
+        "original": "exp2(clamp(exposureStops - previousStops, -64.0, 64.0))",
+        "replacement": "exp2(exposureStops - previousStops)",
+        "classes": [
+          "Fsr3UpscalerTests"
+        ]
+      },
+      {
+        "id": "C13",
+        "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+        "line": 160,
+        "change": "adapt dispatch loses its early or late cut phase",
+        "result": "killed",
+        "killed_by": [
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+          "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+        ],
+        "seconds": 68.91323091648519,
+        "original": "Phase = phase,",
+        "replacement": "Phase = phase & 0u,",
+        "classes": [
+          "CameraCutExposureTests",
+          "ExposureLifecycleTests"
+        ]
+      },
+      {
+        "id": "C14",
+        "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+        "line": 852,
+        "change": "fixed exposure no longer records its shown-frame reading",
+        "result": "killed",
+        "killed_by": [
+          "CameraCutExposureTests.ACameraCutKeepsManualExposureFixed"
+        ],
+        "seconds": 28.048691915348172,
+        "original": "if (exposureSetting is FixedExposure)",
+        "replacement": "if (exposureSetting is FixedExposure && history.DrawnFrames < 0)",
+        "classes": [
+          "CameraCutExposureTests"
+        ]
+      }
+    ],
+    "summary": {
+      "killed": 40
+    },
+    "official_core_simulation": "Deferred; not classified as not applicable."
+  },
+  "captures": {
+    "renderer_gpu": "Apple M1 Max",
+    "output_size": [
+      1280,
+      720
+    ],
+    "runs": 9,
+    "captures": 201,
+    "film_frames_each_mode": 49,
+    "validation_messages": 0,
+    "window_evidence": "Window-clock renderer with an offscreen presentation target, not a desktop window run.",
+    "comparisons": [
+      {
+        "mode": "native",
+        "cut": "outside",
+        "tick": 1417,
+        "first_stops": -7.6409545,
+        "settled_stops": -7.6409683,
+        "absolute_gap_stops": 1.3799999999619672e-05,
+        "last_control_change_stops": 0.0,
+        "first_target_gap_stops": 5.000000005139782e-07,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          1280,
+          720
+        ],
+        "center_srgb": [
+          56,
+          54,
+          50
+        ],
+        "settled_center_srgb": [
+          56,
+          54,
+          50
+        ],
+        "surface_counts": 134390,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/native/film/outside-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/native/outside/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.28654260706018514
+      },
+      {
+        "mode": "native",
+        "cut": "return",
+        "tick": 1462,
+        "first_stops": 2.87346,
+        "settled_stops": 2.87346,
+        "absolute_gap_stops": 0.0,
+        "last_control_change_stops": 0.0,
+        "first_target_gap_stops": 0.0,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          1280,
+          720
+        ],
+        "center_srgb": [
+          71,
+          67,
+          61
+        ],
+        "settled_center_srgb": [
+          71,
+          67,
+          61
+        ],
+        "surface_counts": 230400,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/native/film/return-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/native/return/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.00288013599537037
+      },
+      {
+        "mode": "fsr",
+        "cut": "outside",
+        "tick": 1417,
+        "first_stops": -7.640643,
+        "settled_stops": -7.64068,
+        "absolute_gap_stops": 3.6999999999842714e-05,
+        "last_control_change_stops": 0.0,
+        "first_target_gap_stops": 0.0,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          848,
+          477
+        ],
+        "center_srgb": [
+          56,
+          55,
+          51
+        ],
+        "settled_center_srgb": [
+          56,
+          55,
+          51
+        ],
+        "surface_counts": 59109,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/fsr/film/outside-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/fsr/outside/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.556240234375
+      },
+      {
+        "mode": "fsr",
+        "cut": "return",
+        "tick": 1462,
+        "first_stops": 2.8750825,
+        "settled_stops": 2.8750825,
+        "absolute_gap_stops": 0.0,
+        "last_control_change_stops": 0.0,
+        "first_target_gap_stops": 2.0000000011677344e-07,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          848,
+          477
+        ],
+        "center_srgb": [
+          70,
+          66,
+          60
+        ],
+        "settled_center_srgb": [
+          70,
+          66,
+          60
+        ],
+        "surface_counts": 101336,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/fsr/film/return-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/fsr/return/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.46382740162037034
+      },
+      {
+        "mode": "window",
+        "cut": "outside",
+        "tick": 1417,
+        "first_stops": -7.6409545,
+        "settled_stops": -7.64234,
+        "absolute_gap_stops": 0.0013854999999995954,
+        "last_control_change_stops": 7.999999999963592e-05,
+        "first_target_gap_stops": 5.000000005139782e-07,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          1280,
+          720
+        ],
+        "center_srgb": [
+          56,
+          54,
+          50
+        ],
+        "settled_center_srgb": [
+          56,
+          54,
+          50
+        ],
+        "surface_counts": 134390,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/window/film/outside-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/window/outside/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.34446614583333335
+      },
+      {
+        "mode": "window",
+        "cut": "return",
+        "tick": 1462,
+        "first_stops": 2.8734608,
+        "settled_stops": 2.873442,
+        "absolute_gap_stops": 1.8800000000318562e-05,
+        "last_control_change_stops": 1.09999999997612e-06,
+        "first_target_gap_stops": 2.9999999995311555e-07,
+        "scene_draws": 1,
+        "presentations": 1,
+        "active_size": [
+          1280,
+          720
+        ],
+        "center_srgb": [
+          71,
+          67,
+          61
+        ],
+        "settled_center_srgb": [
+          71,
+          67,
+          61
+        ],
+        "surface_counts": 230400,
+        "first_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/window/film/return-000000.png",
+        "control_png": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/combined-captures/window/return/settled-07.png",
+        "mean_absolute_srgb_code_difference": 0.004128327546296297
+      }
+    ]
+  },
+  "artifact_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence",
+  "capture_artifact_sha256": {
+    "combined-captures/native/film/return-000000.png": "b40fd07c2a3a52f8195ef793ac78417ea1e05aca48a78755951f7cdbd1b00d5e",
+    "combined-captures/native/film/return-000001.png": "1281a2b74a17139fcf23758a810c0449730a90bf20ee126c457f3ef75d68073d",
+    "combined-captures/native/film/outside-000002.png": "72b2a973937b9a14fdf9b1c399bfccfdcdf7a80474f740ec018b7a3285ebc5e5",
+    "combined-captures/native/film/outside-000016.png": "7751a014793876229ab20eda57b64ae6c93cc9ce4e0625e748533382b3140706",
+    "combined-captures/native/film/outside-000017.png": "baa645965a4f3c97050529387a717c83ed5d6fa2342523bb71e5231343baa177",
+    "combined-captures/native/film/outside-000003.png": "c2d05dbc65a8f4b988d67ee33b83f2631d461bf026c102226fad64e57d5517ef",
+    "combined-captures/native/film/outside-000029.png": "7622c049a2589035214673a2b0b687661bdf8e46ab1c8da2c6dffbbe98af0115",
+    "combined-captures/native/film/outside-000015.png": "57cdb32be680268ff91fc44175f0b761829f93f4863c7901d8c5f9dca66091f3",
+    "combined-captures/native/film/outside-000001.png": "fb5364ca3c5190d7702fd7aecf62fb4c1023aa3411f64db5d4c61695baa9285e",
+    "combined-captures/native/film/outside-000000.png": "92f9a29ca2dfc1c57df7dc8326b3d42a696a9a530de16c2f59eae791392509b0",
+    "combined-captures/native/film/outside-000014.png": "a08bec5522598718800cad3824f35fe494d168e0e39e3677db6759fbf9bc69bf",
+    "combined-captures/native/film/outside-000028.png": "949f7545969bb195d2fa4e87cc3dd34e44f62792159f4004d0180f289cc3c663",
+    "combined-captures/native/film/readings.json": "d6f1bf4d0a246bd9c509b7d353a68eb7d9b0ecf46988e32514fde2621cf94580",
+    "combined-captures/native/film/outside-000010.png": "3b8c878eaf0580252b777825e40833023afedaa379056b7048f665d4901652a0",
+    "combined-captures/native/film/outside-000004.png": "f6df457e7d5ab589b4410c872487bb7f2eae36018ef19aff6674f94f2dae2ffa",
+    "combined-captures/native/film/outside-000038.png": "36e8db49acab7b5a25e23f4a405b735a5cd7665ade0f30ccf4c761d911915d8a",
+    "combined-captures/native/film/outside-000039.png": "076b78b8a7f647a48993a13f69c019a639b6e6302b664f11e44195f01dc2b4b4",
+    "combined-captures/native/film/outside-000005.png": "d9e8978ebe750b394f2788f29c6ccdb054f76945119e66251e9a71ecf87cee65",
+    "combined-captures/native/film/outside-000011.png": "ff476a4dc173589c9a3db1b0a42be9d267844d691963454c9ddc5f372b17d818",
+    "combined-captures/native/film/outside-000007.png": "8380e2055a0216807613e414b43862ac7b60217a685d37e448eff049e49689a0",
+    "combined-captures/native/film/outside-000013.png": "1cff96f8d10928b6438e313295342c21ca4cc7f79b6ccddfb2c7076735258083",
+    "combined-captures/native/film/outside-000012.png": "8957999e6415e12d560406b80a15a5430885be8e65b439e43fe70caa34355263",
+    "combined-captures/native/film/outside-000006.png": "d5b9482b18ffcff5f03e7a06b1f90b49229373f536602432c1010deccb85e07b",
+    "combined-captures/native/film/seat-tail-000001.png": "8ff75911cf2cc8ddf621ceffb420b94963bb05d95bdb4fcef7aa198f3f010e82",
+    "combined-captures/native/film/outside-000023.png": "5f6a8d2290add8ddc948aec6bcbc4634bb4ffedfcf03d8d9734891e3179c893c",
+    "combined-captures/native/film/outside-000037.png": "c88a62f0d80818af72b8b97eed2e4fe9b9395d0d17f477c0f55c038d6c5e7a72",
+    "combined-captures/native/film/outside-000036.png": "614a8296a786300c4921ba7e41cc909fe153b380edf78e2fc200a1297caf7f1e",
+    "combined-captures/native/film/outside-000022.png": "645479a2bbce716ffd114e4d89ec0c634e75b2bf262350254eef196182457aa5",
+    "combined-captures/native/film/seat-tail-000000.png": "d9ef4dd02a6eab0c74da8c1d22e6d728fa9d026394cde43b97389af4855e4415",
+    "combined-captures/native/film/outside-000008.png": "1430416336691aacf6027c7cb4a0c03620132390a772f52e86dc5707dd86f83c",
+    "combined-captures/native/film/outside-000034.png": "07a24ca3425e2d9aca070e7abdc9f09b735dcdb1de7ea6f396f27ff9aaa101c9",
+    "combined-captures/native/film/outside-000020.png": "e1ab006c7d2548ec0e2b4db91b5b1bccd5003c8faca42e61d61442d9510f4f5a",
+    "combined-captures/native/film/outside-000021.png": "12519f978629e3b5c48738493cb144204a41e9c73a55526fa460836ad5b8720b",
+    "combined-captures/native/film/outside-000035.png": "702c24825d1befda64f740d59800e9d7c7f9d7ac3c992cd347bd95b81b4aa627",
+    "combined-captures/native/film/outside-000009.png": "71449ca7e1e6b7c39e1e35639064dffbbcff3acc7e9271271d0600a5522fcc6d",
+    "combined-captures/native/film/outside-000031.png": "fd84eebb5b5b77b7cc10823a2bf005e7bc9ad4ba257b7ded10401cd0348b8de5",
+    "combined-captures/native/film/outside-000025.png": "bb366fa6a8f2e7b39877c5a80b8be9b0cb9623ef82f0777a7b9e3dcc73ab21e5",
+    "combined-captures/native/film/outside-000019.png": "a2278c1bc9d617773796d3e21e4e7ecebd21d915ef36d515d98c0bbf92e4587f",
+    "combined-captures/native/film/outside-000018.png": "0a9d09c9b1fd18857f14e55d72aae954cdabd5d29c046884d4593b47413f5532",
+    "combined-captures/native/film/outside-000024.png": "f95450b1cf1be1e619139e09ac333dc64df229bde91d80b537f069046059df8f",
+    "combined-captures/native/film/outside-000030.png": "9993c3ce8c0239b289497cacd632992e3ed8e068fc09b2b1b2c41aed5e5666b5",
+    "combined-captures/native/film/outside-000026.png": "63edaced1806a0476def501b84aba86fe510bb3b260aa4fa9386ef6ce89528b8",
+    "combined-captures/native/film/outside-000032.png": "15a203026c2d0b10d59f4e6993f56b164b9180ebd5efa99f24e33cef9ef10ae7",
+    "combined-captures/native/film/outside-000033.png": "44756141c4bf4e702237271e15e9b9ae501a43f07132fb68aab360c6c5e66b9f",
+    "combined-captures/native/film/outside-000027.png": "f5614ec0b1eeed5ce81fbb32bcc0ace5e6a63516cd3c06221380a860243dd2f2",
+    "combined-captures/native/film/outside-000040.png": "63bbfe2f0fd427e2364dd01eac3441db83fef4c1db89222bd725ad82927e7297",
+    "combined-captures/native/film/outside-000041.png": "e0020addbe4db8cf93b97203aa23d606b08ac9d80b2dd9867e2103bf5c23e750",
+    "combined-captures/native/film/outside-000043.png": "38fef49096c35a8ea6b8857ef15a5ceb4125753f4aa1fb76763d45fb5e1b05f3",
+    "combined-captures/native/film/outside-000042.png": "cf6cc663681daf546cbfe63cacbcc4cc7d3f56087ee92ec6413a4ce707aa7aac",
+    "combined-captures/native/film/outside-000044.png": "63435e9a2d72dcc2f1bdd2a25da001f22bf3daa31a557c0be764599178bae9c1",
+    "combined-captures/native/outside/readings.json": "3a530d33e7fa9c8ef38a17b3e782849a8e6f3911def1483bb2505071eafce18f",
+    "combined-captures/native/outside/settled-03.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-02.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-outside-000000.png": "a839f1991b8dde836b975e5dd3b9f8b485d168eb08d0ead591f52058678d11ab",
+    "combined-captures/native/outside/settled-00.png": "2dbe69cf8a3ec2344126f71643ebc4dfcc0150bd20c60169f93da0adc60fc01c",
+    "combined-captures/native/outside/settled-01.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-05.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-04.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-06.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/outside/settled-07.png": "0bc3618fd109e9a7c1e917ef14d6c4c04181061f9429a2b5d05891688302009f",
+    "combined-captures/native/return/readings.json": "9cfc43f3dfef9370f72fd79e76d586b2f39c93d98385f5e54ba1f3b653fa9822",
+    "combined-captures/native/return/settled-return-000000.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-03.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-02.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-00.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-01.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-05.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-04.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-06.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/native/return/settled-07.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/window/film/return-000000.png": "0bc9989c1d20b1c0df420ad14b5b10f2dbebe40d8dfadf82d024357690ec91cf",
+    "combined-captures/window/film/return-000001.png": "5e32a34fe62400f16e8afd9ba4811748ef5fe7cf7cc63c69b3acdcc8d3a3f76d",
+    "combined-captures/window/film/outside-000002.png": "038649cefa2a9fdb47f3afd553699d96c29fbb60359ffe27302db1a01b9e0a8e",
+    "combined-captures/window/film/outside-000016.png": "06c690ec3886921608819fb51b04993854ec101cd4d68584af0d292b633a6198",
+    "combined-captures/window/film/outside-000017.png": "6c236b6b2d204bf44a3c1422625af2afd8d3134ceb184ab860ea3bca938fd963",
+    "combined-captures/window/film/outside-000003.png": "085302ebe15cb7fd00829d194321344d7da974e350e2153c64b064c9c6bad70b",
+    "combined-captures/window/film/outside-000029.png": "2fcf160deef5d3ea5bf55813ab4cad7a8d15b444ae5be86dca82d4914ffc6f28",
+    "combined-captures/window/film/outside-000015.png": "bccf959ef0c08b293dafd668e1c83e8d2965d55b4e94bdf647fb3fd4aca9f967",
+    "combined-captures/window/film/outside-000001.png": "fb5364ca3c5190d7702fd7aecf62fb4c1023aa3411f64db5d4c61695baa9285e",
+    "combined-captures/window/film/outside-000000.png": "92f9a29ca2dfc1c57df7dc8326b3d42a696a9a530de16c2f59eae791392509b0",
+    "combined-captures/window/film/outside-000014.png": "516b7fb0d487518702cf61b43e5b94a8d375f25d8bd96bda89e2e89133a9c170",
+    "combined-captures/window/film/outside-000028.png": "d7603d05a9b79839f1ce379c41dafaf87afb1a2542ac5d91bd6f571da9ad987b",
+    "combined-captures/window/film/readings.json": "b14de63476d57ebe7661dee42f15eb4c5092ad2bfdd63d6e02fb9bd2124925db",
+    "combined-captures/window/film/outside-000010.png": "e5bfc664b00b654caac4d07169b7f53a92d2c9577411381e5431c34e090303c7",
+    "combined-captures/window/film/outside-000004.png": "0a2998508dfd1f7a111576cf4d2b5f15248de40f56ee78ae7470af025638629c",
+    "combined-captures/window/film/outside-000038.png": "8dbe26a64f5680b334592ecd253ddaf39d4471425bd26b78d33fe650ac388c87",
+    "combined-captures/window/film/outside-000039.png": "842496d43951fc28e22b432d31e08aa4507161c7d3b3e2d6f8f6d4d6bfa635b5",
+    "combined-captures/window/film/outside-000005.png": "3cdd0f6e3c7dc8b0333d3562eaace1fd319531e7ee05b1d8c0791ceb34cc9fb8",
+    "combined-captures/window/film/outside-000011.png": "346d12204f5080ff15fb4d31d76a5fb60f55f03b5711ec21c972c4102e55c363",
+    "combined-captures/window/film/outside-000007.png": "de7fdb9b99f1127454a695ebc9ae3142e917d459f6b1923e71a92ad6b9a22372",
+    "combined-captures/window/film/outside-000013.png": "ac46cf42d6185aff24fb3836352a62519a68f4bb98caa62be2a58f245586e8dd",
+    "combined-captures/window/film/outside-000012.png": "cf5c6d6ec71df04ca6d347b9903a0726fb3bf8f48d658fb0540deaa59305ddff",
+    "combined-captures/window/film/outside-000006.png": "62171942eb69ee87d1d1d6291320f128d6a7372a74e2c558d2d0259bb733242b",
+    "combined-captures/window/film/seat-tail-000001.png": "75f626fc6c9843f6b1989c447012b1c125c11557831d479e2690a56129e4820e",
+    "combined-captures/window/film/outside-000023.png": "36eb602ec81db76cdcfec2daf214d3ca4df2e346acaec68e585f0c4e4e20ebd5",
+    "combined-captures/window/film/outside-000037.png": "f265769b8cf9028bd655c2c2636309c9bafe639ae1815936868726d21d958f93",
+    "combined-captures/window/film/outside-000036.png": "97f77bdf947e4b1d6c2d65035eb3ebf1f2b22e9340bf58967550b4761bfcfc09",
+    "combined-captures/window/film/outside-000022.png": "77f936b38c72bc62dd7481d3c9765fd0521f5cf2f65272c6d4f2a69d619d8783",
+    "combined-captures/window/film/seat-tail-000000.png": "a54c727da24f51d6b67bd4005bd7b3ba533d57b9c2a3ab47b27d479ee9ca158d",
+    "combined-captures/window/film/outside-000008.png": "7a7972b9aaf73cb5fb156461137bb9fb5d8dba4832d7db58a7a725b922273287",
+    "combined-captures/window/film/outside-000034.png": "427dc5c6fd98935a9599be1420259a3ca880eb15b5330b36acdba120f7f20c23",
+    "combined-captures/window/film/outside-000020.png": "24db15f49a72f3a14eae1ff8ce98257cd839cd4162c3b708e949539215e50d69",
+    "combined-captures/window/film/outside-000021.png": "59832408d3005a09203bf5fca606c173f35e323bc5f1b3ccda92d624d3ee3f05",
+    "combined-captures/window/film/outside-000035.png": "4256181accecf5cfd2846b362f58d0008bf0f737925c81105cad0a4465732b1b",
+    "combined-captures/window/film/outside-000009.png": "4fd19b3e721e09310c98345533d79f76b9264a266b48be4a629f4be702661394",
+    "combined-captures/window/film/outside-000031.png": "8f38298f70a4f76055cdd24667fd4f7c91bcabb7ce0b959b042900b3db7fc1f0",
+    "combined-captures/window/film/outside-000025.png": "eb96881353a2e1925a25dcc594d5f4ab2bf70ce87dd3a88ff62da5fafbcf3db9",
+    "combined-captures/window/film/outside-000019.png": "13bcd18e8b613ecc8cb6f8bd97af37cacfd5084c5ec1e4efdbf4a50ea349a5cd",
+    "combined-captures/window/film/outside-000018.png": "3855e773f4875d503e205673f1216d484a6f3c0062b5b7ea7cb68d46c1b6e945",
+    "combined-captures/window/film/outside-000024.png": "7cee157dd43eeeb540e19dbe4a9ef91b405b7b5bf2bfca422d7994b86968e35f",
+    "combined-captures/window/film/outside-000030.png": "3ae1bf7951e8e024e8d93f9aebaa597977d615c12280efc1e7afdfb141e6faff",
+    "combined-captures/window/film/outside-000026.png": "7d9cc8302a8d511333a7b425e70b69e02d23a4f49e3e11f3b666dbd62b2b292a",
+    "combined-captures/window/film/outside-000032.png": "11fa6098d999fbab1c6ec009fb463167cc4ec1be0407c0d4bdb90e2956ce0bbd",
+    "combined-captures/window/film/outside-000033.png": "e0a2f259beab131e6d97ed4520edd9c0e1115da81333f558499dd2bcb74b83b5",
+    "combined-captures/window/film/outside-000027.png": "5ef6805cf953a718075dd20a2f142dbb2300183dcc1d19d65bf19b72dc6c4dd5",
+    "combined-captures/window/film/outside-000040.png": "4a02e52113ea6de6b878f1d5b91fd6172fa6fbc383b908f8e94755fac101d130",
+    "combined-captures/window/film/outside-000041.png": "816393f390ecdd6057b6bb05b2ce3bfa8e469b011d1d4d86ba55e46b2f0c93f0",
+    "combined-captures/window/film/outside-000043.png": "4f8829b5c29cd8195170865ef197863c6b2849d2c060d6d6ce3dc299ddfbaaa7",
+    "combined-captures/window/film/outside-000042.png": "2b73481dc02661e32defbacbb449e516e92c377c1513b67174e8ca2619078508",
+    "combined-captures/window/film/outside-000044.png": "28b5c9af492e567fb60ca36a59029ad5b22340255b04dfdad6e217d5e71f4346",
+    "combined-captures/window/outside/readings.json": "e834acb502946ae2e4c63636729d8b91a16ea1d2d603b0b3d4b8b2650bdea1c9",
+    "combined-captures/window/outside/settled-03.png": "ba56861bcb56733f372aa8a8ff48218c64777a3ef5eba160526b9350a7f0da32",
+    "combined-captures/window/outside/settled-02.png": "10ec862b777d086f560ba6e65e822ce2e7f54278db21e64d2b66ac73fe609e80",
+    "combined-captures/window/outside/settled-outside-000000.png": "409289422112b47816fd35fce98682142c430c42aab5a4c1c7539daf38e809fe",
+    "combined-captures/window/outside/settled-00.png": "a839f1991b8dde836b975e5dd3b9f8b485d168eb08d0ead591f52058678d11ab",
+    "combined-captures/window/outside/settled-01.png": "e90c6accb6da144e054e459f925a286c99178f6f44c11a3910f8956f01606158",
+    "combined-captures/window/outside/settled-05.png": "342b56c4250eb4a3241a8731511354d163e25d566b5bd8fe24dd1f85551e7153",
+    "combined-captures/window/outside/settled-04.png": "b885b1ce560d61d9548d961566de54595bf6bb72993d0ed547322727eee701bd",
+    "combined-captures/window/outside/settled-06.png": "0c52eee505d835e73510d5cfff1b000d95adb7a386b659fb934f496c7417692c",
+    "combined-captures/window/outside/settled-07.png": "48a459879d98e7917a71f4e5baf7c778e1e75301d43469e74ada1948e896e6af",
+    "combined-captures/window/return/readings.json": "f0d6dc5372dcd2cff9128affead0db28fc5d68e91c402c653f22f405fc4fd954",
+    "combined-captures/window/return/settled-return-000000.png": "e0358f3825693621356af1657b07c8018dc99a1b19fefaea1e94dba9034c7c9a",
+    "combined-captures/window/return/settled-03.png": "062e614674e286931091be291d34d186cf21b598fa8859a28dd7529f9adce4ef",
+    "combined-captures/window/return/settled-02.png": "99e20ee7df6607bfdc0c91869a67bfc6e0b1c423314e4ee946ae72deca79acbf",
+    "combined-captures/window/return/settled-00.png": "95bf12afae808c75a5d641526b89be335d4cab4fec1e254c8f6e34a1a899fbb7",
+    "combined-captures/window/return/settled-01.png": "c2c1901766886632eed0dee329870afcb099a9fdb625084376dcfc7209104a52",
+    "combined-captures/window/return/settled-05.png": "eb22b56266ffe351f5fbbffd2f8a0c3a9a132066c1e3196fa3571e4e1458257b",
+    "combined-captures/window/return/settled-04.png": "6a33526ade331b2fa90da51d07fb4d42212763eda65f28e90f7d6e5b70253892",
+    "combined-captures/window/return/settled-06.png": "c7756e4ddba546971274526baae649dcf260c6bee1c7140a5981e8ccecba088d",
+    "combined-captures/window/return/settled-07.png": "dadfa7021d5be8d8318295e8fcc70202d0b16d9d629002bb5d301d97b768a24e",
+    "combined-captures/fsr/film/return-000000.png": "3cbe82471454f653c259ebc1d039200001b1a064f94bd11d192facd7bb498e56",
+    "combined-captures/fsr/film/return-000001.png": "8a0397d50f66980707a8c3748bd086408a162544aee4db8d64a0bb319a1691fa",
+    "combined-captures/fsr/film/outside-000002.png": "124e8901ec171e1ed5922a61c7f4c810844a9190708f3a7602f9ab9636bb929e",
+    "combined-captures/fsr/film/outside-000016.png": "29a4b89e9861664226a3fbdc0b6a801451633f1de4920244c04eb26783b65e28",
+    "combined-captures/fsr/film/outside-000017.png": "533f3bf51a432c2053b68092a1c69b9290af86c574d2391f8358a8f9d375dd3d",
+    "combined-captures/fsr/film/outside-000003.png": "97754885c8433ae395fa99b0e690345b3bc5ff78fdd909cca4abcfaea4080cd2",
+    "combined-captures/fsr/film/outside-000029.png": "5845c0c56f459e98b087fb540ce65c281975fc449553fc0e61d9706987115fb2",
+    "combined-captures/fsr/film/outside-000015.png": "341489007fad23fe039fc25ad2e7cdb504c630be028aa5c1d0fe9c4b11fc870f",
+    "combined-captures/fsr/film/outside-000001.png": "98d83303febdb959b87407f40622e9b81154f5a2505aa0ee242f594406a41e80",
+    "combined-captures/fsr/film/outside-000000.png": "d8757faf91f897369c55576a613c366e6e043f7f98f277ec658a3d5c3676ad4a",
+    "combined-captures/fsr/film/outside-000014.png": "632bd7a34581a351fc1e6d65ca021c01262fd17e0702e4461dcbb39aebc23b29",
+    "combined-captures/fsr/film/outside-000028.png": "5f867b1c540069c5e5dd0e388e5bbae3d1dbebeec9a34c6fa0369fc15c5dc554",
+    "combined-captures/fsr/film/readings.json": "01f5cc0333798d1390ed356a09fe0701e1056a9e0c761401ac375dadf143bdaa",
+    "combined-captures/fsr/film/outside-000010.png": "5f87e4754825903f16c33adcacc2f71d0e828d4a6f86310e7091094bc056a866",
+    "combined-captures/fsr/film/outside-000004.png": "c11e2ee627376005923139963b0dbc16cf62b0f22e223a2c471ec969cb70668b",
+    "combined-captures/fsr/film/outside-000038.png": "8db279a3638cd19adcbb174d97c75fe42ac30e9758075cd4b5df365264775058",
+    "combined-captures/fsr/film/outside-000039.png": "9ce06e08324098fb615fc30332f70a3c116c98ca5da9f6f291fbfd43d5612ef8",
+    "combined-captures/fsr/film/outside-000005.png": "79b3ea741d5b617a62e082ec6ffb9c222d481a2964cb9666ecb2ac9ef78ab031",
+    "combined-captures/fsr/film/outside-000011.png": "0dd66511ecfed108224b0084b87a9b2a752823f6fc31ce9f15efaf34a3904ffb",
+    "combined-captures/fsr/film/outside-000007.png": "456654bd065f269e287aa89f40016560e6d5c8f177e30dd676a2bbfef0e0282d",
+    "combined-captures/fsr/film/outside-000013.png": "44293d6409b4137bb66f03e2114e2e5d0848cde9c5e78fa1d723c7b1b68a334c",
+    "combined-captures/fsr/film/outside-000012.png": "5b3b07918715e90783f601da7ef384645d1586982212b29d2d896900729705b2",
+    "combined-captures/fsr/film/outside-000006.png": "c76680642414f5463e44225481b9c235fada122bc798e123ab09e3aeff61613f",
+    "combined-captures/fsr/film/seat-tail-000001.png": "522ae3991f33c6d537cf59e7987850541549c96f66e18fd42e3b271cbb13dea8",
+    "combined-captures/fsr/film/outside-000023.png": "3f30203c8bff1fa81c0583399a4b554c32f80187d699b21f58e49a285e9fe855",
+    "combined-captures/fsr/film/outside-000037.png": "1b9e590a2a1b0bdcf875f97095b2434cf0377a2324e6c77625488f94d71da3c5",
+    "combined-captures/fsr/film/outside-000036.png": "07b66f26e467c4bdfb6e9e5988c4f0184ac927cd0f0ab059dac4bc260f26a7e4",
+    "combined-captures/fsr/film/outside-000022.png": "7168097cf22b234975084ba8e017cf41d67c7d611866544470edaca4905593dd",
+    "combined-captures/fsr/film/seat-tail-000000.png": "2ce946912ead98309a7d4e29cc9a06b26b3f24ae55c44466694d7fd547c10cce",
+    "combined-captures/fsr/film/outside-000008.png": "148ac13e5cb385f98adc6d634e8c583a4b58a0683441373636a1d2afe5ff09f6",
+    "combined-captures/fsr/film/outside-000034.png": "895794eb6cc8edec5fc9e539397163e2d6e978c82c5d8c58a38902765273bf8e",
+    "combined-captures/fsr/film/outside-000020.png": "ba3c61e3e1dfa826d33216eb8c8e631f3e677396595288e4d56b8b8d2891fc31",
+    "combined-captures/fsr/film/outside-000021.png": "53c929aaea577266df8f4e15f5aa5e3c99d5c8396168632314a6c7ad8867ebe5",
+    "combined-captures/fsr/film/outside-000035.png": "c2c2bb676629fc67fa952398feaa3d1a7b14d0c33752d0f240336ecd1f0d748c",
+    "combined-captures/fsr/film/outside-000009.png": "b2a017d3d2e0aa0f610209e9addd11088b9c1a94a55ac388fdde7483cbb4370e",
+    "combined-captures/fsr/film/outside-000031.png": "7d026bf680b22532c3e24bfc3547b81e7e3d7b0e3d8c201d18ce19fc0c184d6a",
+    "combined-captures/fsr/film/outside-000025.png": "614b098f0de82915d3e7544f8a570a788cc683896522375fa690d6da747d7a4a",
+    "combined-captures/fsr/film/outside-000019.png": "3035231de12cf695ff8f0352d419ed61f173a834aeaf32dcb8a25f2405634c56",
+    "combined-captures/fsr/film/outside-000018.png": "4e037269b79730695cd3171cbbc43fc992f3ad05c120304ac15cae2306334531",
+    "combined-captures/fsr/film/outside-000024.png": "64e79f50325ee967446ec5c1e4c7bd8d5fc0671cb04aa248c462da287cdfc8dc",
+    "combined-captures/fsr/film/outside-000030.png": "7c6802404e1d2e3cebaf2536c1c12499347615d9b8a0965a6ffc7d6a86359bd3",
+    "combined-captures/fsr/film/outside-000026.png": "eb54c7876b5318cbdf8ddff3d28438c2a186e5a8aab9be4ae1d299ff896ff5f2",
+    "combined-captures/fsr/film/outside-000032.png": "fe440d31369857386655665ff927e45d3c649a0cff9fc4141e04b3e7cba3700e",
+    "combined-captures/fsr/film/outside-000033.png": "0d0252f656958e425918abf7fbd9d8efd02de1491c1969decca3402bb035d1fd",
+    "combined-captures/fsr/film/outside-000027.png": "578a36b30f1e6a19eb69340cb580b3623fa84378bd0387390b23d669c7526851",
+    "combined-captures/fsr/film/outside-000040.png": "a375c7fd3bcf1f2b9c0dda74e9ab3b9c59f867fa2148edacca41cd2495aaf186",
+    "combined-captures/fsr/film/outside-000041.png": "fcab74f8dd2ca125e9ff8145c053a2403cc27de912394345e4591fed4722f33d",
+    "combined-captures/fsr/film/outside-000043.png": "b689982038f210bc13c9afeb1f436b73521382a9dc0a2a8da6ba0139e1255389",
+    "combined-captures/fsr/film/outside-000042.png": "0101f22b667ecd9989f86eba9088f4faa96c4fd9ca77ffbd5db5c970c270b212",
+    "combined-captures/fsr/film/outside-000044.png": "f7b12c76ca53fc678bc1f2d9563392c7b58996447600da9ce697d83c6f810118",
+    "combined-captures/fsr/outside/readings.json": "03d4e2acbd6d0505d0ec118ff52c11a890d051ea8f90ecad53355040c8ac791f",
+    "combined-captures/fsr/outside/settled-03.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-02.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-outside-000000.png": "b9eddaaeca6797bba30b2d7a9baf74a9e18540fc37ea25b8602d94af5efdc67f",
+    "combined-captures/fsr/outside/settled-00.png": "8234d3505b4e5aeca24a8f1914b29fa0af1b28f8631c5632e4f259aba1f42754",
+    "combined-captures/fsr/outside/settled-01.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-05.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-04.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-06.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/outside/settled-07.png": "12353ebf1af0d003866da021bc415f292c508d9d7aa6e1d72cda89b6b98cbef1",
+    "combined-captures/fsr/return/readings.json": "ad0ad40d88019c3223abd22a19a5056dcd1c59bf75ce2012c211d4f0718ec65e",
+    "combined-captures/fsr/return/settled-return-000000.png": "a073a74a96a9357b0535ff395b5407732928f1fda921df3791e0d734079ab2c3",
+    "combined-captures/fsr/return/settled-03.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-02.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-00.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-01.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-05.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-04.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-06.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78",
+    "combined-captures/fsr/return/settled-07.png": "294260bbb17a9585b3dc1ecb119b9219cc617fafd24466e2e874498a5a11ec78"
+  },
+  "remaining": [
+    "Official Core/Simulation changed-line Stryker classification and mutation run",
+    "Matched Linux first-presentation latency, total scene draws, 2304-bin meter cost and steady frame cost at native and FSR sizes",
+    "Fresh read-only review of final combined head",
+    "Parent-owned required CI and merge"
+  ]
+}

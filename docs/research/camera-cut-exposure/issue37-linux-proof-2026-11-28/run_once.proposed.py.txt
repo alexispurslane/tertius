@@ -1,0 +1,132 @@
+"""Durable cleanup around exactly one invocation of the unchanged canonical CLI."""
+import datetime,hashlib,importlib.util,json,os,signal,subprocess,sys,time,traceback
+from pathlib import Path
+RUN=Path(__file__).resolve().parent
+REPO=Path('/Users/alexispurslane/.t3/worktrees/tertius/t3-042655f4-5c326eb10494e236')
+CONFIG=REPO/'tools/runpod/endpoint.json'
+SPEC=importlib.util.spec_from_file_location('gpu_job',REPO/'tools/runpod/gpu_job.py')
+g=importlib.util.module_from_spec(SPEC);sys.modules[SPEC.name]=g;SPEC.loader.exec_module(g)
+def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def sha(data): return hashlib.sha256(data).hexdigest()
+def write(name,value):
+ path=RUN/name; temp=path.with_suffix(path.suffix+'.tmp')
+ with temp.open('w') as stream:
+  json.dump(value,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+ os.replace(temp,path)
+def read(name): return json.loads((RUN/name).read_text())
+def git(*args): return subprocess.check_output(['git',*args],cwd=REPO,text=True).strip()
+def candidate_records():
+ approval=read('approval.json')
+ before=read('audit-before.json')
+ logged=g.log_lines(g.STATE)
+ return [e for e in [*g.in_flight(g.STATE),*logged[len(before):]] if e.get('agent')=='issue4-exposure' and e['time']>=approval['authorized_at']]
+def capture_receipt():
+ records=candidate_records()
+ for record in records:
+  if record.get('jobId'):
+   if not (RUN/'receipt.json').exists():
+    write('receipt.json',{**record,'client_tmux':'issue4-pristine-once-1128','client_metadata':str(RUN),'command_seconds':1920,'execution_seconds':1980,'maximum_modeled_usd':.328,'receipt_recorded':now()})
+    print('Receipt saved:',record['jobId'],record['endpoint'],flush=True)
+ return records
+
+def restore():
+ # Restore local bytes before any network request, even after a failed admission or interruption.
+ original=(RUN/'endpoint.original.json').read_bytes()
+ assert sha(original)=='d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f'
+ CONFIG.write_bytes(original)
+ proof={'at':now(),'local_config_sha256':sha(CONFIG.read_bytes()),'local_config_restored':CONFIG.read_bytes()==original,'local_gpu_command_seconds':g.Config.load().kinds['gpu'].job_seconds,'local_gpu_execution_seconds':g.Config.load().kinds['gpu'].endpoint_timeout_seconds,'checkout_status_after_restore':git('status','--porcelain'),'endpoints_verified':False}
+ write('restoration.json',proof)
+ api=g.RunpodApi(g.key_file());before=read('endpoints-before.json')
+ fields=['id','name','image','timeout','workers']
+ after=[{k:e.get(k) for k in fields} for e in api.endpoints()]
+ write('endpoints-after-before-cleanup.json',after)
+ old={e['id']:e for e in before}
+ records=capture_receipt()
+ owned_endpoints={e.get('endpoint') for e in records if e.get('endpoint')}
+ updates=[]
+ for e in after:
+  if e['id'] not in old and e['id'] in owned_endpoints:
+   assert g.kind_of(e)=='gpu'
+   if e['timeout']==1980000:
+    api.update_endpoint(e['id'],{'timeout':900000})
+    updates.append({'id':e['id'],'timeout_from_ms':1980000,'timeout_to_ms':900000})
+   elif e['timeout']!=900000:
+    raise RuntimeError('Unexpected default on newly routed GPU endpoint: '+str(e))
+ final=[{k:e.get(k) for k in fields} for e in api.endpoints()]
+ write('endpoints-after.json',final)
+ checks=[]
+ for e in final:
+  if e['id'] in old:
+   checks.append({'id':e['id'],'kind':'pre-existing','before_timeout_ms':old[e['id']]['timeout'],'after_timeout_ms':e['timeout'],'unchanged':e['timeout']==old[e['id']]['timeout']})
+  elif e['id'] in owned_endpoints:
+   checks.append({'id':e['id'],'kind':'created by routing for this submission','after_timeout_ms':e['timeout'],'restored':e['timeout']==900000})
+ missing=[e['id'] for e in before if e['id'] not in {x['id'] for x in final}]
+ proof.update(endpoint_updates=updates,endpoint_default_checks=checks,preexisting_removed_by_normal_routing=missing,endpoints_verified=all(x.get('unchanged',x.get('restored',False)) for x in checks),checkout_clean=not proof['checkout_status_after_restore'])
+ proof['restoration_complete']=proof['local_config_restored'] and proof['endpoints_verified'] and proof['checkout_clean']
+ write('restoration.json',proof)
+ if not proof['restoration_complete']: raise RuntimeError('Restoration is incomplete')
+ print('Restoration verified:',proof['local_config_sha256'],flush=True)
+
+child=None
+interrupted=[]
+def forward(number,frame):
+ interrupted.append({'signal':number,'at':now()})
+ write('interruptions.json',interrupted)
+ if child is not None and child.poll() is None:
+  child.send_signal(signal.SIGINT)
+ else:
+  raise KeyboardInterrupt
+
+def main():
+ global child
+ if sys.argv[1:]==['restore-only']:
+  restore();return
+ assert not (RUN/'submission-consumed.json').exists(),'Authorized attempt already consumed; never resubmit.'
+ approval=read('approval.json')
+ required={'coordinator_reviewed':True,'issue4_explicit_paid_approval':True,'duration_policy_approved':True,'authorized_submissions':1,'automatic_retry':False}
+ if json.dumps({key:approval.get(key) for key in required},sort_keys=True)!=json.dumps(required,sort_keys=True):
+  raise RuntimeError('INERT: fresh paid and duration-policy approval for one attempt required')
+ review=read('launch-review.json')
+ assert read('canonical-argv.json')==review['canonical_argv_after_parent_approval'],'Canonical argv differs from reviewed proposal'
+ assert sha(json.dumps(read('canonical-argv.json'),separators=(',',':')).encode())==approval['canonical_argv_sha256'],'Approval does not bind this argv'
+ assert git('rev-parse','HEAD')==approval['reviewed_head'] and not git('status','--porcelain')
+ original=(RUN/'endpoint.original.json').read_bytes()
+ assert CONFIG.read_bytes()==original
+ argv=read('canonical-argv.json')
+ assert argv[:4]==['python3','-I','tools/runpod/gpu_job.py','submit']
+ for number in [signal.SIGINT,signal.SIGTERM,signal.SIGHUP]: signal.signal(number,forward)
+ code=None
+ try:
+  CONFIG.write_bytes((RUN/'endpoint.proposed.json').read_bytes())
+  assert sha(CONFIG.read_bytes())==read('approval.json')['temporary_config_sha256']
+  write('checkpoint.json',{'state':'temporary exact duration config applied; other GPU submissions paused','at':now(),'pid':os.getpid()})
+  marker={'at':now(),'authorized_attempt_consumed':True,'maximum_submissions':1,'automatic_retry':False,'command_sha256':read('approval.json')['full_command_sha256']}
+  with (RUN/'submission-consumed.json').open('x') as stream:
+   json.dump(marker,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+  env=os.environ.copy();env['PYTHONUNBUFFERED']='1'
+  with (RUN/'canonical-stdout.log').open('wb') as stdout,(RUN/'canonical-stderr.log').open('wb') as stderr:
+   child=subprocess.Popen(argv,cwd=REPO,env=env,stdout=stdout,stderr=stderr)
+   write('client.json',{'pid':child.pid,'wrapper_pid':os.getpid(),'tmux':'issue4-pristine-once-1128','at':now(),'metadata':str(RUN),'canonical_cli_unchanged':True})
+   while child.poll() is None:
+    try: child.wait(timeout=5)
+    except subprocess.TimeoutExpired: capture_receipt()
+   code=child.returncode
+  capture_receipt()
+  write('canonical-exit.json',{'at':now(),'exit_code':code,'interrupted':bool(interrupted)})
+ finally:
+  if child is not None and child.poll() is None:
+   child.send_signal(signal.SIGINT)
+   child.wait()
+   write('canonical-exit.json',{'at':now(),'exit_code':child.returncode,'interrupted':True})
+  try:
+   restore()
+  except BaseException as error:
+   write('cleanup-failure.json',{'at':now(),'error':str(error),'traceback':traceback.format_exc(),'needs_repair':True})
+   raise
+  write('checkpoint.json',{'state':'canonical client ended; local and endpoint restoration verified','at':now(),'canonical_exit_code':code,'restoration_complete':True})
+ return code
+if __name__=='__main__':
+ try: sys.exit(main())
+ except BaseException as error:
+  write('wrapper-exit.json',{'at':now(),'error':str(error),'traceback':traceback.format_exc()})
+  raise

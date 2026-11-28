@@ -109,7 +109,7 @@ internal sealed partial class RenderSnapshotBuilder
     // The tick of the last build with a camera.
     private long lastCameraTick;
 
-    // The builds with a camera that did not interpolate it, which every snapshot carries as RenderSnapshot.CameraCuts.
+    // The camera discontinuities, which every snapshot carries as RenderSnapshot.CameraCuts.
     private long cameraCuts;
 
     // Inputs of the per-chunk workers for the build that is running.
@@ -232,10 +232,11 @@ internal sealed partial class RenderSnapshotBuilder
         // Interpolate only when the same camera is in the same frame as at the previous build. Everything is placed relative
         // to the camera's physics home, which has the axes of the camera's frame: far from that frame's origin, the home is
         // near the camera, so positions near the camera stay exact.
-        bool interpolate = lastCamera == view.Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
+        bool continuousCamera = lastCamera == view.Camera && lastCameraStamp == stamp - 1;
+        bool interpolate = continuousCamera && lastCameraFrame == cameraFrame;
         PrepareFramePoses(cameraHome, stamp, interpolate);
         renderInterpolate = interpolate;
-        if (!interpolate)
+        if (!continuousCamera)
             snapshot.CameraCuts = ++cameraCuts;
         renderOrigin = cameraPose.Position;
         renderHasCamera = true;

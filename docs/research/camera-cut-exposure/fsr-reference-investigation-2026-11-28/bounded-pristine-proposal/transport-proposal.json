@@ -1,0 +1,213 @@
+{
+  "submitted": false,
+  "proposal_only": true,
+  "approval": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "reason": "Inert proposal. No new spending authorized."
+  },
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "command_timeout_seconds": 1920,
+  "conditional_execution_seconds": 1980,
+  "conditional_canonical_reservation_usd": 0.328,
+  "launchable_under_checked_in_policy": false,
+  "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+  "prepare_sha256": "b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21",
+  "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+  "payload_sha256": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "linux-scripts/issue4-cut-first-present.json": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480",
+    "linux-scripts/issue4-cut-outside-control.json": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929",
+    "linux-scripts/issue4-cut-return-control.json": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "command_bounds": {
+    "command_bytes_including_nul": [
+      4230,
+      4227
+    ],
+    "argument_limit_bytes": 32768,
+    "environment_bytes_observed": 27855,
+    "environment_reserve_bytes": 65536,
+    "aggregate_bytes_with_reserve": [
+      102688,
+      102685
+    ],
+    "aggregate_limit_bytes": 131072,
+    "environment_entry_reserve": 4096,
+    "pointer_bytes": 8,
+    "runtime_environment_verified": false
+  },
+  "request_body_bytes": 5222,
+  "request_body_budget_bytes": 65536,
+  "conditional_request_body": {
+    "input": {
+      "protocol": 3,
+      "repository": "https://github.com/alexispurslane/tertius.git",
+      "trees": {
+        "before": {
+          "sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/b002351eb48d33f008f8333e53e61345de3260cd"
+        },
+        "after": {
+          "sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/588b6d2747560c73aac542fb25ce80eec1ba8db7"
+        },
+        "harness": {
+          "sha": "6f14335c629b25e36899699006c268026d33ce7e",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/6f14335c629b25e36899699006c268026d33ce7e"
+        }
+      },
+      "commands": [
+        "python3 -I -c '\"\"\"Review-only external launch program, embedded in the canonical command argument.\n\nThe immutable harness remains pinned. This program neither submits nor grants approval.\nThe caller must supply the separately approved record; the emitter supplies an inert one.\n\"\"\"\nimport argparse\nimport hashlib\nimport json\nfrom pathlib import Path\nimport runpy\nimport subprocess\nimport sys\n\nHARNESS = '\"'\"'6f14335c629b25e36899699006c268026d33ce7e'\"'\"'\nPREPARE = '\"'\"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'\"'\"'\nMANIFEST = '\"'\"'445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57'\"'\"'\nCONFIG = '\"'\"'69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e'\"'\"'\n\n\ndef approval_record(config):\n    \"\"\"The exact scope to approve, including the original inert config'\"'\"'s full hash.\"\"\"\n    return {\n        '\"'\"'coordinator_reviewed'\"'\"': False, '\"'\"'issue4_explicit_paid_approval'\"'\"': False,\n        '\"'\"'duration_policy_approved'\"'\"': False, '\"'\"'authorized_submissions'\"'\"': 0, '\"'\"'automatic_retry'\"'\"': False,\n        '\"'\"'harness_sha'\"'\"': HARNESS, '\"'\"'manifest_sha256'\"'\"': MANIFEST, '\"'\"'source_config_sha256'\"'\"': CONFIG,\n        '\"'\"'baseline_sha'\"'\"': config['\"'\"'baseline_sha'\"'\"'], '\"'\"'candidate_sha'\"'\"': config['\"'\"'candidate_sha'\"'\"'],\n        '\"'\"'command_seconds'\"'\"': 1920, '\"'\"'execution_seconds'\"'\"': 1980, '\"'\"'maximum_modeled_usd'\"'\"': 0.328,\n        '\"'\"'daily_cap_usd'\"'\"': 5, '\"'\"'total_cap_usd'\"'\"': 30, '\"'\"'gpu_workers_max'\"'\"': 5,\n        '\"'\"'output_globs'\"'\"': ['\"'\"'linux-out/return/*'\"'\"'],\n        '\"'\"'routing'\"'\"': '\"'\"'Unmodified canonical CLI and shared routing, with its normal effects'\"'\"',\n    }\n\n\ndef launch(record):\n    \"\"\"Verify the pinned source, allow three approval-field changes, then call its worker.\"\"\"\n    root = Path('\"'\"'harness/tools/camera-cut-pristine'\"'\"')\n    for name, digest in [('\"'\"'prepare.py'\"'\"', PREPARE), ('\"'\"'config.json'\"'\"', CONFIG)]:\n        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:\n            raise ValueError('\"'\"'External launch source hash differs: '\"'\"' + name)\n    config = json.loads((root / '\"'\"'config.json'\"'\"').read_bytes())\n    expected = approval_record(config)\n    expected.update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                    duration_policy_approved=True, authorized_submissions=1)\n    # JSON comparison also distinguishes true from 1 and false from 0.\n    if json.dumps(record, sort_keys=True) != json.dumps(expected, sort_keys=True):\n        raise ValueError('\"'\"'INERT: external approval is absent, inconsistent, or differs from the reviewed scope'\"'\"')\n    prepare = runpy.run_path(str(root / '\"'\"'prepare.py'\"'\"'))['\"'\"'prepare'\"'\"']\n    prepare(root, Path.cwd(), MANIFEST)\n    config['\"'\"'approval'\"'\"'].update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                              authorized_submissions=1)\n    with Path('\"'\"'config.runtime.json'\"'\"').open('\"'\"'x'\"'\"') as stream:\n        json.dump(config, stream)\n    subprocess.run([sys.executable, '\"'\"'-I'\"'\"', '\"'\"'worker.py'\"'\"', '\"'\"'--config'\"'\"', '\"'\"'config.runtime.json'\"'\"'], check=True)\n\n\nif __name__ == '\"'\"'__main__'\"'\"':\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument('\"'\"'--authorization-json'\"'\"', required=True, type=json.loads)\n    launch(parser.parse_args().authorization_json)\n' --authorization-json '{\"authorized_submissions\": 0, \"automatic_retry\": false, \"baseline_sha\": \"b002351eb48d33f008f8333e53e61345de3260cd\", \"candidate_sha\": \"588b6d2747560c73aac542fb25ce80eec1ba8db7\", \"command_seconds\": 1920, \"coordinator_reviewed\": false, \"daily_cap_usd\": 5, \"duration_policy_approved\": false, \"execution_seconds\": 1980, \"gpu_workers_max\": 5, \"harness_sha\": \"6f14335c629b25e36899699006c268026d33ce7e\", \"issue4_explicit_paid_approval\": false, \"manifest_sha256\": \"445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57\", \"maximum_modeled_usd\": 0.328, \"output_globs\": [\"linux-out/return/*\"], \"routing\": \"Unmodified canonical CLI and shared routing, with its normal effects\", \"source_config_sha256\": \"69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e\", \"total_cap_usd\": 30}'"
+      ],
+      "outputs": [
+        "linux-out/return/*"
+      ],
+      "seconds": 1920
+    },
+    "policy": {
+      "executionTimeout": 1980000,
+      "ttl": 7200000
+    }
+  },
+  "future_authorization": "External record is embedded in the command. All four approval fields must change together after parent approval.",
+  "external_approval_record": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "duration_policy_approved": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+    "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+    "source_config_sha256": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "command_seconds": 1920,
+    "execution_seconds": 1980,
+    "maximum_modeled_usd": 0.328,
+    "daily_cap_usd": 5,
+    "total_cap_usd": 30,
+    "gpu_workers_max": 5,
+    "output_globs": [
+      "linux-out/return/*"
+    ],
+    "routing": "Unmodified canonical CLI and shared routing, with its normal effects"
+  },
+  "representative_approved_record": {
+    "coordinator_reviewed": true,
+    "issue4_explicit_paid_approval": true,
+    "duration_policy_approved": true,
+    "authorized_submissions": 1,
+    "automatic_retry": false,
+    "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+    "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+    "source_config_sha256": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "command_seconds": 1920,
+    "execution_seconds": 1980,
+    "maximum_modeled_usd": 0.328,
+    "daily_cap_usd": 5,
+    "total_cap_usd": 30,
+    "gpu_workers_max": 5,
+    "output_globs": [
+      "linux-out/return/*"
+    ],
+    "routing": "Unmodified canonical CLI and shared routing, with its normal effects"
+  },
+  "representative_approved_request_body": {
+    "input": {
+      "protocol": 3,
+      "repository": "https://github.com/alexispurslane/tertius.git",
+      "trees": {
+        "before": {
+          "sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/b002351eb48d33f008f8333e53e61345de3260cd"
+        },
+        "after": {
+          "sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/588b6d2747560c73aac542fb25ce80eec1ba8db7"
+        },
+        "harness": {
+          "sha": "6f14335c629b25e36899699006c268026d33ce7e",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/6f14335c629b25e36899699006c268026d33ce7e"
+        }
+      },
+      "commands": [
+        "python3 -I -c '\"\"\"Review-only external launch program, embedded in the canonical command argument.\n\nThe immutable harness remains pinned. This program neither submits nor grants approval.\nThe caller must supply the separately approved record; the emitter supplies an inert one.\n\"\"\"\nimport argparse\nimport hashlib\nimport json\nfrom pathlib import Path\nimport runpy\nimport subprocess\nimport sys\n\nHARNESS = '\"'\"'6f14335c629b25e36899699006c268026d33ce7e'\"'\"'\nPREPARE = '\"'\"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'\"'\"'\nMANIFEST = '\"'\"'445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57'\"'\"'\nCONFIG = '\"'\"'69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e'\"'\"'\n\n\ndef approval_record(config):\n    \"\"\"The exact scope to approve, including the original inert config'\"'\"'s full hash.\"\"\"\n    return {\n        '\"'\"'coordinator_reviewed'\"'\"': False, '\"'\"'issue4_explicit_paid_approval'\"'\"': False,\n        '\"'\"'duration_policy_approved'\"'\"': False, '\"'\"'authorized_submissions'\"'\"': 0, '\"'\"'automatic_retry'\"'\"': False,\n        '\"'\"'harness_sha'\"'\"': HARNESS, '\"'\"'manifest_sha256'\"'\"': MANIFEST, '\"'\"'source_config_sha256'\"'\"': CONFIG,\n        '\"'\"'baseline_sha'\"'\"': config['\"'\"'baseline_sha'\"'\"'], '\"'\"'candidate_sha'\"'\"': config['\"'\"'candidate_sha'\"'\"'],\n        '\"'\"'command_seconds'\"'\"': 1920, '\"'\"'execution_seconds'\"'\"': 1980, '\"'\"'maximum_modeled_usd'\"'\"': 0.328,\n        '\"'\"'daily_cap_usd'\"'\"': 5, '\"'\"'total_cap_usd'\"'\"': 30, '\"'\"'gpu_workers_max'\"'\"': 5,\n        '\"'\"'output_globs'\"'\"': ['\"'\"'linux-out/return/*'\"'\"'],\n        '\"'\"'routing'\"'\"': '\"'\"'Unmodified canonical CLI and shared routing, with its normal effects'\"'\"',\n    }\n\n\ndef launch(record):\n    \"\"\"Verify the pinned source, allow three approval-field changes, then call its worker.\"\"\"\n    root = Path('\"'\"'harness/tools/camera-cut-pristine'\"'\"')\n    for name, digest in [('\"'\"'prepare.py'\"'\"', PREPARE), ('\"'\"'config.json'\"'\"', CONFIG)]:\n        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:\n            raise ValueError('\"'\"'External launch source hash differs: '\"'\"' + name)\n    config = json.loads((root / '\"'\"'config.json'\"'\"').read_bytes())\n    expected = approval_record(config)\n    expected.update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                    duration_policy_approved=True, authorized_submissions=1)\n    # JSON comparison also distinguishes true from 1 and false from 0.\n    if json.dumps(record, sort_keys=True) != json.dumps(expected, sort_keys=True):\n        raise ValueError('\"'\"'INERT: external approval is absent, inconsistent, or differs from the reviewed scope'\"'\"')\n    prepare = runpy.run_path(str(root / '\"'\"'prepare.py'\"'\"'))['\"'\"'prepare'\"'\"']\n    prepare(root, Path.cwd(), MANIFEST)\n    config['\"'\"'approval'\"'\"'].update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                              authorized_submissions=1)\n    with Path('\"'\"'config.runtime.json'\"'\"').open('\"'\"'x'\"'\"') as stream:\n        json.dump(config, stream)\n    subprocess.run([sys.executable, '\"'\"'-I'\"'\"', '\"'\"'worker.py'\"'\"', '\"'\"'--config'\"'\"', '\"'\"'config.runtime.json'\"'\"'], check=True)\n\n\nif __name__ == '\"'\"'__main__'\"'\"':\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument('\"'\"'--authorization-json'\"'\"', required=True, type=json.loads)\n    launch(parser.parse_args().authorization_json)\n' --authorization-json '{\"authorized_submissions\": 1, \"automatic_retry\": false, \"baseline_sha\": \"b002351eb48d33f008f8333e53e61345de3260cd\", \"candidate_sha\": \"588b6d2747560c73aac542fb25ce80eec1ba8db7\", \"command_seconds\": 1920, \"coordinator_reviewed\": true, \"daily_cap_usd\": 5, \"duration_policy_approved\": true, \"execution_seconds\": 1980, \"gpu_workers_max\": 5, \"harness_sha\": \"6f14335c629b25e36899699006c268026d33ce7e\", \"issue4_explicit_paid_approval\": true, \"manifest_sha256\": \"445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57\", \"maximum_modeled_usd\": 0.328, \"output_globs\": [\"linux-out/return/*\"], \"routing\": \"Unmodified canonical CLI and shared routing, with its normal effects\", \"source_config_sha256\": \"69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e\", \"total_cap_usd\": 30}'"
+      ],
+      "outputs": [
+        "linux-out/return/*"
+      ],
+      "seconds": 1920
+    },
+    "policy": {
+      "executionTimeout": 1980000,
+      "ttl": 7200000
+    }
+  },
+  "representative_approved_request_body_bytes": 5219,
+  "representative_approved_command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c",
+  "inert_command_sha256": "5a171c31f9d693dfb5a9bcee9b40a3762913a021f93cee28ab24b7d5a2fbf705",
+  "canonical_argv_inert": [
+    "python3",
+    "-I",
+    "tools/runpod/gpu_job.py",
+    "submit",
+    "--agent",
+    "issue4-exposure",
+    "--tree",
+    "before=b002351eb48d33f008f8333e53e61345de3260cd",
+    "--tree",
+    "after=588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "--tree",
+    "harness=6f14335c629b25e36899699006c268026d33ce7e",
+    "--run",
+    "python3 -I -c '\"\"\"Review-only external launch program, embedded in the canonical command argument.\n\nThe immutable harness remains pinned. This program neither submits nor grants approval.\nThe caller must supply the separately approved record; the emitter supplies an inert one.\n\"\"\"\nimport argparse\nimport hashlib\nimport json\nfrom pathlib import Path\nimport runpy\nimport subprocess\nimport sys\n\nHARNESS = '\"'\"'6f14335c629b25e36899699006c268026d33ce7e'\"'\"'\nPREPARE = '\"'\"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'\"'\"'\nMANIFEST = '\"'\"'445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57'\"'\"'\nCONFIG = '\"'\"'69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e'\"'\"'\n\n\ndef approval_record(config):\n    \"\"\"The exact scope to approve, including the original inert config'\"'\"'s full hash.\"\"\"\n    return {\n        '\"'\"'coordinator_reviewed'\"'\"': False, '\"'\"'issue4_explicit_paid_approval'\"'\"': False,\n        '\"'\"'duration_policy_approved'\"'\"': False, '\"'\"'authorized_submissions'\"'\"': 0, '\"'\"'automatic_retry'\"'\"': False,\n        '\"'\"'harness_sha'\"'\"': HARNESS, '\"'\"'manifest_sha256'\"'\"': MANIFEST, '\"'\"'source_config_sha256'\"'\"': CONFIG,\n        '\"'\"'baseline_sha'\"'\"': config['\"'\"'baseline_sha'\"'\"'], '\"'\"'candidate_sha'\"'\"': config['\"'\"'candidate_sha'\"'\"'],\n        '\"'\"'command_seconds'\"'\"': 1920, '\"'\"'execution_seconds'\"'\"': 1980, '\"'\"'maximum_modeled_usd'\"'\"': 0.328,\n        '\"'\"'daily_cap_usd'\"'\"': 5, '\"'\"'total_cap_usd'\"'\"': 30, '\"'\"'gpu_workers_max'\"'\"': 5,\n        '\"'\"'output_globs'\"'\"': ['\"'\"'linux-out/return/*'\"'\"'],\n        '\"'\"'routing'\"'\"': '\"'\"'Unmodified canonical CLI and shared routing, with its normal effects'\"'\"',\n    }\n\n\ndef launch(record):\n    \"\"\"Verify the pinned source, allow three approval-field changes, then call its worker.\"\"\"\n    root = Path('\"'\"'harness/tools/camera-cut-pristine'\"'\"')\n    for name, digest in [('\"'\"'prepare.py'\"'\"', PREPARE), ('\"'\"'config.json'\"'\"', CONFIG)]:\n        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:\n            raise ValueError('\"'\"'External launch source hash differs: '\"'\"' + name)\n    config = json.loads((root / '\"'\"'config.json'\"'\"').read_bytes())\n    expected = approval_record(config)\n    expected.update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                    duration_policy_approved=True, authorized_submissions=1)\n    # JSON comparison also distinguishes true from 1 and false from 0.\n    if json.dumps(record, sort_keys=True) != json.dumps(expected, sort_keys=True):\n        raise ValueError('\"'\"'INERT: external approval is absent, inconsistent, or differs from the reviewed scope'\"'\"')\n    prepare = runpy.run_path(str(root / '\"'\"'prepare.py'\"'\"'))['\"'\"'prepare'\"'\"']\n    prepare(root, Path.cwd(), MANIFEST)\n    config['\"'\"'approval'\"'\"'].update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                              authorized_submissions=1)\n    with Path('\"'\"'config.runtime.json'\"'\"').open('\"'\"'x'\"'\"') as stream:\n        json.dump(config, stream)\n    subprocess.run([sys.executable, '\"'\"'-I'\"'\"', '\"'\"'worker.py'\"'\"', '\"'\"'--config'\"'\"', '\"'\"'config.runtime.json'\"'\"'], check=True)\n\n\nif __name__ == '\"'\"'__main__'\"'\"':\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument('\"'\"'--authorization-json'\"'\"', required=True, type=json.loads)\n    launch(parser.parse_args().authorization_json)\n' --authorization-json '{\"authorized_submissions\": 0, \"automatic_retry\": false, \"baseline_sha\": \"b002351eb48d33f008f8333e53e61345de3260cd\", \"candidate_sha\": \"588b6d2747560c73aac542fb25ce80eec1ba8db7\", \"command_seconds\": 1920, \"coordinator_reviewed\": false, \"daily_cap_usd\": 5, \"duration_policy_approved\": false, \"execution_seconds\": 1980, \"gpu_workers_max\": 5, \"harness_sha\": \"6f14335c629b25e36899699006c268026d33ce7e\", \"issue4_explicit_paid_approval\": false, \"manifest_sha256\": \"445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57\", \"maximum_modeled_usd\": 0.328, \"output_globs\": [\"linux-out/return/*\"], \"routing\": \"Unmodified canonical CLI and shared routing, with its normal effects\", \"source_config_sha256\": \"69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e\", \"total_cap_usd\": 30}'",
+    "--timeout",
+    "1920",
+    "--out",
+    "/tmp/tertius-issue37-one-attempt/returned",
+    "--output",
+    "linux-out/return/*"
+  ],
+  "canonical_argv_after_parent_approval": [
+    "python3",
+    "-I",
+    "tools/runpod/gpu_job.py",
+    "submit",
+    "--agent",
+    "issue4-exposure",
+    "--tree",
+    "before=b002351eb48d33f008f8333e53e61345de3260cd",
+    "--tree",
+    "after=588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "--tree",
+    "harness=6f14335c629b25e36899699006c268026d33ce7e",
+    "--run",
+    "python3 -I -c '\"\"\"Review-only external launch program, embedded in the canonical command argument.\n\nThe immutable harness remains pinned. This program neither submits nor grants approval.\nThe caller must supply the separately approved record; the emitter supplies an inert one.\n\"\"\"\nimport argparse\nimport hashlib\nimport json\nfrom pathlib import Path\nimport runpy\nimport subprocess\nimport sys\n\nHARNESS = '\"'\"'6f14335c629b25e36899699006c268026d33ce7e'\"'\"'\nPREPARE = '\"'\"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'\"'\"'\nMANIFEST = '\"'\"'445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57'\"'\"'\nCONFIG = '\"'\"'69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e'\"'\"'\n\n\ndef approval_record(config):\n    \"\"\"The exact scope to approve, including the original inert config'\"'\"'s full hash.\"\"\"\n    return {\n        '\"'\"'coordinator_reviewed'\"'\"': False, '\"'\"'issue4_explicit_paid_approval'\"'\"': False,\n        '\"'\"'duration_policy_approved'\"'\"': False, '\"'\"'authorized_submissions'\"'\"': 0, '\"'\"'automatic_retry'\"'\"': False,\n        '\"'\"'harness_sha'\"'\"': HARNESS, '\"'\"'manifest_sha256'\"'\"': MANIFEST, '\"'\"'source_config_sha256'\"'\"': CONFIG,\n        '\"'\"'baseline_sha'\"'\"': config['\"'\"'baseline_sha'\"'\"'], '\"'\"'candidate_sha'\"'\"': config['\"'\"'candidate_sha'\"'\"'],\n        '\"'\"'command_seconds'\"'\"': 1920, '\"'\"'execution_seconds'\"'\"': 1980, '\"'\"'maximum_modeled_usd'\"'\"': 0.328,\n        '\"'\"'daily_cap_usd'\"'\"': 5, '\"'\"'total_cap_usd'\"'\"': 30, '\"'\"'gpu_workers_max'\"'\"': 5,\n        '\"'\"'output_globs'\"'\"': ['\"'\"'linux-out/return/*'\"'\"'],\n        '\"'\"'routing'\"'\"': '\"'\"'Unmodified canonical CLI and shared routing, with its normal effects'\"'\"',\n    }\n\n\ndef launch(record):\n    \"\"\"Verify the pinned source, allow three approval-field changes, then call its worker.\"\"\"\n    root = Path('\"'\"'harness/tools/camera-cut-pristine'\"'\"')\n    for name, digest in [('\"'\"'prepare.py'\"'\"', PREPARE), ('\"'\"'config.json'\"'\"', CONFIG)]:\n        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:\n            raise ValueError('\"'\"'External launch source hash differs: '\"'\"' + name)\n    config = json.loads((root / '\"'\"'config.json'\"'\"').read_bytes())\n    expected = approval_record(config)\n    expected.update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                    duration_policy_approved=True, authorized_submissions=1)\n    # JSON comparison also distinguishes true from 1 and false from 0.\n    if json.dumps(record, sort_keys=True) != json.dumps(expected, sort_keys=True):\n        raise ValueError('\"'\"'INERT: external approval is absent, inconsistent, or differs from the reviewed scope'\"'\"')\n    prepare = runpy.run_path(str(root / '\"'\"'prepare.py'\"'\"'))['\"'\"'prepare'\"'\"']\n    prepare(root, Path.cwd(), MANIFEST)\n    config['\"'\"'approval'\"'\"'].update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,\n                              authorized_submissions=1)\n    with Path('\"'\"'config.runtime.json'\"'\"').open('\"'\"'x'\"'\"') as stream:\n        json.dump(config, stream)\n    subprocess.run([sys.executable, '\"'\"'-I'\"'\"', '\"'\"'worker.py'\"'\"', '\"'\"'--config'\"'\"', '\"'\"'config.runtime.json'\"'\"'], check=True)\n\n\nif __name__ == '\"'\"'__main__'\"'\"':\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument('\"'\"'--authorization-json'\"'\"', required=True, type=json.loads)\n    launch(parser.parse_args().authorization_json)\n' --authorization-json '{\"authorized_submissions\": 1, \"automatic_retry\": false, \"baseline_sha\": \"b002351eb48d33f008f8333e53e61345de3260cd\", \"candidate_sha\": \"588b6d2747560c73aac542fb25ce80eec1ba8db7\", \"command_seconds\": 1920, \"coordinator_reviewed\": true, \"daily_cap_usd\": 5, \"duration_policy_approved\": true, \"execution_seconds\": 1980, \"gpu_workers_max\": 5, \"harness_sha\": \"6f14335c629b25e36899699006c268026d33ce7e\", \"issue4_explicit_paid_approval\": true, \"manifest_sha256\": \"445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57\", \"maximum_modeled_usd\": 0.328, \"output_globs\": [\"linux-out/return/*\"], \"routing\": \"Unmodified canonical CLI and shared routing, with its normal effects\", \"source_config_sha256\": \"69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e\", \"total_cap_usd\": 30}'",
+    "--timeout",
+    "1920",
+    "--out",
+    "/tmp/tertius-issue37-one-attempt/returned",
+    "--output",
+    "linux-out/return/*"
+  ],
+  "external_program_sha256": "c2a0a4346bae041e8bba1ab3030c5b0126ad11a837cbef98b8a031685c262df8",
+  "submit_command_sha256": "903ea0bb798e8c616e2c810699611f67b2e8838902da3b65d841c1f0ca24ca7e"
+}

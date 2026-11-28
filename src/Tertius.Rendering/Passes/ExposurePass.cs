@@ -62,7 +62,6 @@ internal sealed unsafe class ExposurePass : RenderPass
 
         barriers.Image(context.Targets.Hdr, ImageUse.SampledCompute);
         barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
-        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         barriers.Buffer(histogram, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         BindSets(context);
@@ -82,20 +81,28 @@ internal sealed unsafe class ExposurePass : RenderPass
             groupCountY: MeterGroups(extent.Height),
             groupCountZ: 1
         );
+        if (context.History.MetersNewView)
+            WriteExposure(context, phase: 1);
+        context.Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: context.Frame.Index);
     }
 
-    public void Adapt(FrameContext context)
+    public void Adapt(FrameContext context) => WriteExposure(context, context.History.MetersNewView ? 2u : 0u);
+
+    private void WriteExposure(FrameContext context, uint phase)
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         GpuBuffer histogram = context.Exposure.Histogram;
+
         barriers.Buffer(histogram, BufferUse.ComputeRead);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
+
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, adapt);
         BindSets(context);
-        ExposureAdaptPushConstants push = PushConstants(context.History.ExposureStep);
+
+        ExposureAdaptPushConstants push = PushConstants(context.History.ExposureStep, phase);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.ExposureLayout,
@@ -140,7 +147,7 @@ internal sealed unsafe class ExposurePass : RenderPass
     }
 
     /// <summary>The setting's fields and the two approach factors of a step of <paramref name="seconds"/>.</summary>
-    private ExposureAdaptPushConstants PushConstants(float seconds) =>
+    private ExposureAdaptPushConstants PushConstants(float seconds, uint phase) =>
         new()
         {
             DarkShare = setting.DarkShare,
@@ -150,6 +157,7 @@ internal sealed unsafe class ExposurePass : RenderPass
             CompensationStops = setting.CompensationStops,
             IntoDarkFactor = ExposureMeter.ApproachFactor(seconds, setting.IntoDarkSeconds),
             IntoLightFactor = ExposureMeter.ApproachFactor(seconds, setting.IntoLightSeconds),
+            Phase = phase,
         };
 }
 

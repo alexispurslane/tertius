@@ -1,0 +1,403 @@
+{
+  "content_root": "/tmp/tertius-job-hyyrkzp5/before/content",
+  "manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+  "cooked": [
+    {
+      "path": "cargo-pod/cargo.model/model.glb",
+      "bytes": 1108392,
+      "sha256": "33ebb2c037da105046b58fc7aeaebc17c1b789e738c8a0d0acdda98b649b5fce"
+    },
+    {
+      "path": "crew/human_male.blend/model.glb",
+      "bytes": 31739944,
+      "sha256": "cad889c7c67289dd9f74f57c9c4f4489f190a3091118de3906d7ad7665a3e14d"
+    },
+    {
+      "path": "earth/material.zip",
+      "bytes": 27829898,
+      "sha256": "7dfc5d3c6c3a2201751bedece37e1ad64ce890f8b6d9beb0a9444582bb1068ad"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+      "bytes": 7168340,
+      "sha256": "905ee1e5fd13bd1b342e83cad9cd4ad64f59403dd2ae9f58720515071737d794"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+      "bytes": 30278568,
+      "sha256": "75de1453542f7eaec8d7ed91ec9bdbc7c186fd4cdf9e1284754158125bb4a96c"
+    },
+    {
+      "path": "props/industrial_caged_sconce.gltf/model.glb",
+      "bytes": 3582796,
+      "sha256": "7b5f1277b6e65edcf54e517323b125c2103ac707ef62f1ab72a2f2acd51d02b7"
+    },
+    {
+      "path": "props/industrial_storage_cart.gltf/model.glb",
+      "bytes": 3110332,
+      "sha256": "6f0601852b3ca836ab7b7c897eb1f4a4fc6093a142c7efb4a2a94f1da51035c6"
+    },
+    {
+      "path": "props/metal_stool_01.gltf/model.glb",
+      "bytes": 2374576,
+      "sha256": "683878e58209c1e0fe01cddb3bad99c650f4428616456bde3761caf9eea4436b"
+    },
+    {
+      "path": "props/metal_toolbox.gltf/model.glb",
+      "bytes": 3021736,
+      "sha256": "e8e5c5822dd96527e82d39decd2ae39ceaebbfe04e1525aaf8afdab606cb291c"
+    },
+    {
+      "path": "props/modified_thermos.gltf/model.glb",
+      "bytes": 2546192,
+      "sha256": "dd9f0f8f7bb51921288eb4fc5a7105dfbca5246e44ff76c1ac02cd657609a5cf"
+    },
+    {
+      "path": "props/modular_street_seating.gltf/model.glb",
+      "bytes": 8134140,
+      "sha256": "6a6a6ebbe4efcfa78bb91b6c8610c7d4880962e329bbd8d6b8343888ed0c2afa"
+    }
+  ],
+  "pinned_sources": [
+    {
+      "path": "cargo-pod/cargo.model",
+      "bytes": 227,
+      "sha256": "sha256:5f3722bfd059e3118b10e3ac7a0c89de6dc1d68020ebe704a78fbba7e28d1d10"
+    },
+    {
+      "path": "cargo-pod/cargopod.dae",
+      "bytes": 34353,
+      "sha256": "sha256:20c7789830f226480cf701bd896a09b83bed870e8179762cd571a9fc0ce996ec"
+    },
+    {
+      "path": "cargo-pod/cargopod.dds",
+      "bytes": 699192,
+      "sha256": "sha256:dd5a485e535cf6be6aa7f44d23aa89124758a0a003da222f617e26f082f96da9"
+    },
+    {
+      "path": "crew/armor.png",
+      "bytes": 7562587,
+      "sha256": "sha256:927a312281a595cd5c4b0ecc3c43ece5f029bf55a57f4930b9ef2cca51b8694e"
+    },
+    {
+      "path": "crew/armor_n.png",
+      "bytes": 5146299,
+      "sha256": "sha256:1be16b923bdfc87743ef07ad2b2c1f51224b20a38f155443636b3765a0427d3f"
+    },
+    {
+      "path": "crew/base.png",
+      "bytes": 6838734,
+      "sha256": "sha256:2430d6ab2dfc930ca563a412a28fe81cffb458d2611c808a782bd9c366b08daf"
+    },
+    {
+      "path": "crew/base_n.png",
+      "bytes": 6932792,
+      "sha256": "sha256:4902e30a6c729312f7ecc3a4eb0bed0d99a4805ccaa1dc25762dd5c76f7eef08"
+    },
+    {
+      "path": "crew/body_light.skin",
+      "bytes": 1099,
+      "sha256": "sha256:355ec8efc35f4da86c9fd3c855155c5694aaf47de08ea9168b4298065b61d159"
+    },
+    {
+      "path": "crew/head.jpg",
+      "bytes": 365665,
+      "sha256": "sha256:589daceab1cdf906f04b3ece334794cddf125df886261da40c33ae4804667825"
+    },
+    {
+      "path": "crew/head_n.jpg",
+      "bytes": 137224,
+      "sha256": "sha256:fb5185960e5e1e9a02e4c6ac49b7322ba98ab0a75fc7a30d4564b8b92338ab1f"
+    },
+    {
+      "path": "crew/helmet.png",
+      "bytes": 1637884,
+      "sha256": "sha256:8270e5c2560c32f695921a6fe5e11992cb248aeb50b6aa1406f43cb97fbf7dc2"
+    },
+    {
+      "path": "crew/helmet_n.png",
+      "bytes": 1274242,
+      "sha256": "sha256:ff535e48c1a4129a42e9dbc9c20a01979bede65785b4614b776af984ecc006af"
+    },
+    {
+      "path": "crew/human_male.blend",
+      "bytes": 2025641,
+      "sha256": "sha256:86b438e60a54ebc6ba93932dd0cc91f30af23ba0e555e4d47610de190e70ab7a"
+    },
+    {
+      "path": "lunar-shuttle/lunar_shuttle_hi.dae",
+      "bytes": 1403891,
+      "sha256": "sha256:532aa75c41a80a0eea60b52274c78f3ab3c244fd153b71149356c50b621506a2"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle.model",
+      "bytes": 410,
+      "sha256": "sha256:01d85e5c5e30a1b0e67c12a6101025ba19c9954d3cdf4135e14b892ba28b16a4"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle_diff.dds",
+      "bytes": 699192,
+      "sha256": "sha256:54c61138b9af1f55db48d29b8fefbc10fa746771b32d1713be43cb85f44e6cd4"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle_glow.dds",
+      "bytes": 174904,
+      "sha256": "sha256:3ebc74890ca9c16e50390c97494b762d69d95b59ed5a365ad520ddf8f2cf2aa5"
+    },
+    {
+      "path": "orbital-station/facades_diff.dds",
+      "bytes": 11184952,
+      "sha256": "sha256:5408550f82ebc7acac41019218f5396853a8518064b110a637a347f60aea88c7"
+    },
+    {
+      "path": "orbital-station/floors_diff.dds",
+      "bytes": 11184952,
+      "sha256": "sha256:d58d4b5819527930c5cc0d6c28aa5c50a16b51f061f5eca41b5c973c1d33e583"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model",
+      "bytes": 1518,
+      "sha256": "sha256:1e5828960f2010a7c63e9134e92818b7290ac6f706d27add8b1a2f18e5452e7d"
+    },
+    {
+      "path": "orbital-station/ring_diff.dds",
+      "bytes": 11184952,
+      "sha256": "sha256:3b1d9a944616817c3d868c48f59b2b523c9115f41cf47b4633a7478673baf8c1"
+    },
+    {
+      "path": "orbital-station/spoke_n_misc_diff.dds",
+      "bytes": 11184952,
+      "sha256": "sha256:1a02e975e7a7f8ed8074859d01df95c72e7fcee3f98ccbb18d39d87307ee3c2e"
+    },
+    {
+      "path": "orbital-station/station_hub_B.dae",
+      "bytes": 14023629,
+      "sha256": "sha256:942db4099310509ba01862fd6f5e9d10c93b9c2611fb79d61bfd2c142616e62f"
+    },
+    {
+      "path": "orbital-station/station_ring_2-2k.dae",
+      "bytes": 1474538,
+      "sha256": "sha256:4c2e00feecb03a5abed29264f46cf9731361267a537bc745d4e22c7a91d1cfaf"
+    },
+    {
+      "path": "orbital-station/struts_diff.dds",
+      "bytes": 174904,
+      "sha256": "sha256:39f503fe03d7776ac46978c485ff160163d9d281fbccae59617efc514fb32d42"
+    },
+    {
+      "path": "props/industrial_caged_sconce.bin",
+      "bytes": 949472,
+      "sha256": "sha256:fc14f0b5210c1de70ac25e535b676fb1e74e0c10c1901f09992b038f2139ab2a"
+    },
+    {
+      "path": "props/industrial_caged_sconce.gltf",
+      "bytes": 18429,
+      "sha256": "sha256:a2fa6163a5eab0e3f00815a39d0be5f75985c899ca2ed60420e8d77f9c5e086b"
+    },
+    {
+      "path": "props/textures/industrial_caged_sconce_arm_1k.jpg",
+      "bytes": 770330,
+      "sha256": "sha256:e26d1438541367d9899a56d77d5e1852dc3035222abb431bba780b721fbc7cbe"
+    },
+    {
+      "path": "props/textures/industrial_caged_sconce_diff_1k.jpg",
+      "bytes": 621431,
+      "sha256": "sha256:3f6e0006d15a49e144a98b679d4ba1d0af52bb578f01c5ecd4b663837a4ac08c"
+    },
+    {
+      "path": "props/textures/industrial_caged_sconce_emissive_1k.jpg",
+      "bytes": 49946,
+      "sha256": "sha256:0cedf24e7ca8589b3598101ed571e8db51ae4985b45d46326adc7acd5d3ba82d"
+    },
+    {
+      "path": "props/textures/industrial_caged_sconce_nor_gl_1k.jpg",
+      "bytes": 715927,
+      "sha256": "sha256:7253ba8d4bcca20479a8bf18e2e2b3fb47b319f5339f40eaffba3677d9886314"
+    },
+    {
+      "path": "props/industrial_storage_cart.bin",
+      "bytes": 664580,
+      "sha256": "sha256:ae46bc3aceda8234515054b3b4595db14e7eb72148100b5c2cafe1de7393410c"
+    },
+    {
+      "path": "props/industrial_storage_cart.gltf",
+      "bytes": 2878,
+      "sha256": "sha256:f420b66b2e56513542b9598f038eb5f5ce120746735997807e58552049884043"
+    },
+    {
+      "path": "props/textures/industrial_storage_cart_arm_1k.jpg",
+      "bytes": 849352,
+      "sha256": "sha256:956ee8d02021aba0b5fdbf393029b0aaabd7d29076caa3a5678e394f79adcca1"
+    },
+    {
+      "path": "props/textures/industrial_storage_cart_diff_1k.jpg",
+      "bytes": 553691,
+      "sha256": "sha256:7e779d7f7385307ebb332aec41bafff10c21972aaf92382f30cacb16957e7d37"
+    },
+    {
+      "path": "props/textures/industrial_storage_cart_nor_gl_1k.jpg",
+      "bytes": 567119,
+      "sha256": "sha256:a4fcd4309516e6005b5f3636399bd801df72fc75986831fad9cc5c31b737070a"
+    },
+    {
+      "path": "props/metal_stool_01.bin",
+      "bytes": 216340,
+      "sha256": "sha256:a57dae498990e7b56cba33b64721d1d0b940ca6352248de149740cd4678d451d"
+    },
+    {
+      "path": "props/metal_stool_01.gltf",
+      "bytes": 2790,
+      "sha256": "sha256:e69a99778cacbbf0a2447971d8917a2463b411cdd2a50ff2c53c2230b4c43881"
+    },
+    {
+      "path": "props/textures/metal_stool_01_arm_1k.jpg",
+      "bytes": 783046,
+      "sha256": "sha256:eb13e80e9fe232d022b4136e817d4590a7279d8da327d35e525e1aa4cf30e334"
+    },
+    {
+      "path": "props/textures/metal_stool_01_diff_1k.jpg",
+      "bytes": 617390,
+      "sha256": "sha256:d11949df1f0c59b5a85145395703a2aa7617e76b80759a5ef80b09e1798acb3d"
+    },
+    {
+      "path": "props/textures/metal_stool_01_nor_gl_1k.jpg",
+      "bytes": 667394,
+      "sha256": "sha256:55d71cb01dd9afba245d4513728ce0cde8b112d5a7e1695a68578445c7b02b82"
+    },
+    {
+      "path": "props/metal_toolbox.bin",
+      "bytes": 468892,
+      "sha256": "sha256:fe5551028e5b398c78c86911abf549010f83831c30b01593ca3eb3d8ba7ceae7"
+    },
+    {
+      "path": "props/metal_toolbox.gltf",
+      "bytes": 10717,
+      "sha256": "sha256:9b8d240f1e41e83119771a063e4f4b4bb9ddfefd47f9f5baeda998107aa135c5"
+    },
+    {
+      "path": "props/textures/metal_toolbox_arm_1k.jpg",
+      "bytes": 1033149,
+      "sha256": "sha256:97676b2324b105b710904b20bfdeb32bfce3c6b4ccaaf215827b37961fc22763"
+    },
+    {
+      "path": "props/textures/metal_toolbox_diff_1k.jpg",
+      "bytes": 661804,
+      "sha256": "sha256:21e1d21880e49db3fde0457d53b78a70db61234a201da9f0181dd0880b110473"
+    },
+    {
+      "path": "props/textures/metal_toolbox_nor_gl_1k.jpg",
+      "bytes": 572273,
+      "sha256": "sha256:7ba19a233bcfff9c3d95b62c3a992c8e19cb2d6355c98d6e12bdc756a8af44cf"
+    },
+    {
+      "path": "props/modified_thermos.bin",
+      "bytes": 370512,
+      "sha256": "sha256:d631b9593c6a0e150c833b834048fbfc1e61aafeb7ccccb0244f640736d66c5a"
+    },
+    {
+      "path": "props/modified_thermos.gltf",
+      "bytes": 2810,
+      "sha256": "sha256:12f50ac41f809140d856a50d3abd993e9d621db64bd5722fb1aed3c5e99e8d8a"
+    },
+    {
+      "path": "props/textures/modified_thermos_arm_1k.jpg",
+      "bytes": 762713,
+      "sha256": "sha256:939bdf625e6e84b41773d1f175e026aed8646b09061589e8845fd90c8fda8e85"
+    },
+    {
+      "path": "props/textures/modified_thermos_diff_1k.jpg",
+      "bytes": 672156,
+      "sha256": "sha256:44cf935614f803569640fdde97d5ac41fcb5242050cfc4174ef6c28a13453587"
+    },
+    {
+      "path": "props/textures/modified_thermos_nor_gl_1k.jpg",
+      "bytes": 521345,
+      "sha256": "sha256:0ce69972468eab1a65c099aabe4737da4442d0e561c5e799c11c3bbdc3d303b5"
+    },
+    {
+      "path": "props/modular_street_seating.bin",
+      "bytes": 977224,
+      "sha256": "sha256:968558aa808b6cf74783b375d32a346a4de2ce9c118c0f17fba24c6999f03547"
+    },
+    {
+      "path": "props/modular_street_seating.gltf",
+      "bytes": 29629,
+      "sha256": "sha256:ae0c5b89927446dd3c3dc8fc021c5a6042448b785f340affaa132307d8a7b18d"
+    },
+    {
+      "path": "props/textures/modular_street_seating_armrests_arm_1k.jpg",
+      "bytes": 622643,
+      "sha256": "sha256:0016585de0b1d3accd9b204f912e76e03385901410e02e5c8dd3186333ff882f"
+    },
+    {
+      "path": "props/textures/modular_street_seating_armrests_diff_1k.jpg",
+      "bytes": 612860,
+      "sha256": "sha256:1df79fcf237bcca5dcbd6af8e283e775125e723d2782dee3184550564905990f"
+    },
+    {
+      "path": "props/textures/modular_street_seating_armrests_nor_gl_1k.jpg",
+      "bytes": 324073,
+      "sha256": "sha256:1625c7492bfdc6fb97a49a09e5f958bfc62d46b7fc97bdcda97ba83fc13f18c4"
+    },
+    {
+      "path": "props/textures/modular_street_seating_connectors_arm_1k.jpg",
+      "bytes": 591917,
+      "sha256": "sha256:30af91ae8f610ce5ffc15289005b1e6eaf7e904048ad7cd129dcd6e68163512c"
+    },
+    {
+      "path": "props/textures/modular_street_seating_connectors_diff_1k.jpg",
+      "bytes": 212785,
+      "sha256": "sha256:0b869d0b8d85d89e79fdb74794a45532b64b32221272c3777089730ca9097003"
+    },
+    {
+      "path": "props/textures/modular_street_seating_connectors_nor_gl_1k.jpg",
+      "bytes": 398150,
+      "sha256": "sha256:1debc33dce0a35acee944281a712b90ce3ba0a1914e0d30201dc45e4639ecd28"
+    },
+    {
+      "path": "props/textures/modular_street_seating_supports_arm_1k.jpg",
+      "bytes": 734095,
+      "sha256": "sha256:8dbdaf063699c6d81319a9f0ac2fa5997236981fa703103fdadb008570df8de2"
+    },
+    {
+      "path": "props/textures/modular_street_seating_supports_diff_1k.jpg",
+      "bytes": 721380,
+      "sha256": "sha256:3d2dc8a4ac499b540445be6277a1fa7c84fb7cdbf0fbe04d9738d806393393e4"
+    },
+    {
+      "path": "props/textures/modular_street_seating_supports_nor_gl_1k.jpg",
+      "bytes": 477177,
+      "sha256": "sha256:5396d42fc24e0bf0e038767dc0548c4562b359930a9f8ade61897d18192ec929"
+    },
+    {
+      "path": "props/textures/modular_street_seating_timber_arm_1k.jpg",
+      "bytes": 762344,
+      "sha256": "sha256:07b108f3c6ee8afe56c9c23592d48f80344992bd0512080a1cc2bf37e7c7cb84"
+    },
+    {
+      "path": "props/textures/modular_street_seating_timber_diff_1k.jpg",
+      "bytes": 596026,
+      "sha256": "sha256:2dce35474445e91743ec1e5a1ffbc405cdd3b7ec94be945d93d684e23e127be3"
+    },
+    {
+      "path": "props/textures/modular_street_seating_timber_nor_gl_1k.jpg",
+      "bytes": 557669,
+      "sha256": "sha256:b7d0fff50ca56f12a3ebc3056c0c8104be84efce118a38094608d8e15af27d9a"
+    },
+    {
+      "path": "earth/clouds8.jpg",
+      "bytes": 11619184,
+      "sha256": "sha256:c792eca228989d36ebb45d3ea6ff1198be5e21a25d70d2fbcb2124ffd14ba7f5"
+    },
+    {
+      "path": "earth/elevation.dods",
+      "bytes": 9370338,
+      "sha256": "sha256:a14135cf20fe2d0a7a18af72a0999483735c1f7e47cf3dbdc24d819beda61b04"
+    },
+    {
+      "path": "earth/june.jpg",
+      "bytes": 1692239,
+      "sha256": "sha256:dc059529b8ed1cfcdd59747a7c3f259c93c1322bf88ca1ec8bab1dd71fcc57f5"
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "original_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-linux-proposal/bounded-pristine-proposal/approved-one-run-2026-11-28",
+  "files": [
+    {
+      "path": "approval.json",
+      "bytes": 3513,
+      "sha256": "8ea373180c59a3f18b30426b98b819edad9ff100fae936d4368d7bf71819c4c1"
+    },
+    {
+      "path": "canonical-audit.json",
+      "bytes": 2620,
+      "sha256": "eaf17b0acb7903495009790ab45458db1fe8f89fc677ecb6b26e645a80217ecc"
+    },
+    {
+      "path": "canonical-exit.json",
+      "bytes": 89,
+      "sha256": "6cb358dc531d46e9bb3c121fef63c1ecb327f63d925e87f156c7d49b4a9893a9"
+    },
+    {
+      "path": "canonical-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "canonical-stdout.log",
+      "bytes": 370,
+      "sha256": "f3a1da2c598e6112fb261c4ca22b33b1a7335a2311e03e3a4202446c221a730f"
+    },
+    {
+      "path": "checkpoint.json",
+      "bytes": 185,
+      "sha256": "871214f411bc9c326c1a297ce416a25d08ba89d3d303bfcbd412fd2e8cfd5e9b"
+    },
+    {
+      "path": "client.json",
+      "bytes": 338,
+      "sha256": "f0b7bf48f01b0d3d06d31df26297915ebe17b1ff34c447dfb7213efd04118b73"
+    },
+    {
+      "path": "endpoint.original.json",
+      "bytes": 565,
+      "sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f"
+    },
+    {
+      "path": "endpoints-after-before-cleanup.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "endpoints-after.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "endpoints-before.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "launch-review.json",
+      "bytes": 3845,
+      "sha256": "230ca32a2dd671081f2a318571c5b1226e343ca886bb5b354d6953804c02c89a"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 1279,
+      "sha256": "28d375643231db94e1c798414bec2770b303980c175882a9a62b619978183b7b"
+    },
+    {
+      "path": "restoration.json",
+      "bytes": 816,
+      "sha256": "a6c03fb4fe9c66e3767511532344f547110bf4fdcbc83483a2bfb3c1c322673d"
+    },
+    {
+      "path": "result.json",
+      "bytes": 1838,
+      "sha256": "135fd9b4f40daeb2e45343dbf43323efae2fef7a708a4266382ebd8d90d1e55a"
+    },
+    {
+      "path": "submission-consumed.json",
+      "bytes": 230,
+      "sha256": "071ca23cd23a4432da61d833abef48c0091686d6113d80d92da25f0cfa5a0f7d"
+    },
+    {
+      "path": "terminal.json",
+      "bytes": 2118,
+      "sha256": "c68db0565abc1ef8f0e626e97f2c597d2f9f57d5fde26808394aea2501238f77"
+    },
+    {
+      "path": "wrapper.log",
+      "bytes": 157,
+      "sha256": "a294bf3a70ea038538cdc01e27092b6f604ece93f00d68edc3331b2ba7f3fd20"
+    }
+  ],
+  "external_only": [
+    "endpoint.proposed.json",
+    "config.authorized.json",
+    "canonical-argv.json",
+    "canonical-command.ps1",
+    "bootstrap.py",
+    "payload-decoded.json",
+    "run_once.py",
+    "full receipt.json and canonical-audit.json with embedded command"
+  ],
+  "note": "Exact launch command and authorized config remain external. Published receipt/audit omit only embedded command bytes and retain their SHA-256. No measurement archive exists."
+}

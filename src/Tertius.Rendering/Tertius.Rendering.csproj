@@ -51,6 +51,7 @@
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
          list against the embedded shaders. -->
     <!-- Half-precision temporal signals can also use the spatial light-age test. -->
+    <SceneSignalShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
@@ -139,6 +140,18 @@
     <ItemGroup>
       <_AccumulationTraceSpirv Include="@(AccumulationTraceShader->'$(IntermediateOutputPath)shaders/%(Filename)_trace_precise%(Extension).spv')" />
       <EmbeddedResource Include="@(_AccumulationTraceSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_AccumulationTraceSpirv.Filename)%(_AccumulationTraceSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CompileSceneSignalShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(SceneSignalShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(SceneSignalShader->'$(IntermediateOutputPath)shaders/%(Filename)_scene%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_SCENE_SPECULAR -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(SceneSignalShader.Filename)_scene%(SceneSignalShader.Extension).spv&quot; &quot;%(SceneSignalShader.FullPath)&quot;" />
+  </Target>
+  <Target Name="EmbedSceneSignalShaders" DependsOnTargets="CompileSceneSignalShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_SceneSignalSpirv Include="@(SceneSignalShader->'$(IntermediateOutputPath)shaders/%(Filename)_scene%(Extension).spv')" />
+      <EmbeddedResource Include="@(_SceneSignalSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_SceneSignalSpirv.Filename)%(_SceneSignalSpirv.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
   <Target Name="CompileLightAgeShaders" BeforeTargets="BeforeBuild"

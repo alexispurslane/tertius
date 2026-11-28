@@ -28,9 +28,9 @@ float guideLightAt(ivec2 pixel)
     vec3 directDiffuse = vec3(0.0);
     if (texelFetch(gbufferBaseColor, pixel, 0).a != 0.0)
     {
-        directDiffuse = preExposed(texelFetch(directDiffuseLight, pixel, 0).rgb);
+        directDiffuse = texelFetch(directDiffuseLight, pixel, 0).rgb;
     }
-    return luminance(min(sentDiffuseLight(pixel, directDiffuse, surfaceReprojectionAt(pixel)), vec3(MaxRadiance)));
+    return luminance(preExposed(sentDiffuseLight(pixel, directDiffuse, surfaceReprojectionAt(pixel))));
 }
 
 void main()

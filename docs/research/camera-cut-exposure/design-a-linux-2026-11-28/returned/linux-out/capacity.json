@@ -1,0 +1,53 @@
+{
+  "per_tree_mode": [
+    {
+      "tree": "before",
+      "mode": "native",
+      "diagnostic_case_seconds": {
+        "real-outside": 65.211157495,
+        "synthetic-extreme": 5.003751521,
+        "steady": 10.724461149
+      },
+      "one_timed_visit_seconds_upper_estimate": 206.78145998499997,
+      "max_real_draw_wall_seconds": 0.746937216
+    },
+    {
+      "tree": "before",
+      "mode": "fsr",
+      "diagnostic_case_seconds": {
+        "real-outside": 18.747725541,
+        "synthetic-extreme": 5.239620609,
+        "steady": 9.968305554
+      },
+      "one_timed_visit_seconds_upper_estimate": 112.81525380500001,
+      "max_real_draw_wall_seconds": 0.709194967
+    },
+    {
+      "tree": "after",
+      "mode": "native",
+      "diagnostic_case_seconds": {
+        "real-outside": 67.160506309,
+        "synthetic-extreme": 4.538382487,
+        "steady": 10.934809457
+      },
+      "one_timed_visit_seconds_upper_estimate": 209.76185947949998,
+      "max_real_draw_wall_seconds": 0.7839053885
+    },
+    {
+      "tree": "after",
+      "mode": "fsr",
+      "diagnostic_case_seconds": {
+        "real-outside": 16.966310517,
+        "synthetic-extreme": 4.827500552,
+        "steady": 10.195669213
+      },
+      "one_timed_visit_seconds_upper_estimate": 107.7248852715,
+      "max_real_draw_wall_seconds": 0.7251464825
+    }
+  ],
+  "margin_factor": 1.25,
+  "projected_remaining_seconds": 1612.7086463524997,
+  "model_limit": "Diagnostic validation and timestamps can overestimate pristine work. This is a capacity estimate, not a completion guarantee.",
+  "remaining_command_seconds": 317.0721961510135,
+  "fits_remaining_cap": false
+}

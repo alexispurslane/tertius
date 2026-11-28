@@ -1,0 +1,10 @@
+{
+  "status": "PASS: actual full proposed wrapper refused before policy or external effects",
+  "external_effect_events": [],
+  "submission_consumed": false,
+  "paid_submissions": 0,
+  "config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "gpu_command_seconds": 840,
+  "gpu_execution_seconds": 900,
+  "wrapper_sha256": "db31d948557adc5b8218a4c3473634a69e0e2d0e48ffa5414702f63bba9507be"
+}

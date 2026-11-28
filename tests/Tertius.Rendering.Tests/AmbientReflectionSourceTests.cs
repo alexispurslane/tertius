@@ -3,13 +3,15 @@ using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
 
-/// <summary>A traced hit converts the ambient-lit surface from scene radiance into the sample's exposure encoding once.</summary>
+/// <summary>A traced hit retains its surface's scene radiance independently of camera exposure.</summary>
 [Collection(GpuCollection.Name)]
 public sealed class AmbientReflectionSourceTests
 {
     [Theory]
     [InlineData(0)]
     [InlineData(4)]
+    [InlineData(-64)]
+    [InlineData(64)]
     public void AMirrorSampleKeepsTheAmbientLightOfTheSurfaceItHits(float stops)
     {
         VulkanRenderer renderer = Gpu.Headless(
@@ -43,9 +45,9 @@ public sealed class AmbientReflectionSourceTests
             sample
                 .Should()
                 .BeApproximately(
-                    source * MathF.Pow(2, stops),
-                    0.05f * source * MathF.Pow(2, stops),
-                    "a mirror hit carries the surface's ambient radiance with exactly its producing exposure"
+                    source,
+                    0.05f * source,
+                    "a mirror hit carries the surface's scene radiance independently of camera exposure"
                 );
         }
         finally

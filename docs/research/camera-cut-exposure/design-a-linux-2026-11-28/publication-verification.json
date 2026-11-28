@@ -1,0 +1,19 @@
+{
+  "verified_utc": "2026-11-28T06:45:51.331421+00:00",
+  "archive_members": 64,
+  "returned_artifacts": 34,
+  "all_archive_sizes_and_sha256_verified": true,
+  "returned_files_match_original_archive": true,
+  "reviewed_worker_fixture_config_analyzer_unchanged": true,
+  "partial_summary_reproduces_from_published_raw_rows": true,
+  "published_json_parses": true,
+  "measured_candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "all_measured_path_git_identities_unchanged": true,
+  "pending_record_settled": true,
+  "new_engine_builds_tests_mutants_or_captures": false,
+  "new_gpu_submissions": 0,
+  "normal_documentation_commit_hook": "will run",
+  "pre_push_build": "omitted under explicit no-local-heavy-work recovery instruction",
+  "completion_analyzer": "not run; partial worker phase fails its unchanged gate",
+  "raw_patch_whitespace": "Original diff context contains whitespace-only lines. Returned patch bytes are preserved; authored files pass git diff --check."
+}

@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The shaders of the exposure pass against their C# copy, <see cref="ExposureMeter"/> (https://github.com/alexispurslane/tertius/wiki/auto-exposure,
 /// "The GPU tests that pin the shaders to the C# copy"): the meter reads the top-left pixel of each 2 × 2 block of the
-/// image and puts each such surface pixel in the bin of its pre-exposed luminance, and the adapt step moves the exposure
+/// image and puts each such surface pixel in the bin of its scene luminance, and the adapt step moves the exposure
 /// as the C# copy does from the same histogram.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -67,7 +67,7 @@ public sealed class ExposureShaderTests
             // The histogram and the HDR image are both of the frame that read the still's exposure a moment after it,
             // which used that exposure, so the two meters read one image.
             uint[] metered = renderer.ReadExposureHistogram();
-            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdr(), used);
+            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdr());
 
             float meteredTarget = Target(metered, setting, used);
             float everyPixelTarget = Target(everyPixel, setting, used);
@@ -89,7 +89,7 @@ public sealed class ExposureShaderTests
     [Fact]
     public void TheMeterCountsTheTopLeftPixelOfEach2By2BlockInTheBinOfItsLuminance()
     {
-        // A clamp of 0 to 0 holds the exposure at 0 stops, so the pre-exposed luminance is the radiance's.
+        // A clamp of 0 to 0 holds the exposure at 0 stops, so the scene luminance is the radiance's.
         VulkanRenderer renderer = Renderer(AutoExposure.Default with { MinStops = 0, MaxStops = 0 });
         try
         {
@@ -97,7 +97,7 @@ public sealed class ExposureShaderTests
             snapshot.Ambient.Intensity = 0;
             // Saturated hues, so that no star of the sky between the squares shows one of their colors.
             Vector3[] hues = [new(1, 0.2f, 0.2f), new(0.2f, 1, 0.2f), new(0.2f, 0.2f, 1), new(1, 1, 0.2f)];
-            int[] bins = [100, 116, 132, 148];
+            int[] bins = [1252, 1268, 1284, 1300];
             var centers = new Vector3[bins.Length];
             for (int i = 0; i < bins.Length; i++)
             {
@@ -289,20 +289,14 @@ public sealed class ExposureShaderTests
     /// <see cref="VulkanRenderer.ReadHdr"/> read. Every pixel counts as a surface pixel, so the scene must fill the
     /// view.
     /// </summary>
-    private static uint[] HistogramOfEveryPixel(float[] rgba, float usedStops)
+    private static uint[] HistogramOfEveryPixel(float[] rgba)
     {
         uint[] bins = new uint[ExposureMeter.Bins];
-        float scale = MathF.Pow(2, usedStops);
         for (int i = 0; i < rgba.Length; i += 4)
-        {
-            Vector3 scene = new(x: rgba[i], y: rgba[i + 1], z: rgba[i + 2]);
-            Vector3 exposed = Vector3.Min(scene, new Vector3(ShaderInput.MaxRadiance / scale)) * scale;
-            bins[ExposureMeter.BinOf(ExposureMeter.Luminance(exposed))]++;
-        }
+            bins[ExposureMeter.BinOf(ExposureMeter.Luminance(new Vector3(rgba[i], rgba[i + 1], rgba[i + 2])))]++;
         return bins;
     }
 
-    /// <summary>The target that the C# copy computes from <paramref name="histogram"/> for a frame that used <paramref name="used"/>.</summary>
     private static float Target(uint[] histogram, AutoExposure setting, float used) =>
         ExposureMeter.TargetStops(
             reading: ExposureMeter.Reading(histogram, setting.DarkShare, setting.BrightShare),

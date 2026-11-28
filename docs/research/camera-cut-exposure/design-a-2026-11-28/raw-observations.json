@@ -1,0 +1,122 @@
+[
+  {
+    "stage": "independent cold control",
+    "rawHdrRgb": [
+      0.067438096,
+      0.07332414,
+      0.08792042
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36056393,
+    "sceneDraws": 2,
+    "brightSource": false
+  },
+  {
+    "stage": "independent settled control",
+    "rawHdrRgb": [
+      0.067438096,
+      0.07332414,
+      0.08792042
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36056393,
+    "sceneDraws": 2,
+    "brightSource": false
+  },
+  {
+    "stage": "independent one-draw estimator reference",
+    "rawHdrRgb": [
+      0.067806594,
+      0.07394369,
+      0.0889896
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36365175,
+    "sceneDraws": 1,
+    "brightSource": false
+  },
+  {
+    "stage": "dark source",
+    "rawHdrRgb": [
+      0,
+      0,
+      0
+    ],
+    "usedExposureStops": 64,
+    "centerLuma": 0,
+    "sceneDraws": 2,
+    "brightSource": false
+  },
+  {
+    "stage": "first cut",
+    "rawHdrRgb": [
+      0.067806594,
+      0.07394369,
+      0.0889896
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36365175,
+    "sceneDraws": 1,
+    "brightSource": false
+  },
+  {
+    "stage": "independent cold control",
+    "rawHdrRgb": [
+      0.067438096,
+      0.07332414,
+      0.08792042
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36056393,
+    "sceneDraws": 2,
+    "brightSource": true
+  },
+  {
+    "stage": "independent settled control",
+    "rawHdrRgb": [
+      0.067438096,
+      0.07332414,
+      0.08792042
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36056393,
+    "sceneDraws": 2,
+    "brightSource": true
+  },
+  {
+    "stage": "independent one-draw estimator reference",
+    "rawHdrRgb": [
+      0.067806594,
+      0.07394369,
+      0.0889896
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36365175,
+    "sceneDraws": 1,
+    "brightSource": true
+  },
+  {
+    "stage": "bright source",
+    "rawHdrRgb": [
+      1.8446744e+19,
+      1.8446744e+19,
+      1.8446744e+19
+    ],
+    "usedExposureStops": -64,
+    "centerLuma": 0.8078431,
+    "sceneDraws": 2,
+    "brightSource": true
+  },
+  {
+    "stage": "first cut",
+    "rawHdrRgb": [
+      0.067806594,
+      0.07394369,
+      0.0889896
+    ],
+    "usedExposureStops": 1.3179092,
+    "centerLuma": 0.36365175,
+    "sceneDraws": 1,
+    "brightSource": true
+  }
+]

@@ -374,18 +374,46 @@ public sealed class Fsr3UpscalerTests
         );
     }
 
+    [Theory]
+    [InlineData(64f, -64f, true, 1f)]
+    [InlineData(-64f, 64f, true, 1f)]
+    [InlineData(64f, -64f, false, 18446744073709551616f)]
+    [InlineData(-64f, 64f, false, 5.42101086242752217e-20f)]
+    [InlineData(64f, 63f, false, 2f)]
+    [InlineData(-64f, -63f, false, 0.5f)]
+    public void ExposureEndpointsKeepTheUpscaleRatioFinite(float current, float previous, bool reset, float expected)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+        bench.Upscale(index: 0, reset: true);
+        bench.SetExposure(stops: current, previousStops: previous);
+
+        bench.Upscale(index: 1, reset: reset);
+
+        float actual = bench.ReadDeltaPreExposure();
+        float.IsFinite(actual).Should().BeTrue();
+        actual.Should().BeApproximately(expected, MathF.Abs(expected) * 1e-5f);
+        bench
+            .ReadOutput()
+            .Should()
+            .OnlyContain(pixel =>
+                float.IsFinite(pixel.X) && float.IsFinite(pixel.Y) && float.IsFinite(pixel.Z) && float.IsFinite(pixel.W)
+            );
+    }
+
     [Fact]
     public void AnExposureBufferThatTheGpuWritesJustBeforeTheUpscaleGivesItsRatioWithoutAHazard()
     {
         using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
         using GpuBuffer written = bench.CreateGpuExposureBuffer();
         bench.FillPattern();
+        bench.Upscale(index: 0, reset: true);
 
-        // In the frame, the exposure pass writes the buffer on the GPU in the same command buffer as the upscale.
+        // An ordinary frame must read the GPU write; a reset deliberately ignores the previous display.
         bench.Submit(commandBuffer =>
         {
             bench.WriteOnGpu(commandBuffer: commandBuffer, buffer: written, stops: 1f, previousStops: 0f);
-            Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Exposure = written };
+            Fsr3Inputs inputs = bench.Inputs(index: 1, reset: false) with { Exposure = written };
             bench.Upscaler.Record(commandBuffer, bench.Barriers, inputs);
         });
 

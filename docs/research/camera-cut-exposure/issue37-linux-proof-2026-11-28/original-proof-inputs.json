@@ -1,0 +1,41 @@
+{
+  "original_derivation": "/nix/store/l3njw5djkvdfrrz8f6ipf21kkqpb97l3-tertius-issue37-linux-launch-proof.drv",
+  "original_output": "/nix/store/48pvqzz5j12kv3l7vj1312d2z4hyrf4n-tertius-issue37-linux-launch-proof",
+  "original_external_folder": "/tmp/issue37-builder-proof.b5G927",
+  "inputs": {
+    "proof.py": {
+      "bytes": 1395,
+      "sha256": "47798b665f141c3081263c50d12aa23496ed1b1aae0fa7de75d5101958c5ee38"
+    },
+    "proof.nix": {
+      "bytes": 481,
+      "sha256": "87ee723d5a91d1adef47d71e15a6ecc84467b1385d8d2e4b17ba5c3e3c7b273a"
+    },
+    "short": {
+      "bytes": 418,
+      "sha256": "1c924468ac9a7fb46ed73724b0e02a63e55b69e8116632b1913f99297f5c7d1a"
+    },
+    "original-linux-result.json": {
+      "bytes": 172,
+      "sha256": "363caeac6d95daab627a294ab8eb5aefd5814fc1e901c0309ca3b8142ae845b1"
+    },
+    "run_once.py.txt": {
+      "bytes": 7236,
+      "sha256": "b35c8bbc8cf9cfa9e5e24ec76c52671f51ddc61dab2cfbbe2aa3d24c72899074"
+    },
+    "run_once.proposed.py.txt": {
+      "bytes": 7944,
+      "sha256": "db31d948557adc5b8218a4c3473634a69e0e2d0e48ffa5414702f63bba9507be"
+    },
+    "original-old-command": {
+      "bytes": 409197,
+      "bytes_including_nul": 409198,
+      "sha256": "18707842aed762dec041dae6b08802025bae8a975ce53ce34cabecdc4fe1a340",
+      "source": "tools/camera-cut-pristine/proof-data/old-command.gz (decompress first)"
+    },
+    "original-handler": {
+      "sha256": "d9f9a0cbb2bc703eedf62219b3385b4e376719dc3f8040f685ad008a36089fab",
+      "source": "tools/runpod/handler.py"
+    }
+  }
+}

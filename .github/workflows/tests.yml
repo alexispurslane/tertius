@@ -44,6 +44,8 @@ jobs:
             src
             tests
             tools
+            docs/research/camera-cut-exposure/fsr-reference-investigation-2026-11-28/bounded-pristine-proposal
+            docs/research/camera-cut-exposure/issue37-linux-proof-2026-11-28
 
       - name: Measure checkout
         run: |

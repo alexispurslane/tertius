@@ -1,0 +1,826 @@
+{
+  "base_sha": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
+  "official_input_sha": "cf84f02bc5fabfedb22c2b17835ae0d194c4cb91",
+  "official_wrapper_exit": 0,
+  "official": true,
+  "problems": [],
+  "official_evidence": [
+    "Core: 1421 s wall; schemata build 9 compile tries (8 failed, each removing the mutants that broke it); 1 initial test run of 4716 tests in 49 s; per-test coverage capture 1184 s; 0 Dubious tests; 0 mutants ran a mean of - of 4716 tests, 0 ran all tests; 1-minute load mean 29.6, max 42.1; 5 test host processes at most, at nice 19, together at most 346% and on mean 177% of one core",
+    "Simulation: 1888 s wall; schemata build 10 compile tries (9 failed, each removing the mutants that broke it); 1 initial test run of 4592 tests in 56 s; per-test coverage capture 1638 s; 0 Dubious tests; 0 mutants ran a mean of - of 4592 tests, 0 ran all tests; 1-minute load mean 10.3, max 18.6; 3 test host processes at most, at nice 19, together at most 286% and on mean 155% of one core"
+  ],
+  "official_settings": "concurrency 1 at nice 20 with 4 xunit threads per test host, timeout-ratio 2, additional-timeout 300000 ms, timeout share at most 25%, timeouts count up to a 1-minute load of 17.5 per core",
+  "official_classifications": [
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L235",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 235,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM1"
+    },
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L236",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 236,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM2"
+    },
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L239",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 239,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.AContinuousCameraHandoffKeepsTheCameraCutCount"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM3"
+    }
+  ],
+  "official_mutation_score": null,
+  "official_score_reason": "Core changes XML comments only; all three changed Simulation line mutants failed to compile. No executable Stryker mutant ran.",
+  "scripted_rows": [
+    {
+      "id": "C01",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 14,
+      "change": "old narrow scene meter floor",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -40)",
+        "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -80)"
+      ],
+      "seconds": 7.782387957908213,
+      "original": "public const float LowestStops = -160;",
+      "replacement": "public const float LowestStops = -16;",
+      "classes": [
+        "SceneExposureMeterTests"
+      ]
+    },
+    {
+      "id": "C02",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 26,
+      "change": "black and subnormals enter a nonblack bin",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 4194304)",
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 1)",
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 8388607)"
+      ],
+      "seconds": 9.989993125200272,
+      "original": "return 0;",
+      "replacement": "return 1;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ]
+    },
+    {
+      "id": "C03",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 115,
+      "change": "scene target incorrectly depends on previous exposure",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: 64)",
+        "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: -64)"
+      ],
+      "seconds": 4.411000666208565,
+      "original": "float averageTarget = MathF.Log2(MiddleGray) - mean;",
+      "replacement": "float averageTarget = MathF.Log2(MiddleGray) - (mean - usedStops);",
+      "classes": [
+        "SceneExposureMeterTests"
+      ]
+    },
+    {
+      "id": "C04",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 222,
+      "change": "only the first view receives early metering",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ConsecutiveCutsMeterARevisitedViewAfterItsLightChanges",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 32.077718541026115,
+      "original": "drawn is null || CutsFrom(snapshot)",
+      "replacement": "drawn is null",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "C05",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 235,
+      "change": "a discontinuous camera switch leaves environment faces stale",
+      "result": "killed",
+      "killed_by": [
+        "FrameHistoryTests.ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps",
+        "FrameHistoryTests.ASwitchToACameraInAnotherFrameRefreshesEveryFaceOfTheMaps"
+      ],
+      "seconds": 4.410767000168562,
+      "original": "(still && draw == 0) || CutsFrom(snapshot)",
+      "replacement": "still && draw == 0",
+      "classes": [
+        "FrameHistoryTests"
+      ]
+    },
+    {
+      "id": "C06",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 271,
+      "change": "continuous frame handoff retains incompatible coordinate histories",
+      "result": "killed",
+      "killed_by": [
+        "FrameHistoryTests.AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize",
+        "FrameHistoryTests.AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain"
+      ],
+      "seconds": 4.416093582287431,
+      "original": "|| !KeepsTheFrame(snapshot)",
+      "replacement": "|| false",
+      "classes": [
+        "FrameHistoryTests"
+      ]
+    },
+    {
+      "id": "C07",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 85,
+      "change": "a cut uses ordinary late adaptation",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 41.81332229170948,
+      "original": "WriteExposure(context, phase: 1);",
+      "replacement": "WriteExposure(context, phase: 0);",
+      "classes": [
+        "CameraCutExposureTests",
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "C08",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 89,
+      "change": "the late cut dispatch overwrites the producing history exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 11.114859333261847,
+      "original": "context.History.MetersNewView ? 2u : 0u",
+      "replacement": "0u",
+      "classes": [
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "C09",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 86,
+      "change": "shown exposure diagnostics never receive early cut exposure",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 1361, destination: 0.00100000005)",
+        "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 0.00100000005, destination: 1361)",
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 32.17133975028992,
+      "original": "context.Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: context.Frame.Index);",
+      "replacement": "",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "C10",
+      "file": "src/Tertius.Rendering/Passes/LightPyramidPass.cs",
+      "line": 44,
+      "change": "light pyramid reads cut exposure without a compute dependency",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)"
+      ],
+      "seconds": 8.027427583001554,
+      "original": "context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+      "replacement": "",
+      "classes": [
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "C11",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 335,
+      "change": "accumulator exposure consumer declares the wrong pipeline stage",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests.WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame",
+        "AccumulatorRenderTests.TheRetainedDeviationTakesTheExposureRatio"
+      ],
+      "seconds": 53.80062195844948,
+      "original": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+      "replacement": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);",
+      "classes": [
+        "AccumulatorRenderTests"
+      ]
+    },
+    {
+      "id": "C12",
+      "file": "src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs",
+      "line": 1006,
+      "change": "FSR reset uses a prior display exposure ratio",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+      ],
+      "seconds": 8.476255125366151,
+      "original": "frame.Inputs.Frame.Reset || executions == 0 ? 1u : 0u",
+      "replacement": "0u",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ]
+    },
+    {
+      "id": "S01",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 5,
+      "change": "largest finite scene luminance loses the final histogram slice",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 41.746332166716456,
+      "original": "const uint HistogramBins = 2304u;",
+      "replacement": "const uint HistogramBins = 2048u;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ]
+    },
+    {
+      "id": "S02",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 7,
+      "change": "GPU scene range collapses to the old floor",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 42.64899683278054,
+      "original": "const float LowestStops = -160.0;",
+      "replacement": "const float LowestStops = -16.0;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ]
+    },
+    {
+      "id": "S03",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 20,
+      "change": "GPU black/subnormal floor uses a nonblack bin",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 47.830002875067294,
+      "original": "return 0u;",
+      "replacement": "return 1u;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ]
+    },
+    {
+      "id": "S04",
+      "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+      "line": 24,
+      "change": "phantom histogram counts survive the workgroup clear",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)",
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 75.7410229574889,
+      "original": "localBins[bin] = 0u;",
+      "replacement": "localBins[bin] = 1u;",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "S05",
+      "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+      "line": 35,
+      "change": "surface counts never reach the global histogram",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 30.421951125375926,
+      "original": "uint count = localBins[bin];",
+      "replacement": "uint count = 0u;",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "S06",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 0 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.640233917161822,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 0u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S07",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 1 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.855538667179644,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 1u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S08",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 2 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.945538790896535,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 2u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S09",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 3 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.575905249454081,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 3u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S10",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 4 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+      ],
+      "seconds": 13.197320125065744,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 4u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S11",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 5 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 13.958546042442322,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 5u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S12",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 6 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 16.03366299998015,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 6u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S13",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 7 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 2048)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1792)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.138521749526262,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 7u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S14",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 8 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 12.83963350020349,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 8u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S15",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 56,
+      "change": "last histogram bin is excluded from the total",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.520730749703944,
+      "original": "float total = float(cumulative[HistogramBins - 1u]);",
+      "replacement": "float total = float(cumulative[HistogramBins - 2u]);",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S16",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 57,
+      "change": "dark quantile trim is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1280)"
+      ],
+      "seconds": 13.97948041651398,
+      "original": "float low = adapt.darkShare * total;",
+      "replacement": "float low = 0.0;",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S17",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 58,
+      "change": "bright quantile trim is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 13.793672958388925,
+      "original": "float high = (1.0 - adapt.brightShare) * total;",
+      "replacement": "float high = total;",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S18",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 89,
+      "change": "highlight protection is omitted",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+      ],
+      "seconds": 14.325105999596417,
+      "original": "min(log2(MiddleGray) - mean, -brightEdge) + adapt.compensationStops",
+      "replacement": "log2(MiddleGray) - mean + adapt.compensationStops",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S19",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 89,
+      "change": "configured compensation is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 15.614341374486685,
+      "original": "+ adapt.compensationStops,",
+      "replacement": "+ 0.0,",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ]
+    },
+    {
+      "id": "S20",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 37,
+      "change": "late cut fails to finish its previous displayed exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 9.111899583600461,
+      "original": "previousStops = exposureStops;",
+      "replacement": "previousStops = historyStops;",
+      "classes": [
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "S21",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 93,
+      "change": "empty cut inherits an unrelated source view exposure",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 31.33319920860231,
+      "original": "target = clamp(0.0, adapt.minStops, adapt.maxStops);",
+      "replacement": "target = used;",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "S22",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 96,
+      "change": "cut histories are mislabeled with the display exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 8.231894291937351,
+      "original": "historyStops = used;",
+      "replacement": "historyStops = target;",
+      "classes": [
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "S23",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 310,
+      "change": "accumulator rescales indirect history from the previous display exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheFrameAfterACutRescalesRetainedLightFromItsProducingExposure"
+      ],
+      "seconds": 7.783383125439286,
+      "original": "historyRatio(exposureStops, historyStops)",
+      "replacement": "historyRatio(exposureStops, previousStops)",
+      "classes": [
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "S24",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 428,
+      "change": "screen tracer rescales indirect history from the previous display exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerRescalesACutsPreviousReflectionFromItsProducingExposure"
+      ],
+      "seconds": 43.874046167358756,
+      "original": "historyRatio(exposureStops, historyStops)",
+      "replacement": "historyRatio(exposureStops, previousStops)",
+      "classes": [
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "S25",
+      "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+      "line": 27,
+      "change": "FSR reset ratio depends on unrelated source display exposure",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+      ],
+      "seconds": 53.17590079084039,
+      "original": "reset != 0u ? 1.0",
+      "replacement": "false ? 1.0",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ]
+    },
+    {
+      "id": "S26",
+      "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+      "line": 28,
+      "change": "FSR ratio overflows across supported exposure endpoints",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: False, expected: 1.84467441E+19)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: False, expected: 5.42101086E-20)"
+      ],
+      "seconds": 10.640610207803547,
+      "original": "exp2(clamp(exposureStops - previousStops, -64.0, 64.0))",
+      "replacement": "exp2(exposureStops - previousStops)",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ]
+    },
+    {
+      "id": "C13",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 160,
+      "change": "adapt dispatch loses its early or late cut phase",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 68.91323091648519,
+      "original": "Phase = phase,",
+      "replacement": "Phase = phase & 0u,",
+      "classes": [
+        "CameraCutExposureTests",
+        "ExposureLifecycleTests"
+      ]
+    },
+    {
+      "id": "C14",
+      "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+      "line": 852,
+      "change": "fixed exposure no longer records its shown-frame reading",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACameraCutKeepsManualExposureFixed"
+      ],
+      "seconds": 28.048691915348172,
+      "original": "if (exposureSetting is FixedExposure)",
+      "replacement": "if (exposureSetting is FixedExposure && history.DrawnFrames < 0)",
+      "classes": [
+        "CameraCutExposureTests"
+      ]
+    },
+    {
+      "id": "SIM3",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 239,
+      "change": "a continuous reference-frame handoff increments camera cuts",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.AContinuousCameraHandoffKeepsTheCameraCutCount"
+      ],
+      "seconds": 4.774676166474819,
+      "original": "if (!continuousCamera)",
+      "replacement": "if (!interpolate)",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ]
+    },
+    {
+      "id": "SIM1",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 235,
+      "change": "a continuing camera is reported as discontinuous",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": 3.798590499907732,
+      "original": "lastCamera == view.Camera && lastCameraStamp == stamp - 1",
+      "replacement": "lastCamera != view.Camera && lastCameraStamp == stamp - 1",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ]
+    },
+    {
+      "id": "SIM2",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 236,
+      "change": "a reference-frame handoff interpolates incompatible coordinates",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": 3.762084249407053,
+      "original": "continuousCamera && lastCameraFrame == cameraFrame",
+      "replacement": "continuousCamera && lastCameraFrame != cameraFrame",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ]
+    }
+  ],
+  "scripted_counts": {
+    "killed": 43,
+    "survived": 0,
+    "timeout": 0,
+    "no_coverage": 0
+  },
+  "initial_replacement_compile_failures": "SIM1 and SIM2 initially removed field reads and triggered IDE0052; operator-inversion replacements retain those reads and are killed. Initial build failures are unscored.",
+  "job_ids": {
+    "Core": "f8573e3f-f405-455c-8b3a-cb694d045370-u1",
+    "Simulation": "bf3b2311-02b0-4b85-beef-a3b7c89f423e-u2"
+  },
+  "artifact_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence",
+  "artifact_sha256": {
+    "official-stryker-20261128/results.json": "9a630169e0fae7c6fe45c83c57767f5babbd0dcaf4121a8e321721376df2cd96",
+    "official-stryker-20261128/Core/results.json": "bcc256277dbe7a95c4f28eacc9264ac86e28984fbafd9bcd5bb7efdc5cdd444e",
+    "official-stryker-20261128/Simulation/results.json": "06c90a71c35153e134ad3ee8e8c8fb27ad437aeb933a3f76c0e309374670a187",
+    "official-no-mutant-replacements/results.json": "0ab9f72b00a50d6578a90a01a16cfb5ce8f46d38c6727eb24d7669e6da86fa53",
+    "official-no-mutant-replacements-v2/results.json": "2c975a15806f58de5806e68791a459d6b6c9900acebb8bd8a0a9aaef114adbe9",
+    "official-no-mutant-replacements/inputs.json": "faeb08861dbef04a640dd7995eed518fa8413cf7b08f46294fb25a4966e6ba2c",
+    "official-no-mutant-replacements-v2/inputs.json": "faeb08861dbef04a640dd7995eed518fa8413cf7b08f46294fb25a4966e6ba2c"
+  },
+  "restoration": "Both scripted runs exit0 and verify exact bytes/modes/semantic index/HEAD/merge metadata and rebuild normal assemblies. Independent git status was clean before merging main.",
+  "unified_triage_complete": true
+}

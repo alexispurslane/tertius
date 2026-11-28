@@ -1,0 +1,6 @@
+python3 -I -c 'import hashlib,pathlib,runpy
+p=pathlib.Path('"'"'harness/tools/camera-cut-pristine/prepare.py'"'"')
+if hashlib.sha256(p.read_bytes()).hexdigest()!='"'"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'"'"':
+ raise ValueError("Preparation script hash differs")
+runpy.run_path(str(p),run_name="__main__")
+' --manifest-sha256 445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57

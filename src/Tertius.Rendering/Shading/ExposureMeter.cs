@@ -9,26 +9,29 @@ namespace Tertius.Rendering;
 /// </summary>
 internal static class ExposureMeter
 {
-    public const int Bins = 256;
+    public const int Bins = 2304;
     public const int BinsPerStop = 8;
-    public const float LowestStops = -16;
+    public const float LowestStops = -160;
     public const float MiddleGray = 0.18f;
     public static readonly Vector3 LuminanceWeights = new(0.2126f, 0.7152f, 0.0722f);
 
     /// <summary>The luminance of linear Rec. 709 radiance.</summary>
     public static float Luminance(Vector3 radiance) => Vector3.Dot(radiance, LuminanceWeights);
 
-    /// <summary>The bin of a pre-exposed luminance: the first for 2^LowestStops or less, the last for 2^16 or more.</summary>
+    /// <summary>The bin of a scene luminance: the first for 2^LowestStops or less, the last for the highest representable scene luminances.</summary>
     public static int BinOf(float luminance)
     {
-        float stops = MathF.Log2(MathF.Max(luminance, MathF.Pow(2, LowestStops)));
+        // Treat subnormal luminance as black, matching GPUs that flush subnormal arithmetic to zero.
+        if (luminance <= 0 || BitConverter.SingleToUInt32Bits(luminance) < 0x00800000u)
+            return 0;
+        float stops = MathF.Log2(luminance);
         return Math.Clamp((int)MathF.Floor((stops - LowestStops) * BinsPerStop), 0, Bins - 1);
     }
 
-    /// <summary>The log2 of the pre-exposed luminance at the center of <paramref name="bin"/>.</summary>
+    /// <summary>The log2 of the scene luminance at the center of <paramref name="bin"/>.</summary>
     public static float BinCenterStops(int bin) => LowestStops + (bin + 0.5f) / BinsPerStop;
 
-    /// <summary>The trimmed mean in stops of pre-exposed luminance, or null when the histogram holds no count.</summary>
+    /// <summary>The trimmed mean in stops of scene luminance, or null when the histogram holds no count.</summary>
     public static float? TrimmedMeanStops(ReadOnlySpan<uint> bins, float darkShare, float brightShare)
     {
         double total = 0;
@@ -55,7 +58,7 @@ internal static class ExposureMeter
     }
 
     /// <summary>
-    /// The bright edge: the pre-exposed luminance in stops at the (1 − brightShare) quantile of the counts, inside its
+    /// The bright edge: the scene luminance in stops at the (1 − brightShare) quantile of the counts, inside its
     /// bin by the share of the bin's count below it; null when the histogram holds no count.
     /// </summary>
     public static float? BrightEdgeStops(ReadOnlySpan<uint> bins, float brightShare)
@@ -109,9 +112,8 @@ internal static class ExposureMeter
     {
         if (reading is not { TrimmedMeanStops: var mean, BrightEdgeStops: var edge })
             return usedStops;
-        // The frame shaded with usedStops, so the radiance's stops are the metered stops minus them.
-        float averageTarget = MathF.Log2(MiddleGray) - (mean - usedStops);
-        float highlightTarget = -(edge - usedStops);
+        float averageTarget = MathF.Log2(MiddleGray) - mean;
+        float highlightTarget = -edge;
         return Math.Clamp(MathF.Min(averageTarget, highlightTarget) + compensationStops, minStops, maxStops);
     }
 

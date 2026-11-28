@@ -31,6 +31,12 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
     /// <summary>The precise variant's suffix, which every shader of a precise history takes without an instrumented one.</summary>
     public const string PreciseSuffix = "_precise";
 
+    /// <summary>The original accumulation rules over 32-bit scene radiance, without light-age metadata.</summary>
+    public static readonly ShaderVariant SceneSignal = new(
+        Suffix: "_scene",
+        Shaders: ["accumulate_temporal.comp", "accumulate_spatial.comp"]
+    );
+
     /// <summary>
     /// The LightAgeShader items of Tertius.Rendering.csproj (ticket ter-wkvw): the spatial dispatch of a half-precision
     /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It acts on its

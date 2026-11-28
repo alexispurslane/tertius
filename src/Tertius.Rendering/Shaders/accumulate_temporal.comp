@@ -304,15 +304,14 @@ void main()
     float historyLength = 0.0;
     if (holdsHistory(r))
     {
-        // Both histories hold pre-exposed light: the ratio 2^(S − S_last) keeps them in this frame's scale. A rise of more
-        // than about one stop takes a history at MaxRadiance past the largest half float, so `exposed` caps the product at
-        // MaxRadiance before it. Its bounds hold for a ratio of at most 2^64, and two exposures can lie 128 stops apart.
-        float ratio = historyRatio(exposureStops, previousStops);
-        // A length above this pixel's cap, from a neighbor of another roughness, is cut to it.
+        // The length stays in frames. Only diffuse light converts its bounded producing exposure.
         historyLength = min(slow.a, cap);
+#ifndef TERTIUS_SCENE_SPECULAR
+        float ratio = historyRatio(exposureStops, historyStops);
         slow.rgb = exposed(slow.rgb, ratio);
         fast = exposed(fast, ratio);
         deviation = min(deviation * ratio, MaxRadiance);
+#endif
     }
 
     // The sample's light code cuts no length before the blend: the block's light evidence acts after it, in the spatial
@@ -339,7 +338,11 @@ void main()
     // history, it takes the closed form.
     if (!hasSample && historyLength == 0.0)
     {
+#ifdef TERTIUS_SCENE_SPECULAR
+        IndirectLight closed = closedFormScene(withAmbientFootprint(materialAt(pixel), pixel),
+#else
         IndirectLight closed = closedForm(withAmbientFootprint(materialAt(pixel), pixel),
+#endif
             -normalize(viewRayThrough(vec2(pixel) + 0.5)));
         sampled = parameters.light == SpecularLight ? closed.specular : closed.diffuse;
         hasSample = true;
@@ -353,11 +356,13 @@ void main()
         // pixel's own samples, because the diffuse filter writes the light that it moves into the slow history: a step
         // from that light would count a stable edge's moved light as spread and hold the luminance stop open across it.
         float fastLength = min(historyLength, fastCapOf(cap));
+#ifndef TERTIUS_SCENE_SPECULAR
         float before = luminance(fast);
         float weight = 1.0 / min(historyLength, DeviationFrames);
         float step = luminance(sampled) - before;
         step = abs(step) <= BlendRounding * before * fastLength ? 0.0 : step;
         deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
+#endif
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
@@ -368,11 +373,14 @@ void main()
         }
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
-    // Each history's light and length, the retained deviation and the guide are read back in the next draw, so each
-    // store takes the nearest half float (half_store.glsl). The hit distance is this draw's sample, which no blend reads.
+    // Glossy light stays float32. Diffuse feedback and geometric guides take the nearest half float.
+    // The hit distance is this draw's sample, which no blend reads.
     imageStore(scratch, pixel, slowHistoryValue(vec4(slow.rgb, historyLength)));
-    imageStore(fastHistory, pixel,
-        vec4(nearestHalf(fast), parameters.light == SpecularLight ? hitDistance : nearestHalf(deviation)));
+#ifdef TERTIUS_SCENE_SPECULAR
+    imageStore(fastHistory, pixel, vec4(fast, hitDistance));
+#else
+    imageStore(fastHistory, pixel, vec4(nearestHalf(fast), nearestHalf(deviation)));
+#endif
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuideScratch, pixel, vec4(nearestHalf(guide), 0.0, 0.0));
 }

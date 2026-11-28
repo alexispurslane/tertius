@@ -1,0 +1,16 @@
+{
+  "status": "PASS: complete sealed output from reconstructed named-tree payload",
+  "tests_run": 1,
+  "worker_sha256": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+  "analyzer_sha256": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "canonical_collector_used": true,
+  "collector_skipped_files": {},
+  "required_archive_files_verified": true,
+  "raw_rows_round_trip_verified": true,
+  "replayed_analysis_rows": 24,
+  "new_measurement_or_paid_submission": false,
+  "scope": "Targeted existing output test rerun using reconstructed payload modules. No histogram investigation, capture, renderer, full suite or paid service."
+}

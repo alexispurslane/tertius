@@ -19,6 +19,7 @@ internal sealed unsafe class CompositePass : RenderPass
     private readonly GpuBuffer? volumeBuffer;
     private readonly Pipeline pipeline;
     private readonly GpuImage emptyHistory;
+    private readonly GpuImage emptyGuide;
 
     /// <param name="scatter">True under <see cref="SeparableSubsurface"/>, whose targets hold the diffuse image.</param>
     /// <param name="tracer">The screen tracer, whose signals' slow histories the composite reads, or null under <see cref="NoScreenTrace"/>.</param>
@@ -43,7 +44,7 @@ internal sealed unsafe class CompositePass : RenderPass
         emptyHistory = GpuImage.Create(
             device: device,
             allocator: allocator,
-            format: Format.R16G16B16A16Sfloat,
+            format: TemporalSignal.SceneSignalFormat,
             extent: new(1, 1),
             usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
             mipLevels: 1,
@@ -51,6 +52,15 @@ internal sealed unsafe class CompositePass : RenderPass
         );
         try
         {
+            emptyGuide = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                format: TemporalSignal.SignalFormat,
+                extent: new(1, 1),
+                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
+                mipLevels: 1,
+                name: "unused reflection distance guide"
+            );
             Resize(targets);
             string fragmentShader = scatter ? "composite_scatter.frag" : "composite.frag";
             if (volume is not null)
@@ -79,6 +89,7 @@ internal sealed unsafe class CompositePass : RenderPass
         }
         catch
         {
+            emptyGuide?.Dispose();
             emptyHistory.Dispose();
             throw;
         }
@@ -97,7 +108,7 @@ internal sealed unsafe class CompositePass : RenderPass
             targets.DirectSpecular,
             tracer?.Specular.Slow(0) ?? emptyHistory,
             sharing && tracer is { } sampleTracer ? sampleTracer.Specular.Sample(0) : emptyHistory,
-            sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyHistory,
+            sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyGuide,
         ];
         for (int binding = 0; binding < light.Length; binding++)
             layouts.WriteStorageImage(set: LightSet, binding: (uint)binding, image: light[binding]);
@@ -106,9 +117,15 @@ internal sealed unsafe class CompositePass : RenderPass
     /// <summary>Defines the zero history bound by disabled indirect paths, independently of mutable scene targets.</summary>
     public override void Prepare(FrameContext context)
     {
-        if (emptyHistory.State.Layout != ImageLayout.Undefined)
+        PrepareEmpty(context, emptyHistory);
+        PrepareEmpty(context, emptyGuide);
+    }
+
+    private static void PrepareEmpty(FrameContext context, GpuImage image)
+    {
+        if (image.State.Layout != ImageLayout.Undefined)
             return;
-        context.Barriers.Image(emptyHistory, ImageUse.TransferDestination);
+        context.Barriers.Image(image, ImageUse.TransferDestination);
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
         ClearColorValue zero = default;
         var range = new ImageSubresourceRange(
@@ -120,13 +137,13 @@ internal sealed unsafe class CompositePass : RenderPass
         );
         context.Vk.CmdClearColorImage(
             commandBuffer: context.CommandBuffer,
-            image: emptyHistory.Handle,
+            image: image.Handle,
             imageLayout: ImageLayout.TransferDstOptimal,
             pColor: &zero,
             rangeCount: 1,
             pRanges: &range
         );
-        context.Barriers.Image(emptyHistory, ImageUse.StorageFragment);
+        context.Barriers.Image(image, ImageUse.StorageFragment);
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
     }
 
@@ -182,6 +199,7 @@ internal sealed unsafe class CompositePass : RenderPass
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        emptyGuide.Dispose();
         emptyHistory.Dispose();
     }
 }
