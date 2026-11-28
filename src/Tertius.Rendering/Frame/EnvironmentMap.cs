@@ -31,8 +31,8 @@ internal enum EnvironmentImage
 /// <item>Each face of map i holds the frame that last drew it, in the axes of map i's frame, for the served chain of
 /// <see cref="DrawnFor"/>.</item>
 /// <item>Map i's mips are a pure function of its six faces' level 0, rebuilt in every frame that draws one of its faces.
-/// Each face's specular levels and irradiance level 0 are a pure function of the six faces' level 0 as they were stored in
-/// the last frame that drew that face (ARCHITECTURE.md, "The prefilter").</item>
+/// A face's specular levels use its last draw. The irradiance cube combines the six contributions to every direction
+/// (ARCHITECTURE.md, "The prefilter").</item>
 /// <item>Each face's distance level 0 holds the same draw as its radiance level 0.</item>
 /// <item>Map i's distance levels 1 and up are a pure function of its six faces' distance level 0.</item>
 /// <item>The images hold <see cref="Capacity"/> maps, at least the served maps of every frame since the last growth.</item>
@@ -89,6 +89,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly IrradianceReading?[] readings = new IrradianceReading?[EnvironmentChain.MaxMaps];
     private readonly long[] drawnFor = new long[EnvironmentChain.MaxMaps];
     private readonly FaceMask[] facesOfMaps = new FaceMask[EnvironmentChain.MaxMaps];
+    private readonly uint[] blendDrawsOfMaps = new uint[EnvironmentChain.MaxMaps];
     private int drawnForLength;
     private MapImages images;
     private DrawnCube[] drawnCubes = [];
@@ -189,13 +190,16 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// </summary>
     public GpuImage Irradiance => images.Irradiance;
 
+    /// <summary>The six capture faces' contributions to every irradiance texel, with the blend end draw of each face.</summary>
+    public GpuBuffer IrradianceContributions => images.IrradianceContributions;
+
     /// <summary>The depth target of a face: D32, reversed, cleared for each depth range. The faces draw one after another.</summary>
     public GpuImage FaceDepth { get; }
 
     /// <summary>The surface record of a face, which its light pass lights each texel from. The faces draw one after another.</summary>
     public FaceSurface FaceSurface { get; }
 
-    /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written again at each growth.</summary>
+    /// <summary>Set 0 of the prefilter layout, with the radiance map and irradiance contributions.</summary>
     public DescriptorSet PrefilterSet { get; }
 
     /// <summary>
@@ -233,9 +237,9 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// The one choke point of the maps' automatic machinery (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Which faces a frame
     /// draws", decision 26): grows the images when the served chain is longer than ever before, then returns the faces that
     /// drawn frame <paramref name="frame"/> draws of each served map. A map draws every face when it is not kept from
-    /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. Apart from a growth,
-    /// which empties <see cref="DrawnFor"/> because the new images hold no face, it changes no state: <see cref="Drew"/>
-    /// stores the served chain once the frame is submitted.
+    /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. The returned masks and
+    /// <see cref="IrradianceBlendFrames"/> describe the draw that this call prepares, until the next call.
+    /// <see cref="Drew"/> stores the chain after submission.
     /// </summary>
     /// <param name="served">The served chain, frame ids root first: from 1 to <see cref="EnvironmentChain.MaxMaps"/> of them.</param>
     /// <param name="everyFace">
@@ -250,11 +254,28 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             Grow(served.Length);
         Span<FaceMask> faces = facesOfMaps.AsSpan(0, served.Length);
         EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
+        uint turn = (uint)EnvironmentFaces.TurnDraws(maps: served.Length, facesPerFrame: Setting.FacesPerFrame);
         for (int map = 0; map < faces.Length; map++)
-            if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, everyFace: everyFace))
+        {
+            bool refreshes = EnvironmentFaces.RefreshesAll(
+                drawnFor: DrawnFor,
+                served: served,
+                map: map,
+                everyFace: everyFace
+            );
+            if (refreshes)
                 faces[map] = FaceMask.All;
+            blendDrawsOfMaps[map] = refreshes ? 1 : turn;
+        }
         return facesOfMaps.AsMemory(0, served.Length);
     }
+
+    /// <summary>
+    /// The draws over which the faces of map <paramref name="map"/> that the last <see cref="FacesFor"/> chose move its
+    /// published diffuse light to their capture, the current draw included. An ordinary capture takes one turn of the
+    /// faces (<see cref="EnvironmentFaces.TurnDraws"/>). A refresh takes one draw.
+    /// </summary>
+    public uint IrradianceBlendFrames(int map) => blendDrawsOfMaps[map];
 
     /// <summary>
     /// Records that the drawn frame in frame slot <paramref name="slot"/> was submitted for the served chain
@@ -460,6 +481,12 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private void WriteImageSets()
     {
         layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
+        layouts.WriteBuffer(
+            set: PrefilterSet,
+            binding: 2,
+            type: DescriptorType.StorageBuffer,
+            buffer: IrradianceContributions
+        );
         for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
         {
             (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: Levels);
@@ -566,6 +593,14 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     layers: layers,
                     name: "environment irradiance"
                 );
+                IrradianceContributions = GpuBuffer.Create(
+                    device: device,
+                    allocator: allocator,
+                    size: IrradianceCube.ContributionBytes(maps),
+                    usage: BufferUsageFlags.StorageBufferBit,
+                    memoryUsage: MemoryUsage.GpuOnly,
+                    name: "environment irradiance contributions"
+                );
                 CreateViews();
             }
             catch
@@ -656,6 +691,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         public GpuImage Distance { get; }
         public GpuImage Specular { get; }
         public GpuImage Irradiance { get; }
+        public GpuBuffer IrradianceContributions { get; }
 
         /// <summary>The 2D view of level 0 of each layer of <see cref="Radiance"/>, in layer order.</summary>
         public ImageView[] FaceViews { get; }
@@ -683,6 +719,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             DestroyViews(IrradianceLevelViews);
             DestroyViews(FaceViews);
             DestroyViews(DistanceFaceViews);
+            IrradianceContributions?.Dispose();
             Irradiance?.Dispose();
             Specular?.Dispose();
             Distance?.Dispose();
