@@ -92,7 +92,8 @@ void main()
         for (int lamp = 0; lamp < volumeLampCount; ++lamp)
             reflected += reflectedLight(vec4(volume.surfaces[k].color), area, min(volumeLamps[lamp], vec3(MaxRadiance)), grayKeeps, COLOR_GAIN);
 #else
-        vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light, grayKeeps, COLOR_GAIN);
+        vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light, grayKeeps,
+                                        paintGainOf(volume.surfaces[k].color, volume.surfaces[k].source.w));
 #endif
         volume.surfaces[k].source.rgb = floatBitsToUint(emission + reflected);
     }

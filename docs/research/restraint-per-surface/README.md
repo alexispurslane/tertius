@@ -207,6 +207,18 @@ The deck still (set 1's camera, 1280 x 720, the weighted split ramp B per lamp a
 - No pixel gets darker (1st percentile 0.00%). The switch takes no light from contact shadows, from under the crates or from corners in this frame.
 - [`evidence/deck-filter-difference-x16.png`](evidence/deck-filter-difference-x16.png) is the absolute difference of the display pictures times 16. It shows the same smooth lift of the near floor and the antialiasing at edges, with no pattern of cells.
 
+## The color gain follows the ramp (correction of variant 3)
+
+From commit after 596ed1e2e, variant 3 applies the color gain through the ramp, for the paint's part and for the lamp's part alike:
+
+weight(s) = mix(0.02, 1, ramp(s)) × mix(1, gain, ramp(s))
+
+with `s` the saturation of the paint or of the lamp's light. At gain 1 it is the weight of the ramp sheet, unchanged. The factor `gain` in front of the first bounce is gone. The second bounce stays without the gain. With ramp B at gain 4, the warm-white lamp (1, 0.9, 0.75) (saturation 0.25) keeps 1.10 times its gain-1 weight, the beige paint (0.7, 0.6, 0.5) 1.15 times, and the orange lamp (1, 0.4, 0) exactly 4 times. At gain 8 these factors are 1.23, 1.34 and 8.
+
+The capture keeps the paint's plain weighted sum in `color.rgb` for the second bounce. It adds the channel sum of each paint's colored part with its gained weight to the unused word `source.w`. The first bounce multiplies the colored paint sum by the ratio of the two (`paintGainOf`). That ratio is exact when a cell face holds one colored paint, and the weighted mean of the paints' factors when it holds several. Gray paint adds to neither sum.
+
+Every picture at gain 4 or 8 before this correction used the old gain, which multiplied the whole colored part by `gain`. Those pictures stay as a record.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.

@@ -67,4 +67,12 @@ void main()
 #if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
     atomicAdd(volume.surfaces[k].color.w, uint(round(area * reflectance.w)));
 #endif
+#if RESTRAINT_VARIANT == 3 && !VOLUME_COUNTERS
+    if (COLOR_GAIN != 1.0)
+    {
+        vec3 part = diffuse - min(diffuse.r, min(diffuse.g, diffuse.b));
+        atomicAdd(volume.surfaces[k].source.w,
+                  uint(round(area * ReflectanceScale * gainedWeight(diffuse, COLOR_GAIN) * (part.r + part.g + part.b))));
+    }
+#endif
 }

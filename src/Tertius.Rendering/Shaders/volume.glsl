@@ -150,7 +150,7 @@ const float ReflectanceScale = 64.0;
 
 // The weight that the colored part of a color `c` keeps: 1 in Design 2, and mix(share, 1, ramp(saturation)) in
 // variant 3.
-float coloredWeight(vec3 c)
+float rampOf(vec3 c)
 {
 #if RESTRAINT_VARIANT == 3 || RESTRAINT_VARIANT == 5
     float peak = max(c.r, max(c.g, c.b));
@@ -167,9 +167,42 @@ float coloredWeight(vec3 c)
 #else
 #error RESTRAINT_RAMP names no ramp
 #endif
-    return mix(NeutralSourceShare, 1.0, ramp);
+    return ramp;
 #else
     return 1.0;
+#endif
+}
+float coloredWeight(vec3 c)
+{
+    return mix(NeutralSourceShare, 1.0, rampOf(c));
+}
+// The weight with the color gain (variant 3): the gain follows the ramp, so a faint tint keeps nearly its weight at
+// gain 1 and a saturated color gets the whole gain. mix(share, 1, ramp) * mix(1, gain, ramp). Other variants put the
+// gain in front of the whole colored part.
+float gainedWeight(vec3 c, float gain)
+{
+#if RESTRAINT_VARIANT == 3
+    float ramp = rampOf(c);
+    return mix(NeutralSourceShare, 1.0, ramp) * mix(1.0, gain, ramp);
+#else
+    return gain * coloredWeight(c);
+#endif
+}
+// Variant 3 at a color gain other than 1: the factor that the first bounce gives the colored paint sum. The capture adds
+// the channel sum of each paint's colored part with its gained weight to source.w, beside the same sum with its plain
+// weight in color.rgb, which the second bounce keeps. Their ratio is each paint's mix(1, gain, ramp) when the cell face
+// holds one colored paint, and the mean of the paints' factors, weighted by their colored sums, when it holds several.
+// Gray paint adds to neither sum. The research counters (VOLUME_COUNTERS) also use source.w, so with them on the capture
+// adds no gained sum and the factor is 1.
+float paintGainOf(uvec4 color, uint gained)
+{
+#if RESTRAINT_VARIANT == 3
+    float plain = float(color.r) + float(color.g) + float(color.b);
+    if (COLOR_GAIN == 1.0 || plain <= 0.0)
+        return 1.0;
+    return clamp(float(gained) / plain, 1.0, max(COLOR_GAIN, 1.0));
+#else
+    return COLOR_GAIN;
 #endif
 }
 
@@ -195,7 +228,7 @@ vec4 capturedReflectance(vec3 diffuse)
 vec3 grayPaintKeeps(vec3 light, float gain)
 {
     float gray = min(light.r, min(light.g, light.b));
-    return gain * coloredWeight(light) * (light - gray) + NeutralSourceShare * gray;
+    return gainedWeight(light, gain) * (light - gray) + NeutralSourceShare * gray;
 }
 
 // The product rule of variant 5: what the volume keeps of the light `reflected` that leaves a surface, paint times
