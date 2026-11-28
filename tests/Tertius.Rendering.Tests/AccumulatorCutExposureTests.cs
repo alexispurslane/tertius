@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Tertius.Rendering.Tests;
 
 public sealed partial class AccumulatorRenderTests

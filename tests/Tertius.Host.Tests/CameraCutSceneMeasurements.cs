@@ -28,14 +28,14 @@ public sealed class CameraCutSceneMeasurements
             "return" => "issue4-cut-return-control.json",
             _ => "issue4-cut-first-present.json",
         };
-        Script script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", scriptName));
+        var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", scriptName));
         ExposureSetting exposure =
             Environment.GetEnvironmentVariable("TERTIUS_CUT_MANUAL") == "1"
                 ? new FixedExposure(2)
                 : AutoExposure.Default;
         RendererOptions options = Options(script, exposure, fsr);
         PresentationBoundary? boundary = null;
-        using VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+        using var renderer = VulkanRenderer.CreateOffscreen(
             options: options,
             createOutput: (device, allocator, extent) =>
                 boundary = new(new(device: device, allocator: allocator, extent: extent, bgra: false)),
@@ -136,7 +136,7 @@ public sealed class CameraCutSceneMeasurements
             int width = (int)renderer.LastScene.Constants.Viewport.X;
             int height = (int)renderer.LastScene.Constants.Viewport.Y;
             int center = 4 * (height / 2 * width + width / 2);
-            var shown = Png.Load(Path.Combine(folder, name + ".png"))
+            (int R, int G, int B) shown = Png.Load(Path.Combine(folder, name + ".png"))
                 .At(renderer.OutputSize.Width / 2, renderer.OutputSize.Height / 2);
             float applied = (
                 renderer.LastFrameStats.Exposure ?? throw new InvalidOperationException("No completed exposure.")
@@ -157,7 +157,7 @@ public sealed class CameraCutSceneMeasurements
                 {
                     Capture = name,
                     Tick = world.TickNumber,
-                    Exposure = renderer.LastFrameStats.Exposure,
+                    renderer.LastFrameStats.Exposure,
                     SceneTargetStops = target,
                     DestinationShadingDraws = renderer.DrawnFrames - draws,
                     Presentations = boundary.Presentations - presentations,
