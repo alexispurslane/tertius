@@ -1,0 +1,26 @@
+[
+  {
+    "id": "vrq1d36fdt7o5l",
+    "name": "tertius-cpu-8cb5570f0681-e865",
+    "image": "ghcr.io/alexispurslane/tertius-gpu:8cb5570f06810215acaa4311758417d7d159aca1",
+    "timeout": 7200000,
+    "workers": {
+      "idleTimeout": 10,
+      "initTimeout": null,
+      "max": 3,
+      "min": 0
+    }
+  },
+  {
+    "id": "shmmav4u60m5u8",
+    "name": "tertius-gpu-8cb5570f0681-085e",
+    "image": "ghcr.io/alexispurslane/tertius-gpu:8cb5570f06810215acaa4311758417d7d159aca1",
+    "timeout": 900000,
+    "workers": {
+      "idleTimeout": 10,
+      "initTimeout": null,
+      "max": 5,
+      "min": 0
+    }
+  }
+]

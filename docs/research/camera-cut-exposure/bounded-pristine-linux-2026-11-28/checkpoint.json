@@ -1,0 +1,6 @@
+{
+  "state": "canonical client ended; local and endpoint restoration verified",
+  "at": "2026-11-28T13:38:40.466932+00:00",
+  "canonical_exit_code": 1,
+  "restoration_complete": true
+}

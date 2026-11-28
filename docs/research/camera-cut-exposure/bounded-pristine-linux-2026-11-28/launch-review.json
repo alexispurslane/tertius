@@ -1,0 +1,95 @@
+{
+  "canonical_cli": [
+    "python3",
+    "-I",
+    "tools/runpod/gpu_job.py",
+    "submit",
+    "--agent",
+    "issue4-exposure",
+    "--tree",
+    "before=b002351eb48d33f008f8333e53e61345de3260cd",
+    "--tree",
+    "after=588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "--run",
+    "<full reviewed --run in canonical-argv.json and canonical-command.ps1>",
+    "--timeout",
+    "1920",
+    "--out",
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-linux-proposal/bounded-pristine-proposal/approved-one-run-2026-11-28/returned",
+    "--output",
+    "linux-out/return/*"
+  ],
+  "effective_command_seconds": 1920,
+  "effective_execution_seconds": 1980,
+  "effective_policy": {
+    "executionTimeout": 1980000,
+    "ttl": 7200000
+  },
+  "canonical_worst_case_usd": 0.328,
+  "payload_sha256": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "4df7782cc2dc69940094b9701bad03ac62ec7c690d312af87dc14f954be5d6c2",
+    "linux-scripts/issue4-cut-first-present.json": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480",
+    "linux-scripts/issue4-cut-outside-control.json": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929",
+    "linux-scripts/issue4-cut-return-control.json": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "endpoint_before": [
+    {
+      "id": "vrq1d36fdt7o5l",
+      "name": "tertius-cpu-8cb5570f0681-e865",
+      "image": "ghcr.io/alexispurslane/tertius-gpu:8cb5570f06810215acaa4311758417d7d159aca1",
+      "timeout": 7200000,
+      "workers": {
+        "idleTimeout": 10,
+        "initTimeout": null,
+        "max": 3,
+        "min": 0
+      }
+    },
+    {
+      "id": "shmmav4u60m5u8",
+      "name": "tertius-gpu-8cb5570f0681-085e",
+      "image": "ghcr.io/alexispurslane/tertius-gpu:8cb5570f06810215acaa4311758417d7d159aca1",
+      "timeout": 900000,
+      "workers": {
+        "idleTimeout": 10,
+        "initTimeout": null,
+        "max": 5,
+        "min": 0
+      }
+    }
+  ],
+  "unchanged_policy": {
+    "rates": {
+      "gpu": 0.00016,
+      "cpu": 2e-05
+    },
+    "workers": {
+      "gpu": 5,
+      "cpu": 3
+    },
+    "cpu_command_seconds": 7140,
+    "cpu_execution_seconds": 7200,
+    "daily_caps": {
+      "2026-11-11": 10.0,
+      "2026-11-13": 3.0,
+      "2026-11-22": 6.0,
+      "2026-11-23": 5.0
+    },
+    "total_cap_usd": 30.0
+  },
+  "collector_output": [
+    "linux-out/return/*"
+  ],
+  "command_sha256": "fd6ddfbbc15a264ad496c695257fd795908cd60de0be3213b608f327d9fe9d92"
+}

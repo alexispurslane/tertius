@@ -1,0 +1,32 @@
+{
+  "time": "2026-11-28T13:38:20.254474+00:00",
+  "agent": "issue4-exposure",
+  "kind": "gpu",
+  "endpoint": "shmmav4u60m5u8",
+  "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+  "trees": {
+    "before": {
+      "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/b002351eb48d33f008f8333e53e61345de3260cd",
+      "sha": "b002351eb48d33f008f8333e53e61345de3260cd"
+    },
+    "after": {
+      "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/588b6d2747560c73aac542fb25ce80eec1ba8db7",
+      "sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7"
+    }
+  },
+  "outputs": [
+    "linux-out/return/*"
+  ],
+  "worstCaseUsd": 0.328,
+  "jobId": "886d3f2c-6e01-406e-a4f4-50b51d417e1f-u1",
+  "gpuSeconds": 7.915,
+  "delaySeconds": 5.517,
+  "costUsd": 0.012466400000000002,
+  "result": "FAILED",
+  "exitCodes": [],
+  "error": "{\"error_type\": \"<class 'OSError'>\", \"error_message\": \"[Errno 7] Argument list too long: 'nix'\", \"error_traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/tertius-worker/lib/python3.12/site-packages/runpod/serverless/modules/rp_job.py\\\", line 262, in run_job\\n    handler_return = handler(job)\\n                     ^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/worker.py\\\", line 24, in run\\n    return handler.handle(job[\\\"input\\\"], baked=BAKED, work=work, shell=SHELL)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/handler.py\\\", line 74, in handle\\n    result[\\\"status\\\"] = run_commands(job.get(\\\"commands\\\", []), work, shell, seconds, result[\\\"steps\\\"], log)\\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/tertius/tools/runpod/handler.py\\\", line 153, in run_commands\\n    process = subprocess.Popen([*shell, command], cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT,\\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/lib/python3.12/subprocess.py\\\", line 1026, in __init__\\n    self._execute_child(args, executable, preexec_fn, close_fds,\\n  File \\\"/usr/lib/python3.12/subprocess.py\\\", line 1955, in _execute_child\\n    raise child_exception_type(errno_num, err_msg, err_filename)\\nOSError: [Errno 7] Argument list too long: 'nix'\\n\", \"hostname\": \"rdbu7v3vrgdxmz-64410ee1\", \"worker_id\": \"rdbu7v3vrgdxmz\", \"runpod_version\": \"2.2.1\"}",
+  "ended": "2026-11-28T13:38:39.831211+00:00",
+  "commands_sha256": [
+    "18707842aed762dec041dae6b08802025bae8a975ce53ce34cabecdc4fe1a340"
+  ]
+}

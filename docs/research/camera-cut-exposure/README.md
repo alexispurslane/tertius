@@ -1,5 +1,7 @@
 # First displayed frames after camera cuts
 
+The latest [bounded pristine Linux attempt](bounded-pristine-linux-2026-11-28/README.md) failed before measurement because its encoded command exceeded Linux argument limits. Its canonical counted cost was $0.0124664. The original 840/900-second policy and both endpoint defaults are verified restored. No measurement archive returned. Linux acceptance remains HOLD, and the single paid approval is consumed.
+
 The [corrected Design A Linux run](design-a-linux-2026-11-28/README.md) ended after validating diagnostics and pristine rebuilds. Its capacity check stopped both matched timing rounds. The synthetic FSR destination references also disagree between trees. Linux acceptance remains HOLD. The corrected attempt counted $0.09488624, separately from the earlier $0.05953728 attempt. PR #32 stays draft and In Progress for the parent's decision. F1 is resolved; no further review or paid retry is authorized.
 
 The capture and hardening campaign below records the earlier cf84 source. The user-selected 32-bit scene-radiance implementation has separate [Design A milestone evidence](design-a-2026-11-28/README.md). The earlier 201 captures and old glossy exposure-conversion mutants do not establish acceptance of that new path.
