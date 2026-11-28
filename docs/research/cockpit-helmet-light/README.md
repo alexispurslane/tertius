@@ -139,3 +139,52 @@ The tools are diagnostic only. Paths inside them point at the scratch checkouts 
 
 The blue helmet is not a fair control. Under the warm cabin lamp, a mixed blue bucket reaches saturation 0.61, so the
 volume's color restraint keeps about 6% of it. The black helmet has no such asymmetry.
+
+## The cockpit cases of the #42 ramps (2026-11-28)
+
+The 1:41 shot at the fixed exposure of 6.0043726 stops, 1280 × 720, the mean of 120 frames, with the helmet's light as
+normal minus black helmet. The cases ran on #42 commit 3ce85da6d with `tools/cockpit-cases-ramp.patch`. Every ramp case
+judges each lamp alone (`RESTRAINT_LAMPS 1`). Glow is unrestrained in every case except today. Two research switches
+are on unless a caption says otherwise:
+
+- `NOSE_GLOW 2`: the nose lamps glow from their front side only. It stands in for the asset fix of `shuttle_cabin.py`
+  (bug #47).
+- `CEILING_GLOW 0`: the two small ceiling glow0 patches send no glow, because #48 puts their light falsely on the panel.
+
+![The cockpit cases](cockpit-ramp-cases.jpg)
+
+| Case | Panel (8-bit) | Helmet's light on the panel (8-bit) | Helmet's light, linear | Hue, saturation | Other light / helmet red | Dark wall right of the strut, change | Floor, change |
+|---|---|---|---|---|---|---|---|
+| today | (39.0, 35.9, 29.3) | (+0.90, +0.40, +0.13) | (+0.000026, +0.000010, +0.000002) | 21°, 0.92 | 34.8 | 0 | 0 |
+| Design 2, gain 1 | (71.9, 60.0, 37.4) | (+0.62, +0.26, +0.04) | (+0.000025, +0.000008, +0.000000) | 21°, 1.00 | 81.8 | (+10.2, +7.4, +2.1) | (+2.9, +2.9, +2.1) |
+| ramp B, gain 1 | (46.4, 40.0, 28.0) | (+0.73, +0.29, +0.04) | (+0.000023, +0.000008, −0.000000) | 20°, 1.00 | 49.7 | (+3.0, +1.8, −0.4) | (+2.4, +2.5, +2.0) |
+| ramp B, gain 4 | (86.2, 67.3, 32.8) | (+2.08, +0.92, +0.13) | (+0.000090, +0.000031, +0.000000) | 20°, 1.00 | 28.1 | (+17.8, +11.5, +0.9) | (+2.5, +2.6, +2.1) |
+| ramp B, gain 8 | (124.0, 96.2, 38.7) | (+2.99, +1.47, +0.26) | (+0.000182, +0.000062, +0.000000) | 20°, 1.00 | 24.2 | (+34.0, +22.9, +3.1) | (+2.7, +2.7, +2.2) |
+| ramp D, gain 1 | (49.9, 42.5, 28.7) | (+0.69, +0.28, +0.04) | (+0.000023, +0.000008, −0.000000) | 20°, 1.00 | 54.0 | (+4.1, +2.6, −0.3) | (+2.5, +2.6, +2.0) |
+| ramp D, gain 4 | (95.4, 74.7, 35.2) | (+1.94, +0.88, +0.13) | (+0.000092, +0.000032, +0.000000) | 20°, 1.00 | 32.0 | (+20.5, +13.8, +1.9) | (+2.8, +2.8, +2.1) |
+| ramp C, gain 1 | (52.5, 44.4, 29.2) | (+0.69, +0.27, +0.03) | (+0.000023, +0.000008, −0.000000) | 20°, 1.00 | 57.2 | (+4.8, +3.1, −0.1) | (+2.6, +2.6, +2.0) |
+| ramp C, gain 4 | (102.3, 80.3, 36.9) | (+1.82, +0.83, +0.14) | (+0.000092, +0.000032, +0.000000) | 20°, 1.00 | 35.6 | (+22.9, +15.7, +2.4) | (+2.9, +2.9, +2.1) |
+| ramp B, gain 8, ceiling glow on | (134.5, 108.8, 52.4) | (+2.59, +1.27, +0.27) | (+0.000183, +0.000063, +0.000000) | 21°, 1.00 | 27.8 | (+38.6, +27.8, +5.5) | (+3.5, +3.6, +2.9) |
+| variant 4, N1 (no shuttle fix) | (60.2, 56.0, 43.6) | (+0.74, +0.32, +0.11) | (+0.000027, +0.000011, +0.000002) | 21°, 0.93 | 58.6 | (+4.3, +4.0, +2.5) | (+3.2, +3.2, +2.7) |
+| variant 4, fixed shuttle, no switches | (55.0, 51.0, 40.0) | (+0.77, +0.34, +0.10) | (+0.000027, +0.000011, +0.000002) | 21°, 0.93 | 51.9 | (+1.0, +1.0, +0.3) | (+1.4, +1.5, +1.1) |
+
+The changes are against today. "Dark wall right of the strut" is the region `darkCanopy` of `tools/cases_table.py`.
+`captures/issue20/cases/cockpit-cases-table.md` holds the full table with the left wall and the console.
+
+What the cases show:
+
+- The helmet's orange does not become visible on the panel in any case. At gain 4 its light grows 3.5 times in linear
+  units, and at gain 8 seven times, because the gain multiplies the colored bounce. But the whole panel turns gold at
+  the same time, so the helmet's share stays near today's (other light ÷ helmet red: 24 to 36 at gains 4 and 8, against
+  34.8 today). In `cockpit-ramp-panel-crops.jpg`, the panel with the normal helmet and with the black helmet look the
+  same in every case.
+- The gold wash at gains 4 and 8 does not come from the helmet. The black-helmet frames carry it equally.
+- The dark wall right of the strut stays dark at gain 1 (+3 to +5 red) and turns gold at gain 4 (+18 to +23 red) and
+  gain 8 (+34). The black of space through the canopy stays black in every case.
+- No colored light on the far side of a wall or under the floor line was seen. The floor's change stays neutral and
+  does not grow with the gain (+2.4 to +2.9 red from gain 1 to gain 8).
+- The ceiling patches (#48) cost the gain 8 case 10 more levels of red on the panel and 3 more on the console.
+- The fixed shuttle lights the cabin a little less than N1, because the ceiling patches' back sides no longer glow
+  either.
+
+![The panel with the normal and the black helmet](cockpit-ramp-panel-crops.jpg)
