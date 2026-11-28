@@ -15,8 +15,13 @@ mkdir -p "$out"; out=$(cd "$out" && pwd)
 export TERTIUS_CONTENT_ROOT=${TERTIUS_CONTENT_ROOT:-/Users/alexispurslane/Development/tertius/content}
 # EXPOSURE gives other stops; EXPOSURE=auto lets the exposure settle. ONLY=normal or ONLY=black renders one film.
 exposure="--exposure ${EXPOSURE:-6.0043726}"; [ "${EXPOSURE:-}" = auto ] && exposure=""
+# One GPU job at a time on the machine: a film starts only when no Tertius.Demo render and no Tertius.Rendering.Tests
+# run exists in any worktree. A film whose exposure.json exists (written at its end) is complete and is skipped.
+gpu_busy() { pgrep -f 'Tertius\.Demo --script|Tertius\.Rendering\.Tests' > /dev/null; }
 film() {
   local name=$1; shift
+  if [ -f "$out/$name/exposure.json" ]; then echo "skip complete film $out/$name"; return; fi
+  while gpu_busy; do sleep 15; done
   mkdir -p "$out/$name"
   env TERTIUS_DEBUG_VOLUME_FRAME=60 TERTIUS_DEBUG_VOLUME_DUMP="$out/$name/volume60.bin" "$@" \
     nix develop "$repo" --command bash "$repo/tools/gpu-lock.sh" --shared "$out/$name/lock.log" \
