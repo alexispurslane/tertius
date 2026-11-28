@@ -1,0 +1,17 @@
+{
+  "19e17c5ba364392ca6bf84b00c11a7d709771ded": {
+    "flake.nix": "ddcc019a0b7b3150796e3f88e7f9793e9a8459b7",
+    "flake.lock": "78b476d4eab9dfecda32972244c51b420065e406",
+    "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs": "9e8fe919f53c65950b792559637aa006c120486a",
+    "src/Tertius.Rendering/Vulkan/IDeviceMemory.cs": "d6023f781714f8fcf9fcf37ccd35a2c246412a24",
+    "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs": "0d0ad17ad97c3e28576f77d131e7a88bbcad4136"
+  },
+  "468dc19d0f5e247819f24bfaea297919439c7b4f": {
+    "flake.nix": "ddcc019a0b7b3150796e3f88e7f9793e9a8459b7",
+    "flake.lock": "78b476d4eab9dfecda32972244c51b420065e406",
+    "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs": "9e8fe919f53c65950b792559637aa006c120486a",
+    "src/Tertius.Rendering/Vulkan/IDeviceMemory.cs": "d6023f781714f8fcf9fcf37ccd35a2c246412a24",
+    "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs": "0d0ad17ad97c3e28576f77d131e7a88bbcad4136"
+  },
+  "candidate_diff_from_measured_production": ""
+}

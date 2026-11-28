@@ -1,0 +1,76 @@
+[
+  {
+    "name": "baseline",
+    "ref": "19e17c5ba364392ca6bf84b00c11a7d709771ded",
+    "archive": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-35-evidence/baseline-input.tar",
+    "archive_sha256": "b1ac359aa8596d3d1a0882a65b248b31c4c9ec1fa568b713ecd60ad51f84ed3f",
+    "git_metadata_present": false,
+    "all_original_git_blobs_verified": true,
+    "resumed_before_manifest": true,
+    "patches": {
+      "allocator.patch": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+      "regressions.patch": "be2ef72a14d4e692111de41ee85ec5f0c8fabf802839ccf9d255693109d477b6"
+    },
+    "base_allocator_blob": "9e8fe919f53c65950b792559637aa006c120486a",
+    "production_before_sha256": "0661bea627615d74a195a285352a7f4daa78f291d8133dbf740b7ca97a6f87ba",
+    "command": [
+      "dotnet",
+      "test",
+      "--project",
+      "tests/Tertius.Rendering.Tests",
+      "-c",
+      "Checked",
+      "--filter-class",
+      "*.DeviceAllocatorTests"
+    ],
+    "apply_check": true,
+    "changed_paths": [
+      "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs",
+      "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs"
+    ],
+    "production_after_sha256": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+    "final_allocator_blob": "f7aae7bd20d48ea3adf0d565ed476a6d2ec54594",
+    "test_exit": 0,
+    "test_log": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-35-evidence/baseline-tests.log",
+    "patched_source_unchanged_by_build": true,
+    "restored_original_source": true,
+    "elapsed_seconds": 45.422054052352905
+  },
+  {
+    "name": "candidate",
+    "ref": "468dc19d0f5e247819f24bfaea297919439c7b4f",
+    "archive": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-35-evidence/candidate-input.tar",
+    "archive_sha256": "90392d52dc943d56b2e8c327fa75e4bdaf90cde3242b378f2ae0ef1ec2d934ea",
+    "git_metadata_present": false,
+    "all_original_git_blobs_verified": true,
+    "resumed_before_manifest": false,
+    "patches": {
+      "allocator.patch": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+      "regressions.patch": "be2ef72a14d4e692111de41ee85ec5f0c8fabf802839ccf9d255693109d477b6"
+    },
+    "base_allocator_blob": "9e8fe919f53c65950b792559637aa006c120486a",
+    "production_before_sha256": "0661bea627615d74a195a285352a7f4daa78f291d8133dbf740b7ca97a6f87ba",
+    "command": [
+      "dotnet",
+      "test",
+      "--project",
+      "tests/Tertius.Rendering.Tests",
+      "-c",
+      "Checked",
+      "--filter-class",
+      "*.DeviceAllocatorTests"
+    ],
+    "apply_check": true,
+    "changed_paths": [
+      "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs",
+      "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs"
+    ],
+    "production_after_sha256": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+    "final_allocator_blob": "f7aae7bd20d48ea3adf0d565ed476a6d2ec54594",
+    "test_exit": 0,
+    "test_log": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-35-evidence/candidate-tests.log",
+    "patched_source_unchanged_by_build": true,
+    "restored_original_source": true,
+    "elapsed_seconds": 59.238234996795654
+  }
+]
