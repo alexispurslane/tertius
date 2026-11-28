@@ -18,6 +18,7 @@ wall's bounce light.
   is lit only by the red floor's wash, and its own bounce, the second bounce, reaches the receiver. Both slabs span
   x = 2 to 2.25 m, where the 0.25 m grid's edge moves when the camera crosses x = 0.125 m. The camera path is the
   probe's sweep.
+The lamp scenes also have the camera "wall-back", which looks straight at the wall's face that the star does not light.
 """
 import json
 import subprocess
@@ -108,6 +109,10 @@ public static partial class DemoScenes
         AddCamera(world: world, scene: scene, frame: room, pose: LookingAt(new(0.05, 0, 0), new(0.8, -0.25, -3)));
         scene.Add("across", world.Spawn(ViewIn(room, LookingAt(new(0.2, 0, 0), new(0.8, -0.25, -3)))));
         scene.AddView("across");
+        // Looks straight at the wall's face that the star does not light, from 1.5 m on the camera's side. Light of
+        // the lamp on that face crossed the wall (issue #47).
+        scene.Add("wall-back", world.Spawn(ViewIn(room, LookingAt(new(2.25, -0.85, 0.4), new(2.25, -0.85, -1.1)))));
+        scene.AddView("wall-back");
         return scene;
     }
 }
@@ -155,7 +160,7 @@ crossing = json.loads(Path("captures/issue22/crossing.json").read_text())
 
 for scene, name in (("restraint-orange-lamp", "orange"), ("restraint-warm-white", "warm"),
                     ("restraint-faint-beige", "faint"), ("restraint-two-lamps", "two")):
-    for camera, pose in (("camera", "outside"), ("across", "across")):
+    for camera, pose in (("camera", "outside"), ("across", "across"), ("wall-back", "wallback")):
         script = {"scene": scene, "window": {"width": 640, "height": 360},
                   "steps": [{"do": "camera", "entity": camera}, {"do": "capture", "name": f"{name}-{pose}"}]}
         (folder / f"{name}-{pose}.json").write_text(json.dumps(script, indent=2) + "\n")

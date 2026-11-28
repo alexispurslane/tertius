@@ -9,6 +9,7 @@
 #   warm      the warm-white and faint-beige scenes at both poses
 #   orange    the orange-lamp scene at both poses
 #   two       the white and orange lamps together, and the orange lamp alone, at both poses
+#   wallback  the orange-lamp scene from the camera wall-back, at the wall's face that the star does not light
 #   crossing  the crossing film of the mixed probe (the camera path of #22's crossing.mp4), EV 0
 #   crossing-second  the same camera path through the second-bounce scene (restraint-second-bounce), EV 0
 #   second    one still of the second-bounce scene at the first camera
@@ -107,6 +108,10 @@ for set in "$@"; do
                 render "$out/$name-$pose" "$scope/$name-$pose.json" "${probe[@]}"
             done
         done
+        ;;
+    wallback)
+        # The orange lamp's wall from the side that the star does not light (issue #47 at the color gain).
+        render "$out/orange-wallback" "$scope/orange-wallback.json" "${probe[@]}"
         ;;
     crossing | crossing-second)
         if [[ "$set" == crossing ]]; then film="$PWD/captures/issue22/crossing.json"; else film="$scope/crossing-second.json"; fi
