@@ -54,14 +54,19 @@ class CiWorkflow(unittest.TestCase):
 
         blocks = text.split("sparse-checkout: |")[1:]
         self.assertEqual(len(blocks), 2)
-        for block in blocks:
+        # Only the PR job runs the Python launch and transport tests.
+        camera_cut_fixtures = (
+            "docs/research/camera-cut-exposure/fsr-reference-investigation-2026-11-28/bounded-pristine-proposal",
+            "docs/research/camera-cut-exposure/issue37-linux-proof-2026-11-28",
+        )
+        for block, paths in zip(blocks, (expected + camera_cut_fixtures, expected), strict=True):
             entries = []
             for line in block.splitlines():
                 if line.startswith("            "):
                     entries.append(line.strip())
                 elif entries:
                     break
-            self.assertEqual(tuple(entries), expected)
+            self.assertEqual(tuple(entries), paths)
         self.assertNotIn("/usr/local/lib/android", text)
         self.assertIn("sudo rm -rf /opt/hostedtoolcache", text)
         self.assertIn("du -sh .", text)
