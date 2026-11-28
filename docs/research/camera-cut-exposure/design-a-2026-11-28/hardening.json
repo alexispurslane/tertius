@@ -1,0 +1,1888 @@
+{
+  "scope": "Design A changed Rendering behavior",
+  "current_counts": {
+    "killed": 22,
+    "survived": 0,
+    "timeout": 0,
+    "no_coverage": 0,
+    "build_failed": 0,
+    "no_tests": 0
+  },
+  "current_mutation_score": 1.0,
+  "initial_attempt_counts": {
+    "killed": 15,
+    "survived": 1,
+    "build_failed": 4
+  },
+  "initial_attempt_resolution": {
+    "A04": "Replaced the compiler-rejected unused-argument mutation with a compilable wrong scratch descriptor.",
+    "A05": "Added a changing-radiance regression; the parity fault returns 1.5e20 instead of the independent 2e20 mean in every mode.",
+    "A07": "Replaced a nonexistent overload with preExposed(light).",
+    "A09": "Replaced a nonexistent overload with preExposed(reflection).",
+    "A10": "Replaced a nonexistent overload with preExposed(glowAt(q))."
+  },
+  "current_rows": [
+    {
+      "id": "A01",
+      "file": "src/Tertius.Rendering/Frame/ScreenTraceImages.cs",
+      "line": 24,
+      "change": "Ray radiance loses float32 storage",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)"
+      ],
+      "seconds": 47.70411479193717,
+      "original": "public const Format LightFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format LightFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A02",
+      "file": "src/Tertius.Rendering/Frame/ScreenTraceImages.cs",
+      "line": 29,
+      "change": "Hit radiance loses float32 storage",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)"
+      ],
+      "seconds": 39.184507582336664,
+      "original": "public const Format HitLightFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format HitLightFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A03",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 36,
+      "change": "Glossy sample and history use diffuse format",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 13.353310333564878,
+      "original": "private Format LightFormat => Parameters.Light == SignalLight.Specular ? SceneSignalFormat : SignalFormat;",
+      "replacement": "private Format LightFormat => SignalFormat;",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A04",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 512,
+      "change": "Glossy temporal scratch aliases half diffuse scratch",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 12.47089416719973,
+      "original": "image: scratch.Part(part, Parameters.Light)",
+      "replacement": "image: scratch.Part(part)",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A05",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 510,
+      "change": "Reprojection reads writing parity instead of completed parity",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"precise-uncapped\")",
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"original\")",
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"precise-capped\")"
+      ],
+      "seconds": 10.74493954051286,
+      "original": "image: images.LastFast(parity)",
+      "replacement": "image: images.Fast(parity)",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ]
+    },
+    {
+      "id": "A06",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 511,
+      "change": "Fast history writes wrong parity",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheFrameAfterACutRescalesRetainedLightFromItsProducingExposure",
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)"
+      ],
+      "seconds": 9.941974208690226,
+      "original": "image: images.Fast(parity)",
+      "replacement": "image: images.LastFast(parity)",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A07",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 421,
+      "change": "Miss radiance incorrectly depends on camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: True)",
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: False)"
+      ],
+      "seconds": 76.85082758404315,
+      "original": "return min(light, vec3(GlossyRadianceLimit));",
+      "replacement": "return preExposed(light);",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A08",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 427,
+      "change": "Retained glossy history incorrectly rescales display exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance"
+      ],
+      "seconds": 42.53651333414018,
+      "original": "return lastFastSpecularAt(r).rgb;",
+      "replacement": "return exposed(lastFastSpecularAt(r).rgb, historyRatio(exposureStops, historyStops));",
+      "classes": [
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A09",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 473,
+      "change": "Hit radiance incorrectly depends on camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: False)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 9.99999968E-21)"
+      ],
+      "seconds": 76.54519966710359,
+      "original": "return min(reflection, vec3(GlossyRadianceLimit));",
+      "replacement": "return preExposed(reflection);",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A10",
+      "file": "src/Tertius.Rendering/Shaders/sent_light.glsl",
+      "line": 35,
+      "change": "Emissive ray producer reapplies camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: False)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 9.99999968E-21)"
+      ],
+      "seconds": 76.57732933294028,
+      "original": "surfaceShare(surface) * (glowAt(q) + directDiffuse)",
+      "replacement": "surfaceShare(surface) * (preExposed(glowAt(q)) + directDiffuse)",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A11",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 309,
+      "change": "Glossy temporal history wrongly converts producing exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 47.34191783238202,
+      "original": "#ifndef TERTIUS_SCENE_SPECULAR\n        float ratio",
+      "replacement": "#if 1\n        float ratio",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A12",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 380,
+      "change": "Fast history clips physical float32 radiance to half",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 12.17540437541902,
+      "original": "imageStore(fastHistory, pixel, vec4(fast, hitDistance));",
+      "replacement": "imageStore(fastHistory, pixel, vec4(nearestHalf(fast), hitDistance));",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A13",
+      "file": "src/Tertius.Rendering/Shaders/specular_history.glsl",
+      "line": 21,
+      "change": "Slow history and scratch clip physical radiance to half",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 48.004772916436195,
+      "original": "return value;",
+      "replacement": "return nearestHalf(value);",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ]
+    },
+    {
+      "id": "A14",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+      "line": 202,
+      "change": "Physical moments square unnormalized radiance",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 44.574045167304575,
+      "original": "vec3 offset = (imageLoad(fastHistory, neighbor).rgb - own.rgb) / momentScale;",
+      "replacement": "vec3 offset = imageLoad(fastHistory, neighbor).rgb - own.rgb;",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ]
+    },
+    {
+      "id": "A15",
+      "file": "src/Tertius.Rendering/Shaders/reflection_sharing_prototype.glsl",
+      "line": 166,
+      "change": "One normalization scale erases tiny red beside bright green",
+      "result": "killed",
+      "killed_by": [
+        "ReflectionSharingTests.SharingRetainsTinyColorChannelsBesideABrightColorChannel"
+      ],
+      "seconds": 71.17607762571424,
+      "original": "radianceScale = max(radianceScale, values[sampleIndex]);",
+      "replacement": "radianceScale = vec3(max(max(max(radianceScale.r, values[sampleIndex].r), max(radianceScale.g, values[sampleIndex].g)), max(radianceScale.b, values[sampleIndex].b)));",
+      "classes": [
+        "ReflectionSharingTests"
+      ]
+    },
+    {
+      "id": "A16",
+      "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+      "line": 100,
+      "change": "Composite wrongly decodes glossy scene radiance as exposed",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: True)",
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: False)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)"
+      ],
+      "seconds": 75.4509525001049,
+      "original": "vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;",
+      "replacement": "vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb / exposureScale();",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A17",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace_resolve.comp",
+      "line": 109,
+      "change": "Scene light format migration discards hit-distance metadata",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: False, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: False, fsr: False)"
+      ],
+      "seconds": 75.66508824937046,
+      "original": "hitDistance = reflection.light.a;",
+      "replacement": "hitDistance = 0.0;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A18",
+      "file": "src/Tertius.Rendering/Shaders/exposure.glsl",
+      "line": 15,
+      "change": "Numerical scene guard regresses to display half-radiance budget",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: 64, radiance: 1.00000002E+20)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 1.00000002E+30)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: 64, radiance: 1.00000002E+30)"
+      ],
+      "seconds": 86.89488400053233,
+      "original": "const float GlossyRadianceLimit = 16.0 * SceneRadianceLimit;",
+      "replacement": "const float GlossyRadianceLimit = MaxRadiance;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A19",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 111,
+      "change": "Disabled guide binds float32 light instead of its half geometric format",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: False, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: False, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)"
+      ],
+      "seconds": 88.17940524965525,
+      "original": "sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyGuide",
+      "replacement": "sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyHistory",
+      "classes": [
+        "AmbientCutSourceTests",
+        "ReflectionSharingTests"
+      ]
+    },
+    {
+      "id": "A20",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 356,
+      "change": "Original glossy fallback geometric guide loses temporal synchronization",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)"
+      ],
+      "seconds": 9.786309792660177,
+      "original": "if (!reflectionDistanceHistory && Parameters.Light == SignalLight.Specular)\n            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);",
+      "replacement": "",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ]
+    },
+    {
+      "id": "A21",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 93,
+      "change": "Failed construction leaks the scene-radiance fallback",
+      "result": "killed",
+      "killed_by": [
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: True)",
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: False)"
+      ],
+      "seconds": 9.69763991702348,
+      "original": "            emptyHistory.Dispose();",
+      "replacement": "            // Fault: omit fallback cleanup.",
+      "classes": [
+        "CompositeConstructionTests"
+      ]
+    },
+    {
+      "id": "A22",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 92,
+      "change": "Failed pipeline preparation leaks the distance-guide fallback",
+      "result": "killed",
+      "killed_by": [
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: False)"
+      ],
+      "seconds": 7.03347724955529,
+      "original": "            emptyGuide?.Dispose();",
+      "replacement": "            // Fault: omit fallback cleanup.",
+      "classes": [
+        "CompositeConstructionTests"
+      ]
+    }
+  ],
+  "unified_rows": [
+    {
+      "id": "C01",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 14,
+      "change": "old narrow scene meter floor",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -40)",
+        "SceneExposureMeterTests.ASceneLuminanceKeepsItsStopsAcrossTheSupportedRadianceRange(stops: -80)"
+      ],
+      "seconds": 7.782387957908213,
+      "original": "public const float LowestStops = -160;",
+      "replacement": "public const float LowestStops = -16;",
+      "classes": [
+        "SceneExposureMeterTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C02",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 26,
+      "change": "black and subnormals enter a nonblack bin",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 4194304)",
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 1)",
+        "SceneMeterFloatTests.BlackAndPositiveSubnormalLuminancesUseTheBlackBin(bits: 8388607)"
+      ],
+      "seconds": 9.989993125200272,
+      "original": "return 0;",
+      "replacement": "return 1;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C03",
+      "file": "src/Tertius.Rendering/Shading/ExposureMeter.cs",
+      "line": 115,
+      "change": "scene target incorrectly depends on previous exposure",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: 64)",
+        "SceneExposureMeterTests.ASceneReadingChoosesTheSameExposureRegardlessOfThePreviousView(previous: -64)"
+      ],
+      "seconds": 4.411000666208565,
+      "original": "float averageTarget = MathF.Log2(MiddleGray) - mean;",
+      "replacement": "float averageTarget = MathF.Log2(MiddleGray) - (mean - usedStops);",
+      "classes": [
+        "SceneExposureMeterTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C04",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 222,
+      "change": "only the first view receives early metering",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ConsecutiveCutsMeterARevisitedViewAfterItsLightChanges",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 32.077718541026115,
+      "original": "drawn is null || CutsFrom(snapshot)",
+      "replacement": "drawn is null",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C05",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 235,
+      "change": "a discontinuous camera switch leaves environment faces stale",
+      "result": "killed",
+      "killed_by": [
+        "FrameHistoryTests.ACutThatKeepsTheCamerasFrameRefreshesEveryFaceOfTheMaps",
+        "FrameHistoryTests.ASwitchToACameraInAnotherFrameRefreshesEveryFaceOfTheMaps"
+      ],
+      "seconds": 4.410767000168562,
+      "original": "(still && draw == 0) || CutsFrom(snapshot)",
+      "replacement": "still && draw == 0",
+      "classes": [
+        "FrameHistoryTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C06",
+      "file": "src/Tertius.Rendering/Frame/FrameHistory.cs",
+      "line": 271,
+      "change": "continuous frame handoff retains incompatible coordinate histories",
+      "result": "killed",
+      "killed_by": [
+        "FrameHistoryTests.AfterTheCamerasFrameChangesThePreviousRenderSizeIsStillTheLastDrawnFramesSize",
+        "FrameHistoryTests.AHandOffOfTheCamerasFrameResetsTheHistoriesButLeavesTheMapsToTheChain"
+      ],
+      "seconds": 4.416093582287431,
+      "original": "|| !KeepsTheFrame(snapshot)",
+      "replacement": "|| false",
+      "classes": [
+        "FrameHistoryTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C07",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 85,
+      "change": "a cut uses ordinary late adaptation",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 41.81332229170948,
+      "original": "WriteExposure(context, phase: 1);",
+      "replacement": "WriteExposure(context, phase: 0);",
+      "classes": [
+        "CameraCutExposureTests",
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C08",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 89,
+      "change": "the late cut dispatch overwrites the producing history exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 11.114859333261847,
+      "original": "context.History.MetersNewView ? 2u : 0u",
+      "replacement": "0u",
+      "classes": [
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C09",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 86,
+      "change": "shown exposure diagnostics never receive early cut exposure",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 1361, destination: 0.00100000005)",
+        "CameraCutExposureTests.EveryPresentationOfAWindowCutAlreadyUsesTheSettledDestination(source: 0.00100000005, destination: 1361)",
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 32.17133975028992,
+      "original": "context.Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: context.Frame.Index);",
+      "replacement": "",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C10",
+      "file": "src/Tertius.Rendering/Passes/LightPyramidPass.cs",
+      "line": 44,
+      "change": "light pyramid reads cut exposure without a compute dependency",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)"
+      ],
+      "seconds": 8.027427583001554,
+      "original": "context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+      "replacement": "",
+      "classes": [
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C11",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 335,
+      "change": "accumulator exposure consumer declares the wrong pipeline stage",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests.WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame",
+        "AccumulatorRenderTests.TheRetainedDeviationTakesTheExposureRatio"
+      ],
+      "seconds": 53.80062195844948,
+      "original": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+      "replacement": "barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);",
+      "classes": [
+        "AccumulatorRenderTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C12",
+      "file": "src/Tertius.Rendering/Upscaling/Fsr3Upscaler.cs",
+      "line": 1006,
+      "change": "FSR reset uses a prior display exposure ratio",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+      ],
+      "seconds": 8.476255125366151,
+      "original": "frame.Inputs.Frame.Reset || executions == 0 ? 1u : 0u",
+      "replacement": "0u",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S01",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 5,
+      "change": "largest finite scene luminance loses the final histogram slice",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 41.746332166716456,
+      "original": "const uint HistogramBins = 2304u;",
+      "replacement": "const uint HistogramBins = 2048u;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S02",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 7,
+      "change": "GPU scene range collapses to the old floor",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 42.64899683278054,
+      "original": "const float LowestStops = -160.0;",
+      "replacement": "const float LowestStops = -16.0;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S03",
+      "file": "src/Tertius.Rendering/Shaders/meter.glsl",
+      "line": 20,
+      "change": "GPU black/subnormal floor uses a nonblack bin",
+      "result": "killed",
+      "killed_by": [
+        "SceneMeterFloatTests.TheGpuKeepsFiniteBinsFromBlackThroughTheLargestSceneLuminance"
+      ],
+      "seconds": 47.830002875067294,
+      "original": "return 0u;",
+      "replacement": "return 1u;",
+      "classes": [
+        "SceneMeterFloatTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S04",
+      "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+      "line": 24,
+      "change": "phantom histogram counts survive the workgroup clear",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)",
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 75.7410229574889,
+      "original": "localBins[bin] = 0u;",
+      "replacement": "localBins[bin] = 1u;",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S05",
+      "file": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+      "line": 35,
+      "change": "surface counts never reach the global histogram",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.AContinuousReferenceFrameHandoffKeepsGradualExposureAdaptation"
+      ],
+      "seconds": 30.421951125375926,
+      "original": "uint count = localBins[bin];",
+      "replacement": "uint count = 0u;",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S06",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 0 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.640233917161822,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 0u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S07",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 1 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.855538667179644,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 1u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S08",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 2 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.945538790896535,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 2u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S09",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 3 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 512)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 12.575905249454081,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 3u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S10",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 4 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+      ],
+      "seconds": 13.197320125065744,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 4u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S11",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 5 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 13.958546042442322,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 5u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S12",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 6 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 16.03366299998015,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 6u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S13",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 7 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 2048)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1792)",
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.138521749526262,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 7u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S14",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 53,
+      "change": "scan omits histogram slice 8 of 9",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 12.83963350020349,
+      "original": "cumulative[i + 256u * part] += before[part];",
+      "replacement": "if (part != 8u) cumulative[i + 256u * part] += before[part];",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S15",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 56,
+      "change": "last histogram bin is excluded from the total",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops"
+      ],
+      "seconds": 13.520730749703944,
+      "original": "float total = float(cumulative[HistogramBins - 1u]);",
+      "replacement": "float total = float(cumulative[HistogramBins - 2u]);",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S16",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 57,
+      "change": "dark quantile trim is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1280)"
+      ],
+      "seconds": 13.97948041651398,
+      "original": "float low = adapt.darkShare * total;",
+      "replacement": "float low = 0.0;",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S17",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 58,
+      "change": "bright quantile trim is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 13.793672958388925,
+      "original": "float high = (1.0 - adapt.brightShare) * total;",
+      "replacement": "float high = total;",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S18",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 89,
+      "change": "highlight protection is omitted",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 768)"
+      ],
+      "seconds": 14.325105999596417,
+      "original": "min(log2(MiddleGray) - mean, -brightEdge) + adapt.compensationStops",
+      "replacement": "log2(MiddleGray) - mean + adapt.compensationStops",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S19",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 89,
+      "change": "configured compensation is ignored",
+      "result": "killed",
+      "killed_by": [
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1024)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 1536)",
+        "SceneExposureHistogramTests.CountsOnBothSidesOfEveryReductionBlockMatchTheIndependentSequentialMeter(boundary: 256)"
+      ],
+      "seconds": 15.614341374486685,
+      "original": "+ adapt.compensationStops,",
+      "replacement": "+ 0.0,",
+      "classes": [
+        "SceneExposureHistogramTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S20",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 37,
+      "change": "late cut fails to finish its previous displayed exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 9.111899583600461,
+      "original": "previousStops = exposureStops;",
+      "replacement": "previousStops = historyStops;",
+      "classes": [
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S21",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 93,
+      "change": "empty cut inherits an unrelated source view exposure",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: False)",
+        "CameraCutExposureTests.ACutWithNoSurfaceCountsShowsTheSettingsNeutralExposure(fsr: True)"
+      ],
+      "seconds": 31.33319920860231,
+      "original": "target = clamp(0.0, adapt.minStops, adapt.maxStops);",
+      "replacement": "target = used;",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S22",
+      "file": "src/Tertius.Rendering/Shaders/exposure_adapt.comp",
+      "line": 96,
+      "change": "cut histories are mislabeled with the display exposure",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 8.231894291937351,
+      "original": "historyStops = used;",
+      "replacement": "historyStops = target;",
+      "classes": [
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S23",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 310,
+      "change": "accumulator rescales indirect history from the previous display exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheFrameAfterACutRescalesRetainedLightFromItsProducingExposure"
+      ],
+      "seconds": 7.783383125439286,
+      "original": "historyRatio(exposureStops, historyStops)",
+      "replacement": "historyRatio(exposureStops, previousStops)",
+      "classes": [
+        "*CutHistoryExposure"
+      ],
+      "evidence": "retained prior run; unchanged behavior",
+      "resolution": "Retained for diffuse light only; the diffuse producing-exposure conversion is unchanged."
+    },
+    {
+      "id": "S24",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 428,
+      "change": "screen tracer rescales indirect history from the previous display exposure",
+      "result": "removed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerRescalesACutsPreviousReflectionFromItsProducingExposure"
+      ],
+      "seconds": 43.874046167358756,
+      "original": "historyRatio(exposureStops, historyStops)",
+      "replacement": "historyRatio(exposureStops, previousStops)",
+      "classes": [
+        "*CutHistoryExposure"
+      ],
+      "evidence": "retired expectation; not counted",
+      "resolution": "Design A removes glossy exposure conversion. A08 and A11 test the new scene-radiance requirement."
+    },
+    {
+      "id": "S25",
+      "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+      "line": 27,
+      "change": "FSR reset ratio depends on unrelated source display exposure",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: True, expected: 1)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: True, expected: 1)"
+      ],
+      "seconds": 53.17590079084039,
+      "original": "reset != 0u ? 1.0",
+      "replacement": "false ? 1.0",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "S26",
+      "file": "src/Tertius.Rendering/Shaders/fsr_exposure.comp",
+      "line": 28,
+      "change": "FSR ratio overflows across supported exposure endpoints",
+      "result": "killed",
+      "killed_by": [
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: 64, previous: -64, reset: False, expected: 1.84467441E+19)",
+        "Fsr3UpscalerTests.ExposureEndpointsKeepTheUpscaleRatioFinite(current: -64, previous: 64, reset: False, expected: 5.42101086E-20)"
+      ],
+      "seconds": 10.640610207803547,
+      "original": "exp2(clamp(exposureStops - previousStops, -64.0, 64.0))",
+      "replacement": "exp2(exposureStops - previousStops)",
+      "classes": [
+        "Fsr3UpscalerTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C13",
+      "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+      "line": 160,
+      "change": "adapt dispatch loses its early or late cut phase",
+      "result": "killed",
+      "killed_by": [
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: True)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: True, fsr: False)",
+        "ExposureLifecycleTests.ACutAndItsFollowingFrameKeepProducingExposureSeparateFromDisplayedExposure(trace: False, fsr: True)"
+      ],
+      "seconds": 68.91323091648519,
+      "original": "Phase = phase,",
+      "replacement": "Phase = phase & 0u,",
+      "classes": [
+        "CameraCutExposureTests",
+        "ExposureLifecycleTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "C14",
+      "file": "src/Tertius.Rendering/VulkanRenderer.cs",
+      "line": 852,
+      "change": "fixed exposure no longer records its shown-frame reading",
+      "result": "killed",
+      "killed_by": [
+        "CameraCutExposureTests.ACameraCutKeepsManualExposureFixed"
+      ],
+      "seconds": 28.048691915348172,
+      "original": "if (exposureSetting is FixedExposure)",
+      "replacement": "if (exposureSetting is FixedExposure && history.DrawnFrames < 0)",
+      "classes": [
+        "CameraCutExposureTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "SIM3",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 239,
+      "change": "a continuous reference-frame handoff increments camera cuts",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.AContinuousCameraHandoffKeepsTheCameraCutCount"
+      ],
+      "seconds": 4.774676166474819,
+      "original": "if (!continuousCamera)",
+      "replacement": "if (!interpolate)",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "SIM1",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 235,
+      "change": "a continuing camera is reported as discontinuous",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": 3.798590499907732,
+      "original": "lastCamera == view.Camera && lastCameraStamp == stamp - 1",
+      "replacement": "lastCamera != view.Camera && lastCameraStamp == stamp - 1",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "SIM2",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 236,
+      "change": "a reference-frame handoff interpolates incompatible coordinates",
+      "result": "killed",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": 3.762084249407053,
+      "original": "continuousCamera && lastCameraFrame == cameraFrame",
+      "replacement": "continuousCamera && lastCameraFrame != cameraFrame",
+      "classes": [
+        "RenderSnapshotInterpolationTests"
+      ],
+      "evidence": "retained prior run; unchanged behavior"
+    },
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L235",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 235,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM1",
+      "evidence": "retained official Stryker run; exact Core/Simulation source unchanged"
+    },
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L236",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 236,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove",
+        "RenderSnapshotInterpolationTests.AnObjectThatAppearsInTheWorldHasNoPreviousPoseInItsFirstSnapshot",
+        "RenderSnapshotInterpolationTests.ThePreviousPositionOfTheCameraIsRelativeToTheCurrentOrigin"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM2",
+      "evidence": "retained official Stryker run; exact Core/Simulation source unchanged"
+    },
+    {
+      "id": "Simulation-Internal/Rendering/RenderSnapshotBuilder.cs-L239",
+      "file": "src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs",
+      "line": 239,
+      "change": "every Stryker mutant failed to compile",
+      "result": "no-mutant",
+      "killed_by": [
+        "RenderSnapshotInterpolationTests.AContinuousCameraHandoffKeepsTheCameraCutCount"
+      ],
+      "seconds": null,
+      "resolution": "compilable replacement killed",
+      "replacement_id": "SIM3",
+      "evidence": "retained official Stryker run; exact Core/Simulation source unchanged"
+    },
+    {
+      "id": "A01",
+      "file": "src/Tertius.Rendering/Frame/ScreenTraceImages.cs",
+      "line": 24,
+      "change": "Ray radiance loses float32 storage",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)"
+      ],
+      "seconds": 47.70411479193717,
+      "original": "public const Format LightFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format LightFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A02",
+      "file": "src/Tertius.Rendering/Frame/ScreenTraceImages.cs",
+      "line": 29,
+      "change": "Hit radiance loses float32 storage",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)"
+      ],
+      "seconds": 39.184507582336664,
+      "original": "public const Format HitLightFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format HitLightFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A03",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 36,
+      "change": "Glossy sample and history use diffuse format",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 13.353310333564878,
+      "original": "private Format LightFormat => Parameters.Light == SignalLight.Specular ? SceneSignalFormat : SignalFormat;",
+      "replacement": "private Format LightFormat => SignalFormat;",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A04",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 512,
+      "change": "Glossy temporal scratch aliases half diffuse scratch",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 12.47089416719973,
+      "original": "image: scratch.Part(part, Parameters.Light)",
+      "replacement": "image: scratch.Part(part)",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A05",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 510,
+      "change": "Reprojection reads writing parity instead of completed parity",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"precise-uncapped\")",
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"original\")",
+        "AccumulatorRenderTests+SceneRadianceFiltering.EachGlossyFastHistoryParityUsesTheLastCompletedDraw(mode: \"precise-capped\")"
+      ],
+      "seconds": 10.74493954051286,
+      "original": "image: images.LastFast(parity)",
+      "replacement": "image: images.Fast(parity)",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A06",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 511,
+      "change": "Fast history writes wrong parity",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheFrameAfterACutRescalesRetainedLightFromItsProducingExposure",
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)"
+      ],
+      "seconds": 9.941974208690226,
+      "original": "image: images.Fast(parity)",
+      "replacement": "image: images.LastFast(parity)",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A07",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 421,
+      "change": "Miss radiance incorrectly depends on camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: True)",
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: False)"
+      ],
+      "seconds": 76.85082758404315,
+      "original": "return min(light, vec3(GlossyRadianceLimit));",
+      "replacement": "return preExposed(light);",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A08",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 427,
+      "change": "Retained glossy history incorrectly rescales display exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+CutHistoryExposure.TheTracerKeepsACutsPreviousReflectionInSceneRadiance"
+      ],
+      "seconds": 42.53651333414018,
+      "original": "return lastFastSpecularAt(r).rgb;",
+      "replacement": "return exposed(lastFastSpecularAt(r).rgb, historyRatio(exposureStops, historyStops));",
+      "classes": [
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A09",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 473,
+      "change": "Hit radiance incorrectly depends on camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: False)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 9.99999968E-21)"
+      ],
+      "seconds": 76.54519966710359,
+      "original": "return min(reflection, vec3(GlossyRadianceLimit));",
+      "replacement": "return preExposed(reflection);",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A10",
+      "file": "src/Tertius.Rendering/Shaders/sent_light.glsl",
+      "line": 35,
+      "change": "Emissive ray producer reapplies camera exposure",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: False)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 9.99999968E-21)"
+      ],
+      "seconds": 76.57732933294028,
+      "original": "surfaceShare(surface) * (glowAt(q) + directDiffuse)",
+      "replacement": "surfaceShare(surface) * (preExposed(glowAt(q)) + directDiffuse)",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A11",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 309,
+      "change": "Glossy temporal history wrongly converts producing exposure",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1.00000002E+30)"
+      ],
+      "seconds": 47.34191783238202,
+      "original": "#ifndef TERTIUS_SCENE_SPECULAR\n        float ratio",
+      "replacement": "#if 1\n        float ratio",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A12",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_temporal.comp",
+      "line": 380,
+      "change": "Fast history clips physical float32 radiance to half",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 12.17540437541902,
+      "original": "imageStore(fastHistory, pixel, vec4(fast, hitDistance));",
+      "replacement": "imageStore(fastHistory, pixel, vec4(nearestHalf(fast), hitDistance));",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A13",
+      "file": "src/Tertius.Rendering/Shaders/specular_history.glsl",
+      "line": 21,
+      "change": "Slow history and scratch clip physical radiance to half",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 48.004772916436195,
+      "original": "return value;",
+      "replacement": "return nearestHalf(value);",
+      "classes": [
+        "*SceneRadianceFiltering",
+        "*CutHistoryExposure"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A14",
+      "file": "src/Tertius.Rendering/Shaders/accumulate_spatial.comp",
+      "line": 202,
+      "change": "Physical moments square unnormalized radiance",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1E-30)"
+      ],
+      "seconds": 44.574045167304575,
+      "original": "vec3 offset = (imageLoad(fastHistory, neighbor).rgb - own.rgb) / momentScale;",
+      "replacement": "vec3 offset = imageLoad(fastHistory, neighbor).rgb - own.rgb;",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A15",
+      "file": "src/Tertius.Rendering/Shaders/reflection_sharing_prototype.glsl",
+      "line": 166,
+      "change": "One normalization scale erases tiny red beside bright green",
+      "result": "killed",
+      "killed_by": [
+        "ReflectionSharingTests.SharingRetainsTinyColorChannelsBesideABrightColorChannel"
+      ],
+      "seconds": 71.17607762571424,
+      "original": "radianceScale = max(radianceScale, values[sampleIndex]);",
+      "replacement": "radianceScale = vec3(max(max(max(radianceScale.r, values[sampleIndex].r), max(radianceScale.g, values[sampleIndex].g)), max(radianceScale.b, values[sampleIndex].b)));",
+      "classes": [
+        "ReflectionSharingTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A16",
+      "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+      "line": 100,
+      "change": "Composite wrongly decodes glossy scene radiance as exposed",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: True)",
+        "AmbientCutSourceTests.TheFirstGlossyDestinationMatchesItsIndependentControlFromBothExposureEndpoints(brightSource: False)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)"
+      ],
+      "seconds": 75.4509525001049,
+      "original": "vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;",
+      "replacement": "vec3 glossy = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb / exposureScale();",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A17",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace_resolve.comp",
+      "line": 109,
+      "change": "Scene light format migration discards hit-distance metadata",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: True, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: False, fsr: True)",
+        "GlossySceneRadianceTests.TheFirstReflectedEmitterMatchesAnIndependentDestinationFromBothExposureHistories(bright: False, fsr: False)"
+      ],
+      "seconds": 75.66508824937046,
+      "original": "hitDistance = reflection.light.a;",
+      "replacement": "hitDistance = 0.0;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A18",
+      "file": "src/Tertius.Rendering/Shaders/exposure.glsl",
+      "line": 15,
+      "change": "Numerical scene guard regresses to display half-radiance budget",
+      "result": "killed",
+      "killed_by": [
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: 64, radiance: 1.00000002E+20)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: -64, radiance: 1.00000002E+30)",
+        "GlossySceneRadianceTests.AMirrorCarriesItsEmittersSceneRadianceThroughOrdinaryFrames(stops: 64, radiance: 1.00000002E+30)"
+      ],
+      "seconds": 86.89488400053233,
+      "original": "const float GlossyRadianceLimit = 16.0 * SceneRadianceLimit;",
+      "replacement": "const float GlossyRadianceLimit = MaxRadiance;",
+      "classes": [
+        "GlossySceneRadianceTests",
+        "AmbientCutSourceTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A19",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 111,
+      "change": "Disabled guide binds float32 light instead of its half geometric format",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: False, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: False, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: True, volume: False)"
+      ],
+      "seconds": 88.17940524965525,
+      "original": "sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyGuide",
+      "replacement": "sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : emptyHistory",
+      "classes": [
+        "AmbientCutSourceTests",
+        "ReflectionSharingTests"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A20",
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "line": 356,
+      "change": "Original glossy fallback geometric guide loses temporal synchronization",
+      "result": "killed",
+      "killed_by": [
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-uncapped\", radiance: 1E-30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"precise-capped\", radiance: 1.00000002E+30)",
+        "AccumulatorRenderTests+SceneRadianceFiltering.TheGlossyClampKeepsThePhysicalSpreadOfVerySmallAndLargeSamples(mode: \"original\", radiance: 1E-30)"
+      ],
+      "seconds": 9.786309792660177,
+      "original": "if (!reflectionDistanceHistory && Parameters.Light == SignalLight.Specular)\n            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);",
+      "replacement": "",
+      "classes": [
+        "*SceneRadianceFiltering"
+      ],
+      "evidence": "current Design A scripted run"
+    },
+    {
+      "id": "A21",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 93,
+      "change": "Failed construction leaks the scene-radiance fallback",
+      "result": "killed",
+      "killed_by": [
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: True)",
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: False)"
+      ],
+      "seconds": 9.69763991702348,
+      "original": "            emptyHistory.Dispose();",
+      "replacement": "            // Fault: omit fallback cleanup.",
+      "classes": [
+        "CompositeConstructionTests"
+      ],
+      "evidence": "constructor-cleanup follow-up; production unchanged"
+    },
+    {
+      "id": "A22",
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "line": 92,
+      "change": "Failed pipeline preparation leaks the distance-guide fallback",
+      "result": "killed",
+      "killed_by": [
+        "CompositeConstructionTests.ACompositeThatCannotFinishConstructionReleasesItsFallbackImages(failGuideAllocation: False)"
+      ],
+      "seconds": 7.03347724955529,
+      "original": "            emptyGuide?.Dispose();",
+      "replacement": "            // Fault: omit fallback cleanup.",
+      "classes": [
+        "CompositeConstructionTests"
+      ],
+      "evidence": "constructor-cleanup follow-up; production unchanged"
+    }
+  ],
+  "retained_scripted_kills": 42,
+  "retired": [
+    "S24"
+  ],
+  "official_mutation_score": null,
+  "official_reuse_reason": "Core and Simulation source is byte-identical to the recorded official run; no executable official mutant ran then.",
+  "restoration": "Both scripted runs verified exact source/mode/index/HEAD/merge restoration and rebuilt the normal assembly; independent hashes also match. The cleanup follow-up also restored exact source and Git metadata and rebuilt the normal assembly.",
+  "glsl_line_coverage": "Excluded: Microsoft code coverage instruments managed C# only. Listed GPU behavior faults cover shader unit, range, format, history, sharing, composition and metadata failures.",
+  "soak": "No new soak or MTBF claim; bounded GPU correctness and scripted-fault tests.",
+  "source_sha256": {
+    "src/Tertius.Rendering/Frame/HistoryInstrumentation.cs": "2a072330882f0315806fc832828ae9d5cf6bd27505e928dc8461060dd1ad8119",
+    "src/Tertius.Rendering/Frame/ScreenTraceImages.cs": "24546dd411992835db7cd6be21638de379776eb5a777a050544a7c3b785f4118",
+    "src/Tertius.Rendering/Frame/SignalScratch.cs": "70c3b6bc729c7bed1b5912753857141f911afaa2c238c78e2a251002bd36199c",
+    "src/Tertius.Rendering/Frame/TemporalSignal.cs": "39c8adeebdbe5ce222a76289e8e0735a459c7d687afc6a0b7c17f4cd10a5fa82",
+    "src/Tertius.Rendering/Passes/CompositePass.cs": "801544beaad53fb9502caffab0f0203da154860c8007506cf0f30432e26f8fd4",
+    "src/Tertius.Rendering/Shaders/accumulate.glsl": "99bad645d6ec0f96fb37c2e9ccf499c0e9a4c0da2db39dc13e44c15b4d1a268b",
+    "src/Tertius.Rendering/Shaders/accumulate_spatial.comp": "4185b38dd562049ec159584a06627c83a52c2dac949e2dea9ef66e95b0ed374c",
+    "src/Tertius.Rendering/Shaders/accumulate_temporal.comp": "374efc803e06a730ee81452c6b5d1662f2dc7e3dd9b6fdd3e42939681b6a2425",
+    "src/Tertius.Rendering/Shaders/composite_pass.glsl": "f88073d9911cc9d7bd20c5141044d86bc48049592fd37d997843421e0e04fd9e",
+    "src/Tertius.Rendering/Shaders/exposure.glsl": "cfae2e601558f57f9c2ecf23201cd374632eab1cffce5aa21dd7cd029656d7ac",
+    "src/Tertius.Rendering/Shaders/light_pyramid_finest.comp": "1283d582405440023e514ebb23336206c6b099276a7b436cd4645cbfaff33af1",
+    "src/Tertius.Rendering/Shaders/reflection_sharing_prototype.glsl": "093d303d018be485aa6f6513203274e1e2bae9a31aad84818caeee6785cc4e00",
+    "src/Tertius.Rendering/Shaders/screen_trace.glsl": "eeee41c5017843b313f295e73b9ecf94594a67b1eb0372c012f7eaaf55b476d7",
+    "src/Tertius.Rendering/Shaders/screen_trace_resolve.comp": "25c3d3d6fce1507ad1f4e139ba4afd2ade6c3ae3a2a80e1d88309e1f86d45ca5",
+    "src/Tertius.Rendering/Shaders/sent_light.glsl": "e9af36dffce540711c9b86e0c7c4bd80676371558b9190d67c8abbeddf8980f0",
+    "src/Tertius.Rendering/Shaders/specular_history.glsl": "971cd9d5f8a49a621569c6c504792e51a4f00a6f7b5857a89b51bbbe9131e715",
+    "src/Tertius.Rendering/Tertius.Rendering.csproj": "7ea06438e486221e060bac41c2771d22681cc79b755b595d197b67d3192ca56d",
+    "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+    "tests/Tertius.Rendering.Tests/AccumulatorCutExposureTests.cs": "6a26978ce8255804e31ab08731c00469add32079df332386b79c56b56ea03c9f",
+    "tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs": "853d703923a40b557d1e435b3bcc4484ceacb88f95c5fbcfa8899f68a76a62ca",
+    "tests/Tertius.Rendering.Tests/AccumulatorSceneRadianceTests.cs": "fedc2985909b7e56e62f104c48a1e61461088ac6b3bf89db97f2b10f1a0331dd",
+    "tests/Tertius.Rendering.Tests/AmbientCutSourceTests.cs": "7b4ba1de9ed1384a23440e23c913b06e9e056aee2cb74f6d7989b460f5cd027d",
+    "tests/Tertius.Rendering.Tests/AmbientReflectionSourceTests.cs": "040c15c596db0a499f251c9e7bd738cdc824baff97ead76a78c7bdf12ccf0281",
+    "tests/Tertius.Rendering.Tests/CompositeConstructionTests.cs": "754ea442d5e6b1e260003a0698e09e349085e4a072eb0a8d08dc3289678e890d",
+    "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs": "db057118a2039b68014878a14bbbec756c406dac1d93e5ed6e8f1f55489ec4e7",
+    "tests/Tertius.Rendering.Tests/GlossyImageMemoryTests.cs": "942f612d519a2b0e757988443f2b723c1660fd6c937972ac0b6428a851b3d399",
+    "tests/Tertius.Rendering.Tests/GlossySceneRadianceTests.cs": "eca35e0be74f89224f2a87dc557fbb007a371759fb7d533bbd6ab1a7255581bb",
+    "tests/Tertius.Rendering.Tests/HitLightImageTests.cs": "7338dbddda21b7549787c112749f9f1b65ac83a5e6bc62e0c5fa399dd70785f1",
+    "tests/Tertius.Rendering.Tests/LightAgeHistoryTests.cs": "e355ef26df57090b3e6de538de15f46c29c9e3dd81870637438a20ca62ba4695",
+    "tests/Tertius.Rendering.Tests/ReflectionSharingTests.cs": "187910b0eba745ab4ce9474486c5a1ba78ff424f2d6ac2ce66e67aa1166874a3",
+    "tests/Tertius.Rendering.Tests/SamplePass.cs": "194eb2c0cf1c56584577c089516b6ae53f7963f6996e5610792386ae6e7e5abf",
+    "tests/Tertius.Rendering.Tests/ScreenTraceHardeningTests.cs": "254d83113bcaaed3c4d4e1b508ddc5a1af799e07d3f04bac3087ef93a7af5c67",
+    "tests/Tertius.Rendering.Tests/ScreenTraceRenderTests.cs": "4e6eb71a30db98e3849975540556a9dae3d6699964faf09c191c55ae590aaae6",
+    "tests/Tertius.Rendering.Tests/Shaders/reflection_sharing_pulse.frag": "7ed867d2ec5e62d8aa1c0f74d2d36226ea1e6f59c7c9f785cf8b37206121e075",
+    "tools/Tertius.ReflectionReference/Shaders/reflection_comparison.glsl": "ea3a84ed133bfd86e30f74a7ecbe337ca4bbb613c9a4c6991003ac87d13bb7d8",
+    "tools/Tertius.ReflectionReference/Shaders/reflection_comparison_shared.frag": "50639965cd90633192fb9eb67421389b985f10bde1cb13cfcfb28186dfc55a9c"
+  },
+  "post_hardening_cleanup": {
+    "production_changed": false,
+    "test_file": "tests/Tertius.Rendering.Tests/ReflectionSharingTests.cs",
+    "change": "Expand var to the function return type, a named tuple; all assertions unchanged.",
+    "affected_green_tests": 1,
+    "final_source_sha256": {
+      "src/Tertius.Rendering/Frame/HistoryInstrumentation.cs": "2a072330882f0315806fc832828ae9d5cf6bd27505e928dc8461060dd1ad8119",
+      "src/Tertius.Rendering/Frame/ScreenTraceImages.cs": "24546dd411992835db7cd6be21638de379776eb5a777a050544a7c3b785f4118",
+      "src/Tertius.Rendering/Frame/SignalScratch.cs": "70c3b6bc729c7bed1b5912753857141f911afaa2c238c78e2a251002bd36199c",
+      "src/Tertius.Rendering/Frame/TemporalSignal.cs": "39c8adeebdbe5ce222a76289e8e0735a459c7d687afc6a0b7c17f4cd10a5fa82",
+      "src/Tertius.Rendering/Passes/CompositePass.cs": "801544beaad53fb9502caffab0f0203da154860c8007506cf0f30432e26f8fd4",
+      "src/Tertius.Rendering/Shaders/accumulate.glsl": "99bad645d6ec0f96fb37c2e9ccf499c0e9a4c0da2db39dc13e44c15b4d1a268b",
+      "src/Tertius.Rendering/Shaders/accumulate_spatial.comp": "4185b38dd562049ec159584a06627c83a52c2dac949e2dea9ef66e95b0ed374c",
+      "src/Tertius.Rendering/Shaders/accumulate_temporal.comp": "374efc803e06a730ee81452c6b5d1662f2dc7e3dd9b6fdd3e42939681b6a2425",
+      "src/Tertius.Rendering/Shaders/composite_pass.glsl": "f88073d9911cc9d7bd20c5141044d86bc48049592fd37d997843421e0e04fd9e",
+      "src/Tertius.Rendering/Shaders/exposure.glsl": "cfae2e601558f57f9c2ecf23201cd374632eab1cffce5aa21dd7cd029656d7ac",
+      "src/Tertius.Rendering/Shaders/light_pyramid_finest.comp": "1283d582405440023e514ebb23336206c6b099276a7b436cd4645cbfaff33af1",
+      "src/Tertius.Rendering/Shaders/reflection_sharing_prototype.glsl": "093d303d018be485aa6f6513203274e1e2bae9a31aad84818caeee6785cc4e00",
+      "src/Tertius.Rendering/Shaders/screen_trace.glsl": "eeee41c5017843b313f295e73b9ecf94594a67b1eb0372c012f7eaaf55b476d7",
+      "src/Tertius.Rendering/Shaders/screen_trace_resolve.comp": "25c3d3d6fce1507ad1f4e139ba4afd2ade6c3ae3a2a80e1d88309e1f86d45ca5",
+      "src/Tertius.Rendering/Shaders/sent_light.glsl": "e9af36dffce540711c9b86e0c7c4bd80676371558b9190d67c8abbeddf8980f0",
+      "src/Tertius.Rendering/Shaders/specular_history.glsl": "971cd9d5f8a49a621569c6c504792e51a4f00a6f7b5857a89b51bbbe9131e715",
+      "src/Tertius.Rendering/Tertius.Rendering.csproj": "7ea06438e486221e060bac41c2771d22681cc79b755b595d197b67d3192ca56d",
+      "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+      "tests/Tertius.Rendering.Tests/AccumulatorCutExposureTests.cs": "6a26978ce8255804e31ab08731c00469add32079df332386b79c56b56ea03c9f",
+      "tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs": "853d703923a40b557d1e435b3bcc4484ceacb88f95c5fbcfa8899f68a76a62ca",
+      "tests/Tertius.Rendering.Tests/AccumulatorSceneRadianceTests.cs": "fedc2985909b7e56e62f104c48a1e61461088ac6b3bf89db97f2b10f1a0331dd",
+      "tests/Tertius.Rendering.Tests/AmbientCutSourceTests.cs": "7ce6d18739b89e67c457fcda600f10c44aa6cfcb3ae01bb6f0d5b12674432f2c",
+      "tests/Tertius.Rendering.Tests/AmbientReflectionSourceTests.cs": "040c15c596db0a499f251c9e7bd738cdc824baff97ead76a78c7bdf12ccf0281",
+      "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs": "db057118a2039b68014878a14bbbec756c406dac1d93e5ed6e8f1f55489ec4e7",
+      "tests/Tertius.Rendering.Tests/GlossyImageMemoryTests.cs": "942f612d519a2b0e757988443f2b723c1660fd6c937972ac0b6428a851b3d399",
+      "tests/Tertius.Rendering.Tests/GlossySceneRadianceTests.cs": "eca35e0be74f89224f2a87dc557fbb007a371759fb7d533bbd6ab1a7255581bb",
+      "tests/Tertius.Rendering.Tests/ReflectionSharingTests.cs": "187910b0eba745ab4ce9474486c5a1ba78ff424f2d6ac2ce66e67aa1166874a3",
+      "tests/Tertius.Rendering.Tests/SamplePass.cs": "194eb2c0cf1c56584577c089516b6ae53f7963f6996e5610792386ae6e7e5abf",
+      "tests/Tertius.Rendering.Tests/ScreenTraceHardeningTests.cs": "254d83113bcaaed3c4d4e1b508ddc5a1af799e07d3f04bac3087ef93a7af5c67",
+      "tests/Tertius.Rendering.Tests/ScreenTraceRenderTests.cs": "4e6eb71a30db98e3849975540556a9dae3d6699964faf09c191c55ae590aaae6",
+      "tests/Tertius.Rendering.Tests/Shaders/reflection_sharing_pulse.frag": "7ed867d2ec5e62d8aa1c0f74d2d36226ea1e6f59c7c9f785cf8b37206121e075",
+      "tools/Tertius.ReflectionReference/Shaders/reflection_comparison.glsl": "ea3a84ed133bfd86e30f74a7ecbe337ca4bbb613c9a4c6991003ac87d13bb7d8",
+      "tools/Tertius.ReflectionReference/Shaders/reflection_comparison_shared.frag": "50639965cd90633192fb9eb67421389b985f10bde1cb13cfcfb28186dfc55a9c"
+    }
+  },
+  "post_restoration_filter_correction": "An exact method filter selected zero tests (exit 8); the wildcard filter selected all three parity cases and passed. No mutation run was repeated.",
+  "hook_followup": {
+    "original_full_hook": {
+      "staged_tree": "9bf773a699c155880bb7dde2997aceba6ce900a4",
+      "exit": 1,
+      "total": 3807,
+      "passed": 3793,
+      "failed": 2,
+      "skipped": 12,
+      "source": "/tmp/nix-shell.ZarVp1/tertius-pre-commit-tests.3FxVYU/Tertius.Rendering.Tests.log",
+      "preserved": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-original-full-hook-rendering.log",
+      "sha256": "8676e1f1d5327e6799f34323b123a7c595ed7e7ffe69587bfe9fbdf55f6e9895",
+      "processes_54877_55224": "absent"
+    },
+    "focused_original_reproduction": {
+      "total": 4,
+      "passed": 2,
+      "failed": 2,
+      "cleanup_branches_passed": 2,
+      "log": "design-a-focused-diagnosis-v3.log"
+    },
+    "temporary_probe": {
+      "results": "design-a-depth-diagnosis.xml",
+      "target_ratio": 0.99951171875,
+      "still_ratio": 1.0000001192092896,
+      "absolute_error": 0.0004884004592895508,
+      "moved_marks": 0,
+      "largest_still_error": 1.1920928955078125e-07,
+      "half_readback_error": 0.00048828125,
+      "fp32_readback_delta": 1.1920928955078125e-07,
+      "still_test_bound": 0.0004886388778686523,
+      "basis": "one FP16 step below1 plus Vulkan OpFDiv maximum2.5 single-float ULP rounded up to3; no change to production movement threshold or zero motion-mark invariant",
+      "specification": "https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#spirvenv-precision-operation"
+    },
+    "physical_radiance_fixture": {
+      "glow_inputs": [
+        100000,
+        1e+30
+      ],
+      "expected_source_radiance": [
+        100000,
+        18446744073709551616
+      ],
+      "source_units": "W/(m\u00b2 sr)",
+      "draws": 1,
+      "reason": "No prior glossy history contributes; black emission is the sole source. Ray weights stay at most4 and metadata stays finite.",
+      "invalid_initial_assumption": "With two draws, the demodulated reflection estimator can exceed the emitter in another pixel; observed1.2547974 times source. Assertions were unchanged when the fixture was restricted to first draw.",
+      "initial_affected": {
+        "total": 30,
+        "passed": 28,
+        "failed": 2
+      },
+      "corrected_source_cases": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    "constructor_failure_cases": [
+      "refuse second image allocation after first fallback succeeds",
+      "missing lighting.vert after both images succeed"
+    ],
+    "preparation_errors": [
+      "Prepared test initially lacked required Record override; compiler error, not test evidence.",
+      "Mixed class/method filters selected zero tests; corrected to OR method filters.",
+      "Formatter invoked through dotnet failed; corrected to Nix csharpier executable."
+    ],
+    "production_changed_after_film": false,
+    "new_paid_jobs": 0
+  },
+  "followup_coverage": {
+    "instrumented": 66,
+    "covered": 65,
+    "covered_branches": 35,
+    "total_branches": 36
+  },
+  "capture_and_initial_hardening_source_sha256": {
+    "src/Tertius.Rendering/Frame/HistoryInstrumentation.cs": "2a072330882f0315806fc832828ae9d5cf6bd27505e928dc8461060dd1ad8119",
+    "src/Tertius.Rendering/Frame/ScreenTraceImages.cs": "24546dd411992835db7cd6be21638de379776eb5a777a050544a7c3b785f4118",
+    "src/Tertius.Rendering/Frame/SignalScratch.cs": "70c3b6bc729c7bed1b5912753857141f911afaa2c238c78e2a251002bd36199c",
+    "src/Tertius.Rendering/Frame/TemporalSignal.cs": "39c8adeebdbe5ce222a76289e8e0735a459c7d687afc6a0b7c17f4cd10a5fa82",
+    "src/Tertius.Rendering/Passes/CompositePass.cs": "801544beaad53fb9502caffab0f0203da154860c8007506cf0f30432e26f8fd4",
+    "src/Tertius.Rendering/Shaders/accumulate.glsl": "99bad645d6ec0f96fb37c2e9ccf499c0e9a4c0da2db39dc13e44c15b4d1a268b",
+    "src/Tertius.Rendering/Shaders/accumulate_spatial.comp": "4185b38dd562049ec159584a06627c83a52c2dac949e2dea9ef66e95b0ed374c",
+    "src/Tertius.Rendering/Shaders/accumulate_temporal.comp": "374efc803e06a730ee81452c6b5d1662f2dc7e3dd9b6fdd3e42939681b6a2425",
+    "src/Tertius.Rendering/Shaders/composite_pass.glsl": "f88073d9911cc9d7bd20c5141044d86bc48049592fd37d997843421e0e04fd9e",
+    "src/Tertius.Rendering/Shaders/exposure.glsl": "cfae2e601558f57f9c2ecf23201cd374632eab1cffce5aa21dd7cd029656d7ac",
+    "src/Tertius.Rendering/Shaders/light_pyramid_finest.comp": "1283d582405440023e514ebb23336206c6b099276a7b436cd4645cbfaff33af1",
+    "src/Tertius.Rendering/Shaders/reflection_sharing_prototype.glsl": "093d303d018be485aa6f6513203274e1e2bae9a31aad84818caeee6785cc4e00",
+    "src/Tertius.Rendering/Shaders/screen_trace.glsl": "eeee41c5017843b313f295e73b9ecf94594a67b1eb0372c012f7eaaf55b476d7",
+    "src/Tertius.Rendering/Shaders/screen_trace_resolve.comp": "25c3d3d6fce1507ad1f4e139ba4afd2ade6c3ae3a2a80e1d88309e1f86d45ca5",
+    "src/Tertius.Rendering/Shaders/sent_light.glsl": "e9af36dffce540711c9b86e0c7c4bd80676371558b9190d67c8abbeddf8980f0",
+    "src/Tertius.Rendering/Shaders/specular_history.glsl": "971cd9d5f8a49a621569c6c504792e51a4f00a6f7b5857a89b51bbbe9131e715",
+    "src/Tertius.Rendering/Tertius.Rendering.csproj": "7ea06438e486221e060bac41c2771d22681cc79b755b595d197b67d3192ca56d",
+    "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+    "tests/Tertius.Rendering.Tests/AccumulatorCutExposureTests.cs": "6a26978ce8255804e31ab08731c00469add32079df332386b79c56b56ea03c9f",
+    "tests/Tertius.Rendering.Tests/AccumulatorRenderTests.cs": "853d703923a40b557d1e435b3bcc4484ceacb88f95c5fbcfa8899f68a76a62ca",
+    "tests/Tertius.Rendering.Tests/AccumulatorSceneRadianceTests.cs": "fedc2985909b7e56e62f104c48a1e61461088ac6b3bf89db97f2b10f1a0331dd",
+    "tests/Tertius.Rendering.Tests/AmbientCutSourceTests.cs": "7ce6d18739b89e67c457fcda600f10c44aa6cfcb3ae01bb6f0d5b12674432f2c",
+    "tests/Tertius.Rendering.Tests/AmbientReflectionSourceTests.cs": "040c15c596db0a499f251c9e7bd738cdc824baff97ead76a78c7bdf12ccf0281",
+    "tests/Tertius.Rendering.Tests/DeviceAllocatorTests.cs": "db057118a2039b68014878a14bbbec756c406dac1d93e5ed6e8f1f55489ec4e7",
+    "tests/Tertius.Rendering.Tests/GlossyImageMemoryTests.cs": "942f612d519a2b0e757988443f2b723c1660fd6c937972ac0b6428a851b3d399",
+    "tests/Tertius.Rendering.Tests/GlossySceneRadianceTests.cs": "eca35e0be74f89224f2a87dc557fbb007a371759fb7d533bbd6ab1a7255581bb",
+    "tests/Tertius.Rendering.Tests/ReflectionSharingTests.cs": "e2daf859979040aafc2f49ac095dd0a294e7147bd4bc915151bbfc731729580a",
+    "tests/Tertius.Rendering.Tests/SamplePass.cs": "194eb2c0cf1c56584577c089516b6ae53f7963f6996e5610792386ae6e7e5abf",
+    "tests/Tertius.Rendering.Tests/ScreenTraceHardeningTests.cs": "254d83113bcaaed3c4d4e1b508ddc5a1af799e07d3f04bac3087ef93a7af5c67",
+    "tests/Tertius.Rendering.Tests/ScreenTraceRenderTests.cs": "4e6eb71a30db98e3849975540556a9dae3d6699964faf09c191c55ae590aaae6",
+    "tests/Tertius.Rendering.Tests/Shaders/reflection_sharing_pulse.frag": "7ed867d2ec5e62d8aa1c0f74d2d36226ea1e6f59c7c9f785cf8b37206121e075",
+    "tools/Tertius.ReflectionReference/Shaders/reflection_comparison.glsl": "ea3a84ed133bfd86e30f74a7ecbe337ca4bbb613c9a4c6991003ac87d13bb7d8",
+    "tools/Tertius.ReflectionReference/Shaders/reflection_comparison_shared.frag": "50639965cd90633192fb9eb67421389b985f10bde1cb13cfcfb28186dfc55a9c"
+  }
+}

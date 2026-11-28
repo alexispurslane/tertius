@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The scratch images of the signals' accumulations, one per part, RGBA16F plus optional RGBA32F specular scratch: the temporal dispatch
+/// The scratch images of the signals' accumulations, one per part, RGBA16F diffuse scratch and RGBA32F glossy scratch in every history mode: the temporal dispatch
 /// writes its slow history into one, and the spatial dispatch reads its neighbors from it (https://github.com/alexispurslane/tertius/wiki/temporal-renderer,
 /// section 8, "Images"). The signals accumulate one after another, so they share these images.
 /// </summary>
@@ -14,7 +14,7 @@ internal sealed class SignalScratch : IDisposable
     private readonly RenderTargets targets;
     private readonly DescriptorLayouts layouts;
     private readonly GpuImage[] images = new GpuImage[TemporalSignal.MostParts];
-    private readonly GpuImage[] preciseImages;
+    private readonly GpuImage[] sceneImages;
 
     /// <param name="targets">The render targets, whose size the images take.</param>
     /// <param name="layouts">The renderer's layouts, which own its specular history and its instrumentation.</param>
@@ -29,7 +29,7 @@ internal sealed class SignalScratch : IDisposable
         this.allocator = allocator;
         this.targets = targets;
         this.layouts = layouts;
-        preciseImages = HistoryMode == SpecularHistoryMode.Original ? [] : new GpuImage[TemporalSignal.MostParts];
+        sceneImages = new GpuImage[TemporalSignal.MostParts];
         Create();
     }
 
@@ -40,8 +40,8 @@ internal sealed class SignalScratch : IDisposable
     public HistoryInstrumentation Instrumentation => layouts.Instrumentation;
 
     /// <summary>The scratch image of a signal's part.</summary>
-    public GpuImage Part(int part, SpecularHistoryMode historyMode = SpecularHistoryMode.Original) =>
-        historyMode == SpecularHistoryMode.Original ? images[part] : preciseImages[part];
+    public GpuImage Part(int part, SignalLight light = SignalLight.Diffuse) =>
+        light == SignalLight.Diffuse ? images[part] : sceneImages[part];
 
     /// <summary>Recreates the images at the targets' size. The device must be idle, and the signals resize after it,
     /// because their sets point at these images.</summary>
@@ -54,7 +54,7 @@ internal sealed class SignalScratch : IDisposable
     private void Create()
     {
         Create(images, TemporalSignal.SignalFormat);
-        Create(preciseImages, Format.R32G32B32A32Sfloat);
+        Create(sceneImages, Format.R32G32B32A32Sfloat);
     }
 
     private void Create(GpuImage[] destination, Format format)
@@ -73,7 +73,7 @@ internal sealed class SignalScratch : IDisposable
 
     public void Dispose()
     {
-        foreach (GpuImage image in preciseImages)
+        foreach (GpuImage image in sceneImages)
             image.Dispose();
         foreach (GpuImage image in images)
             image.Dispose();

@@ -4,9 +4,10 @@
 #include "screen.glsl"
 #include "octahedral.glsl"
 #include "reflection_distance_guide.glsl"
+#define TERTIUS_SCENE_SPECULAR
 #include "specular_history.glsl"
 layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform writeonly image2D history;
-layout(set = 3, binding = 3, rgba16f) uniform writeonly image2D specularSample;
+layout(set = 3, binding = 3, rgba32f) uniform writeonly image2D specularSample;
 layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D distanceGuide;
 layout(push_constant) uniform TestFixture { int surfaceCase; float hitDistance; float hitSupport; } fixture;
 layout(location = 0) out float outDistance;
@@ -20,7 +21,10 @@ void main()
         pulse = 12.0;
     if (fixture.surfaceCase == 10)
         pulse = pixel.x >= int(frame.viewport.x) / 2 ? 90.0 : 0.0;
-    imageStore(history, pixel, vec4(vec3(pulse), 1.0));
+    vec3 radiance = fixture.surfaceCase == 11
+        ? vec3(pulse > 0.0 ? 1.0e-30 : 0.0, pulse > 0.0 ? 1.0e30 : 0.0, 0.0)
+        : vec3(pulse);
+    imageStore(history, pixel, vec4(radiance, 1.0));
     int center = int(frame.viewport.x) / 2;
     float hitDistance = fixture.hitDistance;
     if (fixture.surfaceCase == 7 && pixel.x < center)

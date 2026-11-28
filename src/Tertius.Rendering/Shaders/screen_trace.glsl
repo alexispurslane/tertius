@@ -21,20 +21,21 @@ layout(set = 3, binding = 3, rgba32f) uniform readonly image2D directSpecularLig
 layout(set = 3, binding = 4, r16ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
 layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   // the G-buffer's motion target
 // The reprojected reflection from the previous frame.
-layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastFastSpecular;
+layout(set = 3, binding = 6, rgba32f) uniform readonly image2D lastFastSpecular;
+#define TERTIUS_SCENE_SPECULAR
 #include "specular_history.glsl"
 layout(set = 3, binding = 7, SPECULAR_HISTORY_FORMAT) uniform readonly image2D slowSpecular;
 layout(set = 3, binding = 8, r8ui) uniform uimage2D rayPlan;                  // the plan's bits (PlanOwnRay)
-// The records of the rays, one record per location: rgb the ray's light, pre-exposed, a its hit distance in
+// The records of the rays, one record per location: rgb linear scene radiance in W/(m² sr), a its hit distance in
 // m, 0 for a miss; and x, y the direction's octahedral code in 16-bit units, z the half bits of log2 of its density per
 // steradian, w RayTraced, with a precise specular history also the hit's light code and moved mark (recordOf). A block's
 // record at the block, an own ray's at its pixel.
-layout(set = 3, binding = 9, rgba16f) uniform image2D blockLight;
+layout(set = 3, binding = 9, rgba32f) uniform image2D blockLight;
 layout(set = 3, binding = 10, rgba16ui) uniform uimage2D blockRay;
-layout(set = 3, binding = 11, rgba16f) uniform image2D ownLight;
+layout(set = 3, binding = 11, rgba32f) uniform image2D ownLight;
 layout(set = 3, binding = 12, rgba16ui) uniform uimage2D ownRay;
 // Reflection radiance in RGB and hit distance in alpha.
-layout(set = 3, binding = 13, rgba16f) uniform writeonly image2D specularSample;
+layout(set = 3, binding = 13, rgba32f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 14, reflectionOwnRays);
 // The light pyramid (ARCHITECTURE.md, "Guided rays", light_pyramid.glsl): each pixel's guide light, and the sums
 // of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 15 to 19 are the light age's.
@@ -43,7 +44,7 @@ layout(set = 3, binding = 21) uniform texture2D lightLevels;    // R32F
 // The hit light (ticket ter-67y3, ScreenTraceImages.HitLight), one record per location: rgb the light that
 // leaves each pixel that a walk can hit toward a ray of the kind (leavingLightOf), and a the pixel's moved mark, 1 where
 // its surface moved since the last draw (movedSurfaceAt), else 0. The plan writes it, and a hit reads both.
-layout(set = 3, binding = 22, rgba16f) uniform image2D hitLight;
+layout(set = 3, binding = 22, rgba32f) uniform image2D hitLight;
 // The reflection share of each tile of TileBlocks × TileBlocks blocks (ScreenTraceImages.ReflectionShare, GuidedShares):
 // the share of the tile's reflection rays that take the guided draw, after the last drawn frame. The tracer reads it at a
 // pixel's block (tileShareAt), and the share pass moves it after the resolve. It covers the tiles of the largest render
@@ -417,15 +418,13 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, vec3 direction)
             p.s.lobeSkyFraction);
     if (lightVolumeOn)
         light *= volumeTransmissionAt(p.s.position, p.s.geometricNormal, direction);
-    return exposed(light, exposureScale());
+    return min(light, vec3(GlossyRadianceLimit));
 }
 
-// Reproject the previous reflection into the current exposure.
+// Reproject the previous reflection in its unchanged scene-radiance units.
 vec3 lastLightOf(Reprojection r)
 {
-    vec3 light = lastFastSpecularAt(r).rgb;
-    // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
-    return exposed(light, historyRatio(exposureStops, historyStops));
+    return lastFastSpecularAt(r).rgb;
 }
 
 // Whether the pixel's surface moved since the last draw, as the surface test pass found it (signals.glsl, SurfaceMoved).
@@ -463,18 +462,15 @@ vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
     vec3 indirectSpecular = factors.specular * closedLight.specular;
     if (lightVolumeOn)
         applyLightVolume(s, V, factors, holdsHistory(r.specular), indirectDiffuse, indirectSpecular);
-    // Only the tracer's estimator crosses into the bounded, pre-exposed encoding.
-    indirectDiffuse = preExposed(indirectDiffuse);
-    indirectSpecular = preExposed(indirectSpecular);
-    vec3 light = sentDiffuseLight(q, preExposed(imageLoad(directDiffuseLight, q).rgb), r.diffuse)
+    vec3 light = sentDiffuseLight(q, imageLoad(directDiffuseLight, q).rgb, r.diffuse)
         + indirectDiffuse;
     float share = glossyShare(s.roughness);
     vec3 specular = indirectSpecular;
     if (share > 0.0 && holdsHistory(r.specular))
         specular = mix(specular, factors.specular * lastLightOf(r.specular), share);
     vec3 reflection = light
-        + surfaceShare(r.diffuse) * preExposed(imageLoad(directSpecularLight, q).rgb) + specular;
-    return min(reflection, vec3(MaxRadiance));
+        + surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb + specular;
+    return min(reflection, vec3(GlossyRadianceLimit));
 }
 
 // The light that leaves the pixel q of an impostor toward a ray of either kind: the glow that it sends, times its
@@ -732,7 +728,7 @@ struct TracedRay
     float lobeDensity;    // the density of the kind's lobe draw along the direction
     float guidedDensity;  // the guided density along the direction, for a ray that finds it (traceFrom), else 0
     float share;          // the ray's guided share (guidedShareOf)
-    vec3 light;       // the hit's light faded into the miss's, pre-exposed; 0 for a ray that traced nothing
+    vec3 light;       // the hit's light faded into the miss's, in scene units; 0 for a ray that traced nothing
     float distance;   // from the ray's start to the hit, in m; 0 for a miss
     bool traced;      // false for a direction below the pixel's geometric plane, which brings no light
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY

@@ -40,7 +40,7 @@ public sealed partial class AccumulatorRenderTests
         }
 
         [Fact]
-        public void TheTracerRescalesACutsPreviousReflectionFromItsProducingExposure()
+        public void TheTracerKeepsACutsPreviousReflectionInSceneRadiance()
         {
             (VulkanRenderer renderer, _, RenderSnapshot scene) = AccumulatingOn(
                 renderer: Gpu.Headless(
@@ -76,7 +76,7 @@ public sealed partial class AccumulatorRenderTests
 
                 Continue(renderer, scene, frames: 1);
 
-                probe.Read()[4 * Center].Should().BeApproximately(retained * ratio, retained * ratio * 0.003f);
+                probe.Read()[4 * Center].Should().BeApproximately(retained, retained * 0.003f);
             }
             finally
             {

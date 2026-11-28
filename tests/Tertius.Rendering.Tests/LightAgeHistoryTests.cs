@@ -1085,11 +1085,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 int[] hittable = HittablePixels(apart);
                 hittable.Length.Should().BeGreaterThan(Width * Height / 2, "the floor and the emitter fill the view");
                 hittable.Should().OnlyContain(pixel => apart[4 * pixel] <= 1e-5f, "both places are the same point's");
-                // The depth ratios lie near 1, where a half float steps by 2^-11. The Vulkan spec lets the target's store
-                // round toward 0 or to the nearest half, so the two can differ by one step, half the moved test's bound.
+                // Below 1 the half-float target steps by 2^-11. The float32 probe also retains the still ratio's
+                // division error: Vulkan allows 2.5 ULP, rounded up here to three single-float steps at 1.
+                float divisionRounding = 3 * (MathF.BitIncrement(1f) - 1f);
+                float depthRounding = 1f / 2048 + divisionRounding;
+                output.WriteLine($"Largest depth-ratio error: {hittable.Max(pixel => apart[4 * pixel + 1]):R}.");
+                hittable.Should().OnlyContain(pixel => apart[4 * pixel + 1] <= depthRounding);
                 hittable
                     .Should()
-                    .OnlyContain(pixel => apart[4 * pixel + 1] <= 1f / 2048 && apart[4 * pixel + 2] == 0);
+                    .OnlyContain(pixel => apart[4 * pixel + 2] == 0, "a still surface must never be marked moved");
             }
         );
 

@@ -1,0 +1,95 @@
+{
+  "mode": "PreciseCapped",
+  "fsr": false,
+  "output": [
+    1280,
+    720
+  ],
+  "rows": [
+    {
+      "Name": "screen trace hit light",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 7536640,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "screen trace own light",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 7536640,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "screen trace block light",
+      "Width": 640,
+      "Height": 360,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 1966080,
+      "AfterBytes": 3932160
+    },
+    {
+      "Name": "indirect specular sample 0",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 7536640,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "indirect specular fast history 0.0",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 7536640,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "indirect specular fast history 0.1",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R16G16B16A16Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 7536640,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "indirect specular slow history 0",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "R32G32B32A32Sfloat",
+      "AfterFormat": "R32G32B32A32Sfloat",
+      "BeforeBytes": 15073280,
+      "AfterBytes": 15073280
+    },
+    {
+      "Name": "two shared glossy scratch images",
+      "Width": 1280,
+      "Height": 720,
+      "BeforeFormat": "RGBA32F",
+      "AfterFormat": "RGBA32F",
+      "BeforeBytes": 30146560,
+      "AfterBytes": 30146560
+    },
+    {
+      "Name": "typed composite empty images",
+      "Width": 1,
+      "Height": 1,
+      "BeforeFormat": "one RGBA16F",
+      "AfterFormat": "RGBA32F plus RGBA16F",
+      "BeforeBytes": 128,
+      "AfterBytes": 256
+    }
+  ],
+  "beforeBytes": 84869248,
+  "afterBytes": 124518656,
+  "deltaBytes": 39649408,
+  "units": "Vulkan image memory requirements in bytes; allocator block reservations excluded"
+}

@@ -1,0 +1,188 @@
+{
+  "base": "468dc19d0f5e247819f24bfaea297919439c7b4f",
+  "scope": "current staged and working source against recovery HEAD, including incoming allocator fix",
+  "reports": [
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-coverage/Parity/Rendering.cobertura.xml",
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-coverage/Cleanup/Rendering.cobertura.xml",
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-coverage/SourceHit/Rendering.cobertura.xml",
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-coverage/Checked/Rendering.cobertura.xml",
+    "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-coverage/Additional/Rendering.cobertura.xml"
+  ],
+  "rows": [
+    {
+      "file": "src/Tertius.Rendering/Frame/HistoryInstrumentation.cs",
+      "changed_lines": [
+        34,
+        35,
+        36,
+        37,
+        38,
+        39
+      ],
+      "instrumented": 4,
+      "covered": 4,
+      "uncovered": [],
+      "covered_branches": 0,
+      "total_branches": 0,
+      "partial_branches": {}
+    },
+    {
+      "file": "src/Tertius.Rendering/Frame/ScreenTraceImages.cs",
+      "changed_lines": [
+        23,
+        24,
+        27,
+        29
+      ],
+      "instrumented": 0,
+      "covered": 0,
+      "uncovered": [],
+      "covered_branches": 0,
+      "total_branches": 0,
+      "partial_branches": {}
+    },
+    {
+      "file": "src/Tertius.Rendering/Frame/SignalScratch.cs",
+      "changed_lines": [
+        6,
+        17,
+        32,
+        43,
+        44,
+        57,
+        76
+      ],
+      "instrumented": 4,
+      "covered": 4,
+      "uncovered": [],
+      "covered_branches": 4,
+      "total_branches": 4,
+      "partial_branches": {}
+    },
+    {
+      "file": "src/Tertius.Rendering/Frame/TemporalSignal.cs",
+      "changed_lines": [
+        6,
+        7,
+        10,
+        18,
+        30,
+        33,
+        34,
+        35,
+        36,
+        37,
+        107,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        260,
+        261,
+        356,
+        372,
+        382,
+        383,
+        404,
+        474,
+        484,
+        485,
+        486,
+        487,
+        488,
+        489,
+        490,
+        491,
+        492,
+        493,
+        494,
+        495,
+        512,
+        594,
+        607,
+        610,
+        612
+      ],
+      "instrumented": 34,
+      "covered": 33,
+      "uncovered": [
+        612
+      ],
+      "covered_branches": 25,
+      "total_branches": 26,
+      "partial_branches": {
+        "610": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "file": "src/Tertius.Rendering/Passes/CompositePass.cs",
+      "changed_lines": [
+        22,
+        47,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        92,
+        111,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        128,
+        140,
+        146,
+        202
+      ],
+      "instrumented": 20,
+      "covered": 20,
+      "uncovered": [],
+      "covered_branches": 4,
+      "total_branches": 4,
+      "partial_branches": {}
+    },
+    {
+      "file": "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs",
+      "changed_lines": [
+        295,
+        296,
+        300,
+        301,
+        302,
+        303
+      ],
+      "instrumented": 4,
+      "covered": 4,
+      "uncovered": [],
+      "covered_branches": 2,
+      "total_branches": 2,
+      "partial_branches": {}
+    }
+  ],
+  "totals": {
+    "instrumented": 66,
+    "covered": 65,
+    "covered_branches": 35,
+    "total_branches": 36
+  },
+  "glsl_instrumented": false
+}

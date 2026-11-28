@@ -1,5 +1,7 @@
 # First displayed frames after camera cuts
 
+The capture and hardening campaign below records the earlier cf84 source. The user-selected 32-bit scene-radiance implementation has separate [Design A milestone evidence](design-a-2026-11-28/README.md). The earlier 201 captures and old glossy exposure-conversion mutants do not establish acceptance of that new path.
+
 The outside cut at simulation tick 1417 and the return cut at tick 1462 use the destination exposure in their first displayed frame. Each cut shades the destination once and presents once. The controls reach each destination independently and repeat eight captures without advancing the simulation.
 
 ## Real game captures

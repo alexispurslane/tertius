@@ -3,10 +3,11 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The history of one signal: demodulated, pre-exposed light accumulated over frames at each pixel of the render size
+/// The history of one signal: demodulated light accumulated at each render pixel, in scene units for glossy reflections
+/// and bounded pre-exposed units for diffuse signals
 /// (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 8, "The accumulator"). Its producer writes the sample of each part in each
 /// frame. <see cref="Accumulate"/> then reprojects the last frame's history through the surface test, rescales it by the
-/// exposure ratio, blends the sample in, fixes short histories from their neighbors and clamps the slow history into the
+/// exposure ratio for diffuse signals, blends the sample in, fixes short histories from their neighbors and clamps the slow history into the
 /// fast history's box. A pixel whose sample is not finite keeps its history, and one without a history takes the
 /// environment's closed form. In a reset frame, the surface test fails every tap, so every history starts again.
 /// </summary>
@@ -14,7 +15,7 @@ namespace Tertius.Rendering;
 /// <para>
 /// The renderer accumulates the screen tracer's glossy reflections. Tests also supply synthetic signals.
 /// Each part owns a sample and two fast histories. The slow history stores its length in alpha, and the fast specular
-/// history stores the hit distance there. The precise specular mode uses 32-bit floats for the slow history and
+/// history stores the hit distance there. Every specular mode uses 32-bit floats for light. The precise mode also
 /// records the age of each sample for the spatial dispatch.
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
@@ -26,8 +27,13 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class TemporalSignal : IDisposable
 {
-    /// <summary>The sample, fast-history and guide format, also used by the original slow history.</summary>
+    /// <summary>The diffuse sample and history format, also used by geometric reflection guides.</summary>
     public const Format SignalFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>Linear scene radiance in glossy samples and both glossy histories, in every history mode.</summary>
+    public const Format SceneSignalFormat = Format.R32G32B32A32Sfloat;
+
+    private Format LightFormat => Parameters.Light == SignalLight.Specular ? SceneSignalFormat : SignalFormat;
 
     /// <summary>
     /// The format of a sample's age beside a precise specular history (sample_age.glsl): in <see cref="LightCodeMask"/> the
@@ -98,7 +104,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 "The widened box keeps the deviation of the diffuse light in its fast alpha, where the reflections keep the hit distance.",
                 nameof(parameters)
             );
-        CheckDevice(device);
+        CheckDevice(device, parameters.Light == SignalLight.Specular ? SceneSignalFormat : SignalFormat);
 
         this.device = device;
         this.allocator = allocator;
@@ -111,14 +117,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         HistoryMode = parameters.Light == SignalLight.Specular ? scratch.HistoryMode : SpecularHistoryMode.Original;
         Instrumentation =
             parameters.Light == SignalLight.Specular ? scratch.Instrumentation : HistoryInstrumentation.None;
-        if (
-            HistoryMode != SpecularHistoryMode.Original
-            && (
-                device.FormatProperties(Format.R32G32B32A32Sfloat).OptimalTilingFeatures
-                & FormatFeatureFlags.StorageImageBit
-            ) == 0
-        )
-            throw new NotSupportedException($"RGBA32F specular history storage is unavailable on {device.DeviceName}.");
 
         this.parts = new PartImages[parts];
         sets = new DescriptorSet[parts, 2];
@@ -200,10 +198,18 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// SpecularHistoryMode, HistoryInstrumentation)"/>), and which reads the light age where the signal keeps it
     /// (<see cref="LightAgeShader(string)"/>).
     /// </summary>
-    public string HistoryShader(string shader) =>
-        HistoryMode == SpecularHistoryMode.Original && KeepsLightAge
-            ? LightAgeShader(shader)
-            : HistoryShader(shader, HistoryMode, Instrumentation);
+    public string HistoryShader(string shader)
+    {
+        if (
+            Parameters.Light == SignalLight.Specular
+            && HistoryMode == SpecularHistoryMode.Original
+            && ShaderVariant.SceneSignal.Shaders.Contains(shader)
+        )
+            return ShaderVariant.Of(shader, ShaderVariant.SceneSignal.Suffix);
+        if (HistoryMode == SpecularHistoryMode.Original && KeepsLightAge)
+            return LightAgeShader(shader);
+        return HistoryShader(shader, HistoryMode, Instrumentation);
+    }
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
@@ -251,7 +257,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// </summary>
     public GpuImage Fast(int part, int parity) => parts[part].Fast(parity);
 
-    public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
+    public GpuImage ReflectionGuide(int part) =>
+        reflectionDistanceHistory ? parts[part].ReflectionGuide : scratch.Part(part);
 
     /// <summary>
     /// The light age of the sample of <paramref name="part"/>, which the resolve writes beside a precise specular history
@@ -346,7 +353,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private void BeforeTemporal(BarrierBatch barriers, int part, int parity)
     {
         PartImages images = parts[part];
-        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+        if (!reflectionDistanceHistory && Parameters.Light == SignalLight.Specular)
             barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
         barriers.Image(images.Sample, ImageUse.StorageCompute);
         foreach (GpuImage age in images.Ages)
@@ -362,7 +369,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
         }
         // After the last signal's spatial dispatch, which read it.
-        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
+        barriers.Image(scratch.Part(part, Parameters.Light), ImageUse.StorageCompute, discard: true);
     }
 
     /// <summary>
@@ -372,8 +379,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private void BeforeSpatial(BarrierBatch barriers, int part, int parity)
     {
         PartImages images = parts[part];
-        barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute);
-        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+        barriers.Image(scratch.Part(part, Parameters.Light), ImageUse.StorageCompute);
+        if (!reflectionDistanceHistory && Parameters.Light == SignalLight.Specular)
             barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
         barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
         barriers.Image(images.Slow, ImageUse.StorageCompute);
@@ -394,7 +401,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public void Resize()
     {
         Contract.Requires(SameExtent(surfaces.Test.Extent, targets.Extent));
-        Contract.Requires(SameExtent(scratch.Part(0, HistoryMode).Extent, targets.Extent));
+        Contract.Requires(SameExtent(scratch.Part(0, Parameters.Light).Extent, targets.Extent));
         DestroyImages();
         Create();
         Contract.Ensures(FitsTargets());
@@ -464,7 +471,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     extent: extent,
                     imageName: $"{Name} slow history {part}",
                     extraUsage: 0,
-                    format: HistoryMode == SpecularHistoryMode.Original ? SignalFormat : Format.R32G32B32A32Sfloat
+                    format: LightFormat
                 ),
                 Fasts:
                 [
@@ -474,8 +481,18 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 Guides: reflectionDistanceHistory
                     ?
                     [
-                        CreateImage(extent, $"{Name} distance guide {part}", 0),
-                        CreateImage(extent, $"{Name} distance guide scratch {part}", 0),
+                        CreateImage(
+                            extent: extent,
+                            imageName: $"{Name} distance guide {part}",
+                            extraUsage: 0,
+                            format: SignalFormat
+                        ),
+                        CreateImage(
+                            extent: extent,
+                            imageName: $"{Name} distance guide scratch {part}",
+                            extraUsage: 0,
+                            format: SignalFormat
+                        ),
                     ]
                     : [],
                 Ages: CreateAges(extent, part),
@@ -492,7 +509,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         layouts.WriteStorageImage(set: set, binding: 1, image: images.Slow);
         layouts.WriteStorageImage(set: set, binding: 2, image: images.LastFast(parity));
         layouts.WriteStorageImage(set: set, binding: 3, image: images.Fast(parity));
-        layouts.WriteStorageImage(set: set, binding: 4, image: scratch.Part(part, HistoryMode));
+        layouts.WriteStorageImage(set: set, binding: 4, image: scratch.Part(part, Parameters.Light));
         layouts.WriteStorageImage(set: set, binding: 5, image: surfaces.Test);
         layouts.WriteStorageImage(set: set, binding: 6, image: targets.Motion);
         layouts.WriteImage(set: set, binding: 7, arrayElement: 0, image: surfaces.Last(parity));
@@ -574,7 +591,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <paramref name="extraUsage"/>.
     /// </summary>
     private GpuImage CreateImage(Extent2D extent, string imageName, ImageUsageFlags extraUsage) =>
-        CreateImage(extent: extent, imageName: imageName, extraUsage: extraUsage, format: SignalFormat);
+        CreateImage(extent: extent, imageName: imageName, extraUsage: extraUsage, format: LightFormat);
 
     private GpuImage CreateImage(Extent2D extent, string imageName, ImageUsageFlags extraUsage, Format format) =>
         GpuImage.Create(
@@ -587,12 +604,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
             name: imageName
         );
 
-    private static void CheckDevice(VulkanDevice device)
+    private static void CheckDevice(VulkanDevice device, Format format)
     {
         const FormatFeatureFlags needed = FormatFeatureFlags.StorageImageBit | FormatFeatureFlags.ColorAttachmentBit;
-        if ((device.FormatProperties(SignalFormat).OptimalTilingFeatures & needed) != needed)
+        if ((device.FormatProperties(format).OptimalTilingFeatures & needed) != needed)
             throw new NotSupportedException(
-                $"{SignalFormat} cannot be a color attachment and a storage image on {device.DeviceName}."
+                $"{format} cannot be a color attachment and a storage image on {device.DeviceName}."
             );
     }
 

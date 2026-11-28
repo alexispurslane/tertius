@@ -153,6 +153,21 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
         Extent2D extent = signal.Sample(0).Extent;
         int width = (int)extent.Width,
             height = (int)extent.Height;
+        if (signal.Sample(0).Format == Format.R32G32B32A32Sfloat)
+        {
+            var sceneTexels = new Vector4[width * height];
+            for (int row = 0; row < height; row++)
+            for (int column = 0; column < width; column++)
+                sceneTexels[row * width + column] = samples(column, row);
+            Copy(
+                context: context,
+                texels: sceneTexels,
+                extent: extent,
+                target: part => signal.Sample(part).Handle,
+                name: "accumulator scene samples"
+            );
+            return;
+        }
         var texels = new Half[4 * width * height];
         for (int row = 0; row < height; row++)
         for (int column = 0; column < width; column++)

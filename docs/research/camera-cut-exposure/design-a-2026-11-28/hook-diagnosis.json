@@ -1,0 +1,69 @@
+{
+  "original_full_hook": {
+    "staged_tree": "9bf773a699c155880bb7dde2997aceba6ce900a4",
+    "exit": 1,
+    "total": 3807,
+    "passed": 3793,
+    "failed": 2,
+    "skipped": 12,
+    "source": "/tmp/nix-shell.ZarVp1/tertius-pre-commit-tests.3FxVYU/Tertius.Rendering.Tests.log",
+    "preserved": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence/design-a-original-full-hook-rendering.log",
+    "sha256": "8676e1f1d5327e6799f34323b123a7c595ed7e7ffe69587bfe9fbdf55f6e9895",
+    "processes_54877_55224": "absent"
+  },
+  "focused_original_reproduction": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "cleanup_branches_passed": 2,
+    "log": "design-a-focused-diagnosis-v3.log"
+  },
+  "temporary_probe": {
+    "results": "design-a-depth-diagnosis.xml",
+    "target_ratio": 0.99951171875,
+    "still_ratio": 1.0000001192092896,
+    "absolute_error": 0.0004884004592895508,
+    "moved_marks": 0,
+    "largest_still_error": 1.1920928955078125e-07,
+    "half_readback_error": 0.00048828125,
+    "fp32_readback_delta": 1.1920928955078125e-07,
+    "still_test_bound": 0.0004886388778686523,
+    "basis": "one FP16 step below1 plus Vulkan OpFDiv maximum2.5 single-float ULP rounded up to3; no change to production movement threshold or zero motion-mark invariant",
+    "specification": "https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#spirvenv-precision-operation"
+  },
+  "physical_radiance_fixture": {
+    "glow_inputs": [
+      100000,
+      1e+30
+    ],
+    "expected_source_radiance": [
+      100000,
+      18446744073709551616
+    ],
+    "source_units": "W/(m\u00b2 sr)",
+    "draws": 1,
+    "reason": "No prior glossy history contributes; black emission is the sole source. Ray weights stay at most4 and metadata stays finite.",
+    "invalid_initial_assumption": "With two draws, the demodulated reflection estimator can exceed the emitter in another pixel; observed1.2547974 times source. Assertions were unchanged when the fixture was restricted to first draw.",
+    "initial_affected": {
+      "total": 30,
+      "passed": 28,
+      "failed": 2
+    },
+    "corrected_source_cases": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "constructor_failure_cases": [
+    "refuse second image allocation after first fallback succeeds",
+    "missing lighting.vert after both images succeed"
+  ],
+  "preparation_errors": [
+    "Prepared test initially lacked required Record override; compiler error, not test evidence.",
+    "Mixed class/method filters selected zero tests; corrected to OR method filters.",
+    "Formatter invoked through dotnet failed; corrected to Nix csharpier executable."
+  ],
+  "production_changed_after_film": false,
+  "new_paid_jobs": 0
+}

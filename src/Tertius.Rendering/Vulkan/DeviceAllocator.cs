@@ -292,10 +292,15 @@ internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
 
     /// <summary>
     /// A new <c>VkDeviceMemory</c> of <paramref name="size"/> bytes of <paramref name="type"/>, mapped exactly when the
-    /// type is host-visible. A mapping that fails frees the memory before it throws.
+    /// type is host-visible. An undersized heap fails as out of device memory before the driver call. A mapping that
+    /// fails frees the memory before it throws.
     /// </summary>
     private DeviceMemory AllocateMemory(ulong size, int type, out byte* pointer)
     {
+        PhysicalDeviceMemoryProperties properties = memory.Types;
+        uint heapIndex = properties.MemoryTypes[type].HeapIndex;
+        if (size > properties.MemoryHeaps[(int)heapIndex].Size)
+            throw new VulkanException("vkAllocateMemory", Result.ErrorOutOfDeviceMemory);
         DeviceMemory allocated = memory.Allocate(size, (uint)type);
         pointer = null;
         if (IsHostVisible(type))

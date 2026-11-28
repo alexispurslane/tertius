@@ -2515,12 +2515,9 @@ public sealed partial class AccumulatorRenderTests
                     // Vulkan lets be 2.5 ulps off (ticket ter-8esk). The cap rises about 39 frames per unit of roughness,
                     // so an ulp moves it by about 1e-6 frames, and a wrong cap by whole frames.
                     CenterOf(renderer, sample, part: 0).Length.Should().BeApproximately(cap, 0.001f);
-                    sample
-                        .Signal.Slow(0)
-                        .Format.Should()
-                        .Be(mode == "original" ? Format.R16G16B16A16Sfloat : Format.R32G32B32A32Sfloat);
-                    sample.Signal.Sample(0).Format.Should().Be(Format.R16G16B16A16Sfloat);
-                    sample.Signal.HitImages(0, 0).LastFast.Format.Should().Be(Format.R16G16B16A16Sfloat);
+                    sample.Signal.Slow(0).Format.Should().Be(Format.R32G32B32A32Sfloat);
+                    sample.Signal.Sample(0).Format.Should().Be(Format.R32G32B32A32Sfloat);
+                    sample.Signal.HitImages(0, 0).LastFast.Format.Should().Be(Format.R32G32B32A32Sfloat);
                 }
             );
 

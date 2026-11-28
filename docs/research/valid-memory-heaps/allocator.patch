@@ -1,0 +1,21 @@
+diff --git a/src/Tertius.Rendering/Vulkan/DeviceAllocator.cs b/src/Tertius.Rendering/Vulkan/DeviceAllocator.cs
+index 9e8fe919f53c65950b792559637aa006c120486a..f7aae7bd20d48ea3adf0d565ed476a6d2ec54594 100644
+--- a/src/Tertius.Rendering/Vulkan/DeviceAllocator.cs
++++ b/src/Tertius.Rendering/Vulkan/DeviceAllocator.cs
+@@ -292,10 +292,15 @@ internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
+ 
+     /// <summary>
+     /// A new <c>VkDeviceMemory</c> of <paramref name="size"/> bytes of <paramref name="type"/>, mapped exactly when the
+-    /// type is host-visible. A mapping that fails frees the memory before it throws.
++    /// type is host-visible. An undersized heap fails as out of device memory before the driver call. A mapping that
++    /// fails frees the memory before it throws.
+     /// </summary>
+     private DeviceMemory AllocateMemory(ulong size, int type, out byte* pointer)
+     {
++        PhysicalDeviceMemoryProperties properties = memory.Types;
++        uint heapIndex = properties.MemoryTypes[type].HeapIndex;
++        if (size > properties.MemoryHeaps[(int)heapIndex].Size)
++            throw new VulkanException("vkAllocateMemory", Result.ErrorOutOfDeviceMemory);
+         DeviceMemory allocated = memory.Allocate(size, (uint)type);
+         pointer = null;
+         if (IsHostVisible(type))

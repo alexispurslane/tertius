@@ -501,6 +501,230 @@ public sealed unsafe class DeviceAllocatorTests
         allocator.Invoking(it => it.AssertInvariants()).Should().NotThrow();
     }
 
+    [Theory]
+    [InlineData(65536ul, 67108863ul, 67108864ul)]
+    [InlineData(33554433ul, 33554432ul, 33554433ul)]
+    [InlineData(268435456ul, 257949696ul, 268435456ul)]
+    [InlineData(536870912ul, 257949696ul, 536870912ul)]
+    [InlineData(1069547520ul, 257949696ul, 1069547520ul)]
+    public void AnUploadSkipsAPreferredHeapSmallerThanTheActualDeviceAllocation(
+        ulong resourceBytes,
+        ulong preferredHeapBytes,
+        ulong deviceAllocationBytes
+    )
+    {
+        using var memory = new TableMemory(
+            types: [(UnifiedType, 1u), (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit, 0u)],
+            heapSizes: [2ul << 30, preferredHeapBytes]
+        );
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation upload = allocator.Allocate(
+            requirements: Requirements(resourceBytes, typeBits: 0b11),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "upload"
+        );
+
+        memory.Calls.Should().Equal((deviceAllocationBytes, 1u));
+        upload.Size.Should().Be(resourceBytes);
+        ((nint)upload.Mapped).Should().NotBe(0);
+        allocator.LiveAllocations.Should().Be(1);
+        allocator.DeviceMemoryCount.Should().Be(1);
+        allocator.AssertInvariants();
+        allocator.Free(upload);
+        allocator.LiveAllocations.Should().Be(0);
+        allocator.AssertInvariants();
+        allocator.Dispose();
+        memory.Live.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(65536ul, 67108864ul)]
+    [InlineData(67108864ul, 67108864ul)]
+    [InlineData(257949696ul, 257949696ul)]
+    public void ADeviceAllocationCanEqualItsHeapSize(ulong resourceBytes, ulong heapBytes)
+    {
+        using var memory = new TableMemory(types: [(UnifiedType, 0u)], heapSizes: [heapBytes]);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation upload = allocator.Allocate(
+            requirements: Requirements(resourceBytes, typeBits: 0b1),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "upload"
+        );
+
+        memory.Calls.Should().Equal((heapBytes, 0u));
+        upload.Size.Should().Be(resourceBytes);
+        allocator.Free(upload);
+        allocator.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(65536ul, 67108863ul)]
+    [InlineData(268435456ul, 257949696ul)]
+    public void CompatibleTypesWhoseSharedHeapIsTooSmallFailAsOutOfDeviceMemoryWithoutCallingTheDriver(
+        ulong resourceBytes,
+        ulong heapBytes
+    )
+    {
+        using var memory = new TableMemory(
+            types: [(UnifiedType, 1u), (UnifiedType, 1u)],
+            heapSizes: [2ul << 30, heapBytes]
+        );
+        using var allocator = new DeviceAllocator(memory);
+
+        Action allocate = () =>
+            allocator.Allocate(
+                requirements: Requirements(resourceBytes, typeBits: 0b11),
+                usage: MemoryUsage.Upload,
+                linear: true,
+                name: "upload"
+            );
+
+        allocate.Should().Throw<VulkanException>().Which.Result.Should().Be(Result.ErrorOutOfDeviceMemory);
+        memory.Calls.Should().BeEmpty();
+        memory.Live.Should().BeEmpty();
+        allocator.LiveAllocations.Should().Be(0);
+        allocator.DeviceMemoryCount.Should().Be(0);
+        allocator.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(65536ul)]
+    [InlineData(268435456ul)]
+    public void ALargerHeapDoesNotOverrideTheResourcesAllowedTypesOrTheUploadsRequiredFlags(ulong resourceBytes)
+    {
+        using var memory = new TableMemory(
+            types: [(UnifiedType, 0u), (UnifiedType, 1u), (MemoryPropertyFlags.HostVisibleBit, 1u)],
+            heapSizes: [1ul << 20, 2ul << 30]
+        );
+        using var allocator = new DeviceAllocator(memory);
+
+        Action allocate = () =>
+            allocator.Allocate(
+                requirements: Requirements(resourceBytes, typeBits: 0b101),
+                usage: MemoryUsage.Upload,
+                linear: true,
+                name: "upload"
+            );
+
+        allocate.Should().Throw<VulkanException>().Which.Result.Should().Be(Result.ErrorOutOfDeviceMemory);
+        memory.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(65536ul)]
+    [InlineData(268435456ul)]
+    public void AGpuOnlyAllocationDoesNotUseSystemMemoryWhenAnAllowedDeviceLocalHeapIsTooSmall(ulong resourceBytes)
+    {
+        using var memory = new TableMemory(
+            types:
+            [
+                (MemoryPropertyFlags.DeviceLocalBit, 0u),
+                (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit, 1u),
+            ],
+            heapSizes: [1ul << 20, 2ul << 30]
+        );
+        using var allocator = new DeviceAllocator(memory);
+
+        Action allocate = () =>
+            allocator.Allocate(
+                requirements: Requirements(resourceBytes, typeBits: 0b11),
+                usage: MemoryUsage.GpuOnly,
+                linear: false,
+                name: "image"
+            );
+
+        allocate.Should().Throw<VulkanException>().Which.Result.Should().Be(Result.ErrorOutOfDeviceMemory);
+        memory.Calls.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(65536ul, 67108864ul)]
+    [InlineData(268435456ul, 268435456ul)]
+    public void ADriverRefusalTriesTheNextLegalTypeInPreferenceOrder(ulong resourceBytes, ulong deviceAllocationBytes)
+    {
+        using var memory = new TableMemory(
+            types:
+            [
+                (UnifiedType, 1u),
+                (UnifiedType, 0u),
+                (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit, 0u),
+                (UnifiedType, 0u),
+            ],
+            heapSizes: [2ul << 30, 1ul << 20]
+        )
+        {
+            FullTypes = [1],
+        };
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator.Allocate(
+            requirements: Requirements(resourceBytes, typeBits: 0b1111),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "upload"
+        );
+
+        memory.Calls.Should().Equal((deviceAllocationBytes, 1u), (deviceAllocationBytes, 3u));
+        memory.Live.Should().ContainSingle().Which.Type.Should().Be(3);
+        allocator.AssertInvariants();
+    }
+
+    [Fact]
+    public void AReadbackSkipsAnUndersizedCachedHeap()
+    {
+        using var memory = new TableMemory(
+            types: [(UnifiedType, 1u), (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit, 0u)],
+            heapSizes: [2ul << 30, 1ul << 20]
+        );
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: 0b11),
+            usage: MemoryUsage.Readback,
+            linear: true,
+            name: "readback"
+        );
+
+        memory.Calls.Should().Equal((67108864ul, 1u));
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 1, Mapped: true));
+    }
+
+    [Fact]
+    public void AnUploadReusesItsBlockAfterSkippingAnUndersizedPreferredHeap()
+    {
+        using var memory = new TableMemory(
+            types: [(UnifiedType, 1u), (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit, 0u)],
+            heapSizes: [67108864ul, 1ul << 20]
+        );
+        using var allocator = new DeviceAllocator(memory);
+        MemoryRequirements requirements = Requirements(Kilobytes64, typeBits: 0b11);
+        MemoryAllocation first = allocator.Allocate(
+            requirements: requirements,
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "first"
+        );
+        allocator.Free(first);
+
+        MemoryAllocation second = allocator.Allocate(
+            requirements: requirements,
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "second"
+        );
+
+        second.Memory.Should().Be(first.Memory);
+        second.Offset.Should().Be(first.Offset);
+        memory.Calls.Should().Equal((67108864ul, 1u));
+        allocator.LiveAllocations.Should().Be(1);
+        allocator.AssertInvariants();
+        allocator.Free(second);
+    }
+
     private static MemoryRequirements Requirements(ulong size, uint typeBits) =>
         new(size: size, alignment: 256, memoryTypeBits: typeBits);
 
@@ -511,7 +735,8 @@ public sealed unsafe class DeviceAllocatorTests
     /// The memory of a driver with the memory types of a given table, in host memory. It keeps the valid-usage rules of
     /// <c>vkMapMemory</c> that the allocator must keep: it throws on a mapping of memory of a type that is not
     /// host-visible (VUID-vkMapMemory-memory-00682), on a second mapping (VUID-vkMapMemory-memory-00678), and on a free
-    /// of memory that is not live. All types share one heap, because the allocator reads no heap.
+    /// of memory that is not live. It also rejects allocations larger than the selected heap
+    /// (VUID-vkAllocateMemory-pAllocateInfo-01713). Calls record actual requests before any refusal.
     /// </summary>
     private sealed class TableMemory : IDeviceMemory, IDisposable
     {
@@ -519,17 +744,23 @@ public sealed unsafe class DeviceAllocatorTests
         private ulong nextHandle = 1;
 
         public TableMemory(MemoryPropertyFlags[] typeFlags)
+            : this([.. typeFlags.Select(flags => (Flags: flags, Heap: 0u))], [8ul << 30]) { }
+
+        public TableMemory((MemoryPropertyFlags Flags, uint Heap)[] types, ulong[] heapSizes)
         {
             var table = new PhysicalDeviceMemoryProperties
             {
-                MemoryTypeCount = (uint)typeFlags.Length,
-                MemoryHeapCount = 1,
+                MemoryTypeCount = (uint)types.Length,
+                MemoryHeapCount = (uint)heapSizes.Length,
             };
-            table.MemoryHeaps[0] = new(size: 8ul << 30, flags: MemoryHeapFlags.DeviceLocalBit);
-            for (int i = 0; i < typeFlags.Length; i++)
-                table.MemoryTypes[i] = new(propertyFlags: typeFlags[i], heapIndex: 0);
+            for (int i = 0; i < heapSizes.Length; i++)
+                table.MemoryHeaps[i] = new(size: heapSizes[i], flags: MemoryHeapFlags.DeviceLocalBit);
+            for (int i = 0; i < types.Length; i++)
+                table.MemoryTypes[i] = new(propertyFlags: types[i].Flags, heapIndex: types[i].Heap);
             Types = table;
         }
+
+        public List<(ulong Size, uint Type)> Calls { get; } = [];
 
         public PhysicalDeviceMemoryProperties Types { get; }
 
@@ -550,6 +781,12 @@ public sealed unsafe class DeviceAllocatorTests
         {
             if (type >= Types.MemoryTypeCount)
                 throw new InvalidOperationException($"No memory type {type}.");
+            Calls.Add((size, type));
+            uint heap = Types.MemoryTypes[(int)type].HeapIndex;
+            if (size > Types.MemoryHeaps[(int)heap].Size)
+                throw new InvalidOperationException(
+                    $"VUID-vkAllocateMemory-pAllocateInfo-01713: {size} bytes exceed heap {heap}."
+                );
             if (FullTypes.Contains(type))
                 throw new VulkanException("vkAllocateMemory", Result.ErrorOutOfDeviceMemory);
             ulong handle = nextHandle++;

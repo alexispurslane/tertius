@@ -10,6 +10,10 @@ const float MaxRadiance = 32256.0;
 
 // Raw source bound, above the supported light-buffer sum (storage.md). No exposure enters this bound.
 const float SceneRadianceLimit = 1329227995784915872903807060280344576.0; // 2^120
+// Glossy recursion has a scene-unit numerical guard above the supported physical source sum (< 2^119).
+// A ray weight of at most four leaves samples below 2^126, with headroom for filtering and composition.
+const float GlossyRadianceLimit = 16.0 * SceneRadianceLimit; // 2^124 W/(m² sr)
+const float GlossyEstimateLimit = 4.0 * GlossyRadianceLimit; // 2^126 W/(m² sr)
 // Downstream only: the meter and bloom keep the original scene source.
 const float SceneDisplayLimit = 281474976710656.0; // 2^48
 

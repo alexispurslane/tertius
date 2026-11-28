@@ -2,7 +2,7 @@
 #define TERTIUS_REFLECTION_SHARING_PROTOTYPE_GLSL
 
 #include "reflection_distance_guide.glsl"
-layout(set = 3, binding = 3, rgba16f) uniform readonly image2D reflectionHitSample;
+layout(set = 3, binding = 3, rgba32f) uniform readonly image2D reflectionHitSample;
 layout(set = 3, binding = 4, rgba16f) uniform readonly image2D reflectionDistanceHistory;
 
 struct ReflectionSharingReceiver
@@ -160,11 +160,17 @@ vec3 reflectionSharedAt(ivec2 pixel, vec3 outgoing)
             weights[sampleIndex] = weight;
             receivers[sampleIndex] = other;
         }
+    vec3 radianceScale = max(outgoing, vec3(1.17549435e-38));
+    for (int sampleIndex = 0; sampleIndex < 25; sampleIndex++)
+        if (weights[sampleIndex] > 0.0)
+            radianceScale = max(radianceScale, values[sampleIndex]);
+    for (int sampleIndex = 0; sampleIndex < 25; sampleIndex++)
+        values[sampleIndex] /= radianceScale;
     vec3 sumGuide = vec3(0.0);
     vec3 sumValue = vec3(0.0);
     vec3 sumGuideSquared = vec3(0.0);
     vec3 sumGuideValue = vec3(0.0);
-    vec3 centerGuide = outgoing;
+    vec3 centerGuide = outgoing / radianceScale;
     float sumWeight = 0.0;
     for (int sampleIndex = 0; sampleIndex < 25; sampleIndex++)
     {
@@ -206,12 +212,16 @@ vec3 reflectionSharedAt(ivec2 pixel, vec3 outgoing)
     vec3 secondMoment = sumGuideSquared / sumWeight;
     vec3 variance = max(secondMoment - meanGuide * meanGuide, vec3(0.0));
     vec3 covariance = sumGuideValue / sumWeight - meanGuide * meanValue;
-    vec3 regularization = max(0.01 * secondMoment, vec3(1.0e-12));
+    vec3 regularizationFloor = min(vec3(1.0e-6) / radianceScale, vec3(1.0e18));
+    vec3 regularization = max(0.01 * secondMoment, regularizationFloor * regularizationFloor);
     vec3 slope = covariance / (variance + regularization);
     vec3 prediction = meanValue + slope * (centerGuide - meanGuide);
     if (any(isnan(prediction)) || any(isinf(prediction)))
         return outgoing;
-    return mix(outgoing, max(prediction, vec3(0.0)), receiver.support);
+    vec3 reconstructed;
+    for (int channel = 0; channel < 3; channel++)
+        reconstructed[channel] = exposed(vec3(max(prediction[channel], 0.0)), radianceScale[channel], GlossyEstimateLimit).x;
+    return mix(outgoing, reconstructed, receiver.support);
 }
 
 #endif

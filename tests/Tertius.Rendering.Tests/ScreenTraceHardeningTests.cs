@@ -230,7 +230,7 @@ public sealed class ScreenTraceHardeningTests
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void ResizingThePreciseHistoryKeepsSampleFastAndGuideImagesInHalfPrecision(string? mode) =>
+        public void ResizingThePreciseHistoryKeepsSceneRadianceAndDistanceGuideFormats(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
@@ -245,9 +245,9 @@ public sealed class ScreenTraceHardeningTests
 
                     TemporalSignal specular = renderer.ScreenTraceImages.Specular;
                     specular.Slow(0).Format.Should().Be(Silk.NET.Vulkan.Format.R32G32B32A32Sfloat);
-                    specular.Sample(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    specular.Sample(0).Format.Should().Be(Silk.NET.Vulkan.Format.R32G32B32A32Sfloat);
                     specular.ReflectionGuide(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
-                    specular.HitImages(0, 0).LastFast.Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    specular.HitImages(0, 0).LastFast.Format.Should().Be(Silk.NET.Vulkan.Format.R32G32B32A32Sfloat);
                 }
             );
 

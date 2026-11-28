@@ -4,6 +4,7 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
+#define TERTIUS_SCENE_SPECULAR
 #include "specular_history.glsl"
 layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 #include "reflection_sharing_prototype.glsl"
@@ -23,5 +24,5 @@ void main()
     vec3 view = -normalize(inRay);
     MaterialFactors factors = materialFactors(surface, lobesOf(surface, view));
     vec3 outgoing = factors.specular * imageLoad(indirectSpecularLight, pixel).rgb;
-    outLight = vec2(reflectionSharedAt(pixel, outgoing).r, outgoing.r);
+    outLight = vec2(reflectionSharedAt(pixel, outgoing).r, outgoing.r) * exposureScale();
 }

@@ -14,10 +14,10 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 // Set 3 of the accumulate layout, the signal set: one part's images and the surface test's outputs. Each image holds the
 // render size, and every one stays in the General layout.
-layout(set = 3, binding = 0, rgba16f) uniform readonly image2D sampleImage;   // the producer's sample: rgb the light
+layout(set = 3, binding = 0, SPECULAR_HISTORY_FORMAT) uniform readonly image2D sampleImage;   // the producer's sample: rgb the light
 layout(set = 3, binding = 1, SPECULAR_HISTORY_FORMAT) uniform image2D slowHistory;
-layout(set = 3, binding = 2, rgba16f) uniform readonly image2D lastFast;      // the last frame's fast history: rgb the light
-layout(set = 3, binding = 3, rgba16f) uniform image2D fastHistory;            // this frame's
+layout(set = 3, binding = 2, SPECULAR_HISTORY_FORMAT) uniform readonly image2D lastFast;      // the last frame's fast history: rgb the light
+layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform image2D fastHistory;            // this frame's
 layout(set = 3, binding = 4, SPECULAR_HISTORY_FORMAT) uniform image2D scratch;
 layout(set = 3, binding = 5, r16ui) uniform readonly uimage2D surfaceTest;     // the pass bits (signals.glsl)
 layout(set = 3, binding = 6, rgba16f) uniform readonly image2D motionTarget;  // the G-buffer's motion target
