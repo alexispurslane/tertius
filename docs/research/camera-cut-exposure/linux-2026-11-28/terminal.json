@@ -1,0 +1,204 @@
+{
+  "outcome": "HOLD: baseline Vulkan validation failed before candidate diagnostics and matched rounds",
+  "job_id": "40d9f654-f5dc-4671-8a58-01c21712037f-u2",
+  "runpod_status": "FAILED",
+  "canonical_result": "failed",
+  "canonical_client_exit": 1,
+  "handler_command_exit": 1,
+  "submission_count": 1,
+  "automatic_retry": false,
+  "endpoint": "shmmav4u60m5u8",
+  "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+  "worker_id": "ui9kej3wnuyoxt",
+  "device": "NVIDIA RTX 2000 Ada Generation, GPU-41976f7e-5e33-342b-ff31-97707cb59880, 595.112.07, 00000000:C2:00.0",
+  "baseline_sha": "19e17c5ba364392ca6bf84b00c11a7d709771ded",
+  "candidate_sha": "a7a78944450584ad1c2ed2d0f3d38c583d80725c",
+  "hardened_captured_seed": "cf84f02bc5fabfedb22c2b17835ae0d194c4cb91",
+  "production_src_unchanged_from_seed": true,
+  "execution_seconds": 302.108,
+  "queue_delay_seconds": 21.098,
+  "canonical_counted_cost_usd": 0.059537280000000005,
+  "cost_basis": "Reported execution time plus canonical 60-second start and 10-second idle allowances, at $0.00016 per second. This is the canonical audit cost, not an independently reconciled provider invoice.",
+  "provider_billed_cost_usd": null,
+  "approved_maximum_usd": 0.1552,
+  "command_cap_seconds": 840,
+  "execution_cap_seconds": 900,
+  "ended_utc": "2026-11-28T02:51:56.477476+00:00",
+  "last_phase": {
+    "phase": "untimed source instrumentation and validating diagnostics",
+    "elapsed_seconds": 174.7145757760154
+  },
+  "restoration": {
+    "all_diagnostic_source_restored": true,
+    "elapsed_seconds": 293.15052975702565,
+    "note": "A failed diagnostic phase is not valid timed evidence. No automatic resubmission."
+  },
+  "commands": [
+    {
+      "command": [
+        "nvidia-smi",
+        "--query-gpu=name,uuid,driver_version,pci.bus_id",
+        "--format=csv"
+      ],
+      "cwd": "None",
+      "exit": 0,
+      "seconds": 0.033389485091902316,
+      "timed_out": false
+    },
+    {
+      "command": [
+        "bash",
+        "tools/blue-danube-assets/setup.sh",
+        "--staging",
+        "/tmp/tertius-job-_lhqlei2/linux-source-staging"
+      ],
+      "cwd": "/tmp/tertius-job-_lhqlei2/before",
+      "exit": 0,
+      "seconds": 171.24189168598969,
+      "timed_out": false
+    },
+    {
+      "command": [
+        "dotnet",
+        "build",
+        "tests/Tertius.Host.Tests",
+        "-c",
+        "Release",
+        "-nologo",
+        "-v:q",
+        "-p:RunAnalyzers=false"
+      ],
+      "cwd": "/tmp/tertius-job-_lhqlei2/before",
+      "exit": 0,
+      "seconds": 59.87203884194605,
+      "timed_out": false
+    },
+    {
+      "command": [
+        "dotnet",
+        "tests/Tertius.Host.Tests/bin/Release/net11.0/Tertius.Host.Tests.dll",
+        "-class",
+        "Tertius.Host.Tests.LinuxExposureMeasurements",
+        "-explicit",
+        "only",
+        "-maxThreads",
+        "1",
+        "-noColor"
+      ],
+      "cwd": "/tmp/tertius-job-_lhqlei2/before",
+      "exit": 1,
+      "seconds": 58.04041807400063,
+      "timed_out": false
+    }
+  ],
+  "shared_asset_precheck": {
+    "cooked_manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+    "cooked_file_count": 11,
+    "pinned_source_file_count": 68,
+    "absolute_content_root": "/tmp/tertius-job-_lhqlei2/before/content",
+    "both_tree_source_converter_devshell_hashes_equal": true,
+    "end_of_run_asset_check_reached": false
+  },
+  "observed_baseline_diagnostics": {
+    "mode": "native",
+    "output_size": [
+      1280,
+      720
+    ],
+    "render_size": [
+      1280,
+      720
+    ],
+    "commit_drawn_frame_records": 18,
+    "draw_frame_numbers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "validation_enabled": true,
+    "meter_bins": 256,
+    "observation_bytes_per_presentation": 8,
+    "cold_reference": {
+      "label": "film-outside",
+      "tick": 1417,
+      "captures": 9,
+      "scene_draws": 18,
+      "last_capture_draws": 2,
+      "last_capture_presentations": 2,
+      "last_stops": -7.641465,
+      "previous_stops": -7.641466,
+      "last_center_rgb": [
+        56,
+        55,
+        50
+      ],
+      "previous_center_rgb": [
+        56,
+        55,
+        50
+      ],
+      "exposure_and_center_converged": true,
+      "valid_reference_for_acceptance": false,
+      "invalid_reason": "Renderer emitted Vulkan validation errors."
+    },
+    "validation_messages": [
+      "[error, ValidationBitExt] VUID-vkAllocateMemory-pAllocateInfo-01713: vkAllocateMemory(): pAllocateInfo->allocationSize is 268435456 bytes from heap 2,but size of that heap is only 257949696 bytes.\nThe Vulkan spec states: pAllocateInfo->allocationSize must be less than or equal to VkPhysicalDeviceMemoryProperties::memoryHeaps[memindex].size where memindex = VkPhysicalDeviceMemoryProperties::memoryTypes[pAllocateInfo->memoryTypeIndex].heapIndex as returned by vkGetPhysicalDeviceMemoryProperties for the VkPhysicalDevice that device was created from (https://docs.vulkan.org/spec/latest/chapters/memory.html#VUID-vkAllocateMemory-pAllocateInfo-01713)",
+      "[error, ValidationBitExt] VUID-vkAllocateMemory-pAllocateInfo-01713: vkAllocateMemory(): pAllocateInfo->allocationSize is 536870912 bytes from heap 2,but size of that heap is only 257949696 bytes.\nThe Vulkan spec states: pAllocateInfo->allocationSize must be less than or equal to VkPhysicalDeviceMemoryProperties::memoryHeaps[memindex].size where memindex = VkPhysicalDeviceMemoryProperties::memoryTypes[pAllocateInfo->memoryTypeIndex].heapIndex as returned by vkGetPhysicalDeviceMemoryProperties for the VkPhysicalDevice that device was created from (https://docs.vulkan.org/spec/latest/chapters/memory.html#VUID-vkAllocateMemory-pAllocateInfo-01713)",
+      "[error, ValidationBitExt] VUID-vkAllocateMemory-pAllocateInfo-01713: vkAllocateMemory(): pAllocateInfo->allocationSize is 1069547520 bytes from heap 2,but size of that heap is only 257949696 bytes.\nThe Vulkan spec states: pAllocateInfo->allocationSize must be less than or equal to VkPhysicalDeviceMemoryProperties::memoryHeaps[memindex].size where memindex = VkPhysicalDeviceMemoryProperties::memoryTypes[pAllocateInfo->memoryTypeIndex].heapIndex as returned by vkGetPhysicalDeviceMemoryProperties for the VkPhysicalDevice that device was created from (https://docs.vulkan.org/spec/latest/chapters/memory.html#VUID-vkAllocateMemory-pAllocateInfo-01713)"
+    ]
+  },
+  "unavailable": [
+    "candidate diagnostics and actual candidate extents",
+    "FSR diagnostics and actual FSR extents",
+    "synthetic diagnostics",
+    "pristine rebuilt assembly hashes",
+    "same-worker capacity projection",
+    "both reversed matched rounds",
+    "request-to-fence-complete offscreen first/correct presentation latency",
+    "hidden draws for the tested cut",
+    "baseline recovery and right-censoring results",
+    "ordinary unobserved wall/GPU frame costs and GPU frame identities",
+    "matched clock log",
+    "complete diagnostic dispatch cost comparison",
+    "cross-tree cold-reference agreement",
+    "end-of-run asset/source provenance comparison"
+  ],
+  "analyzer_executed": false,
+  "analyzer_reason": "Worker phase is incomplete. Existing analyzer requires phase complete.",
+  "performance_claim": null,
+  "shared_correctness_claim": null,
+  "presentation_boundary": "Request to completed offscreen Vulkan submission fence. Excludes desktop compositor, vblank and display scanout.",
+  "new_bug_issue": "https://github.com/alexispurslane/tertius/issues/35",
+  "preserved_prior_evidence": {
+    "scripted_mutants_killed": 43,
+    "covered_changed_lines": 36,
+    "covered_changed_branches": 26,
+    "real_game_pngs": 201,
+    "full_rendering_checked_passed": 3742,
+    "full_rendering_checked_skipped": 12,
+    "rerun_this_stage": false
+  },
+  "external_artifact_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence",
+  "evidence_archive": "terminal-evidence.tar.gz",
+  "archive_sha256": "5f3ff1d2856d7647dfe8c2309503f3ef1c1b3a9d63561721756522c5b5dd9fce",
+  "remaining": [
+    "Parent-authorized single fresh SOLhigh read-only review of final combined head and this HOLD evidence",
+    "Resolve Linux validation prerequisite and missing Linux acceptance evidence before claiming the planned measurement complete",
+    "Parent-owned required CI, head metrics review and merge"
+  ]
+}

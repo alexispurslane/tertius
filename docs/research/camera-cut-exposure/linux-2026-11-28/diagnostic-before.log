@@ -1,0 +1,37 @@
+xUnit.net v3 In-Process Runner v4.0.2+0c7aa4991f (64-bit .NET 11.0.0-rc.1.26425.128)
+  Discovering: Tertius.Host.Tests
+  Discovered:  Tertius.Host.Tests
+  Starting:    Tertius.Host.Tests
+LINUX_LANE native cut
+LINUX_ACTIVE 0 1280 720 1280 720
+LINUX_ACTIVE 1 1280 720 1280 720
+LINUX_ACTIVE 2 1280 720 1280 720
+LINUX_ACTIVE 3 1280 720 1280 720
+LINUX_ACTIVE 4 1280 720 1280 720
+LINUX_ACTIVE 5 1280 720 1280 720
+LINUX_ACTIVE 6 1280 720 1280 720
+LINUX_ACTIVE 7 1280 720 1280 720
+LINUX_ACTIVE 8 1280 720 1280 720
+LINUX_ACTIVE 9 1280 720 1280 720
+LINUX_ACTIVE 10 1280 720 1280 720
+LINUX_ACTIVE 11 1280 720 1280 720
+LINUX_ACTIVE 12 1280 720 1280 720
+LINUX_ACTIVE 13 1280 720 1280 720
+LINUX_ACTIVE 14 1280 720 1280 720
+LINUX_ACTIVE 15 1280 720 1280 720
+LINUX_ACTIVE 16 1280 720 1280 720
+LINUX_ACTIVE 17 1280 720 1280 720
+    Tertius.Host.Tests.LinuxExposureMeasurements.ReportWholeCutLatencyAndOrdinaryFrameCosts [FAIL]
+      System.InvalidOperationException : Vulkan validation emitted messages.
+      Stack Trace:
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(440,0): at Tertius.Host.Tests.LinuxExposureMeasurements.Clean(VulkanRenderer renderer)
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(213,0): at Tertius.Host.Tests.LinuxExposureMeasurements.RealReference(String destination)
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(154,0): at Tertius.Host.Tests.LinuxExposureMeasurements.RealCut(String destination, Int32 expectedTick)
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(104,0): at Tertius.Host.Tests.LinuxExposureMeasurements.Case(String label, Action run)
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(74,0): at Tertius.Host.Tests.LinuxExposureMeasurements.RunLane()
+        tests/Tertius.Host.Tests/LinuxExposureMeasurements.cs(46,0): at Tertius.Host.Tests.LinuxExposureMeasurements.ReportWholeCutLatencyAndOrdinaryFrameCosts()
+           at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+           at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Finished:    Tertius.Host.Tests (ID = '1a786ee324da1d4a39ca7e8ade357cd573d455f81311609d782aa54699cbe14d')
+=== TEST EXECUTION SUMMARY ===
+   Tertius.Host.Tests  Total: 1, Errors: 0, Failed: 1, Skipped: 0, Not Run: 0, Time: 57.060s
