@@ -93,6 +93,12 @@ vec3 restrainNeutral(vec3 radiance)
 #ifndef RESTRAINT_VARIANT
 #define RESTRAINT_VARIANT 0
 #endif
+// PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 1 to 3 keep in
+// full. It does not act on emission, and the second bounce carries the boosted light on with no second gain. In
+// variant 1 the gain is in the captured weight, mix(share, gain, knee), so the second bounce gets it too.
+#ifndef COLOR_GAIN
+#define COLOR_GAIN 1.0
+#endif
 const vec3 RestraintLuminance = vec3(0.2126, 0.7152, 0.0722);
 // Variants 1 to 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
 // adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
@@ -107,7 +113,7 @@ const float ReflectanceScale = 64.0;
 vec4 capturedReflectanceOf(vec3 diffuse)
 {
 #if RESTRAINT_VARIANT == 1
-    return vec4(diffuse * mix(NeutralSourceShare, 1.0, saturationKnee(diffuse)), 0.0);
+    return vec4(diffuse * mix(NeutralSourceShare, COLOR_GAIN, saturationKnee(diffuse)), 0.0);
 #elif RESTRAINT_VARIANT == 2
     float gray = min(diffuse.r, min(diffuse.g, diffuse.b));
     return vec4(diffuse - gray, gray);
@@ -128,9 +134,9 @@ vec4 capturedReflectance(vec3 diffuse)
 }
 
 // The light that the volume keeps of the radiance `light` that falls on gray paint: the gray level of the light at
-// the neutral share, and its colored part in full. Variant 3 first moves the colored part that the knee drops into the
-// gray level at equal luminance.
-vec3 grayPaintKeeps(vec3 light)
+// the neutral share, and its colored part in full, times `gain`. Variant 3 first moves the colored part that the knee
+// drops into the gray level at equal luminance.
+vec3 grayPaintKeeps(vec3 light, float gain)
 {
     float gray = min(light.r, min(light.g, light.b));
     vec3 colored = light - gray;
@@ -139,27 +145,27 @@ vec3 grayPaintKeeps(vec3 light)
     gray += dot((1.0 - kept) * colored, RestraintLuminance);
     colored *= kept;
 #endif
-    return colored + NeutralSourceShare * gray;
+    return gain * colored + NeutralSourceShare * gray;
 }
 
 // The emitted radiance that one surface sends into the volume.
 vec3 capturedEmission(vec3 glow)
 {
 #if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    return grayPaintKeeps(glow);
+    return grayPaintKeeps(glow, 1.0);
 #else
     return restrainNeutral(glow);
 #endif
 }
 
 // Area times the diffuse radiance that a cell face reflects: `color` is the face's summed color words, `area` its
-// summed area, and `light` the radiance that falls on it.
-vec3 reflectedLight(vec4 color, float area, vec3 light)
+// summed area, `light` the radiance that falls on it, and `gain` the color gain of the bounce (1 for the second bounce).
+vec3 reflectedLight(vec4 color, float area, vec3 light, float gain)
 {
 #if RESTRAINT_VARIANT == 1
     return color.rgb / ReflectanceScale * light;
 #elif RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    return (color.rgb * light + color.w * grayPaintKeeps(light)) / ReflectanceScale;
+    return (gain * color.rgb * light + color.w * grayPaintKeeps(light, gain)) / ReflectanceScale;
 #else
     return area * restrainNeutral(color.rgb * light / area);
 #endif
