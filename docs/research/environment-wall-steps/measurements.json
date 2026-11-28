@@ -1,0 +1,955 @@
+{
+  "main": {
+    "patch": {
+      "forward": {
+        "samples": 1086,
+        "largest": 9.092,
+        "p95": 0.583,
+        "over_0.6": 52,
+        "over_2": 2,
+        "largest_steps": [
+          {
+            "frame": 38,
+            "distance_m": 58.33,
+            "change": 9.091904100790508
+          },
+          {
+            "frame": 848,
+            "distance_m": 17.83,
+            "change": 2.0631919830789798
+          },
+          {
+            "frame": 866,
+            "distance_m": 16.93,
+            "change": 1.8696700299700382
+          },
+          {
+            "frame": 614,
+            "distance_m": 29.53,
+            "change": 1.8219030555555378
+          },
+          {
+            "frame": 362,
+            "distance_m": 42.13,
+            "change": 1.7563764375876474
+          },
+          {
+            "frame": 596,
+            "distance_m": 30.43,
+            "change": 1.5993352695316787
+          },
+          {
+            "frame": 380,
+            "distance_m": 41.23,
+            "change": 1.591972484221614
+          },
+          {
+            "frame": 830,
+            "distance_m": 18.73,
+            "change": 1.5479503641456631
+          }
+        ]
+      },
+      "forward_outside_grids": {
+        "samples": 1023,
+        "largest": 9.092,
+        "p95": 0.446,
+        "over_0.6": 33,
+        "over_2": 2,
+        "largest_steps": [
+          {
+            "frame": 38,
+            "distance_m": 58.33,
+            "change": 9.091904100790508
+          },
+          {
+            "frame": 848,
+            "distance_m": 17.83,
+            "change": 2.0631919830789798
+          },
+          {
+            "frame": 866,
+            "distance_m": 16.93,
+            "change": 1.8696700299700382
+          },
+          {
+            "frame": 614,
+            "distance_m": 29.53,
+            "change": 1.8219030555555378
+          },
+          {
+            "frame": 362,
+            "distance_m": 42.13,
+            "change": 1.7563764375876474
+          },
+          {
+            "frame": 596,
+            "distance_m": 30.43,
+            "change": 1.5993352695316787
+          },
+          {
+            "frame": 380,
+            "distance_m": 41.23,
+            "change": 1.591972484221614
+          },
+          {
+            "frame": 830,
+            "distance_m": 18.73,
+            "change": 1.5479503641456631
+          }
+        ]
+      },
+      "reverse": {
+        "samples": 1084,
+        "largest": 3.498,
+        "p95": 0.583,
+        "over_0.6": 52,
+        "over_2": 1,
+        "largest_steps": [
+          {
+            "frame": 2289,
+            "distance_m": 58.58,
+            "change": -3.4976443181817984
+          },
+          {
+            "frame": 1370,
+            "distance_m": 12.63,
+            "change": 1.793385349190288
+          },
+          {
+            "frame": 1622,
+            "distance_m": 25.23,
+            "change": 1.7756273279352257
+          },
+          {
+            "frame": 1388,
+            "distance_m": 13.53,
+            "change": 1.5649284442911835
+          },
+          {
+            "frame": 1604,
+            "distance_m": 24.33,
+            "change": 1.5554021251052603
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 1.5434912250712216
+          },
+          {
+            "frame": 1352,
+            "distance_m": 11.73,
+            "change": 1.492114721254353
+          },
+          {
+            "frame": 1856,
+            "distance_m": 36.93,
+            "change": 1.4850092307692364
+          }
+        ]
+      },
+      "reverse_outside_grids": {
+        "samples": 1021,
+        "largest": 3.498,
+        "p95": 0.449,
+        "over_0.6": 33,
+        "over_2": 1,
+        "largest_steps": [
+          {
+            "frame": 2289,
+            "distance_m": 58.58,
+            "change": -3.4976443181817984
+          },
+          {
+            "frame": 1370,
+            "distance_m": 12.63,
+            "change": 1.793385349190288
+          },
+          {
+            "frame": 1622,
+            "distance_m": 25.23,
+            "change": 1.7756273279352257
+          },
+          {
+            "frame": 1388,
+            "distance_m": 13.53,
+            "change": 1.5649284442911835
+          },
+          {
+            "frame": 1604,
+            "distance_m": 24.33,
+            "change": 1.5554021251052603
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 1.5434912250712216
+          },
+          {
+            "frame": 1352,
+            "distance_m": 11.73,
+            "change": 1.492114721254353
+          },
+          {
+            "frame": 1856,
+            "distance_m": 36.93,
+            "change": 1.4850092307692364
+          }
+        ]
+      },
+      "return_cut": [
+        60.69841931818182,
+        60.70529886363636,
+        60.74059659090909,
+        60.67751875,
+        60.534105681818176,
+        60.67998693181818
+      ],
+      "before_cuts": 61.414126136363635
+    },
+    "margin": {
+      "forward": {
+        "samples": 1086,
+        "largest": 9.12,
+        "p95": 0.58,
+        "over_0.6": 52,
+        "over_2": 2,
+        "largest_steps": [
+          {
+            "frame": 38,
+            "distance_m": 58.33,
+            "change": 9.11966205282112
+          },
+          {
+            "frame": 848,
+            "distance_m": 17.83,
+            "change": 2.0683746084649357
+          },
+          {
+            "frame": 866,
+            "distance_m": 16.93,
+            "change": 1.8736374108451486
+          },
+          {
+            "frame": 614,
+            "distance_m": 29.53,
+            "change": 1.8325129984051074
+          },
+          {
+            "frame": 362,
+            "distance_m": 42.13,
+            "change": 1.7789148172757479
+          },
+          {
+            "frame": 596,
+            "distance_m": 30.43,
+            "change": 1.6143138422989551
+          },
+          {
+            "frame": 380,
+            "distance_m": 41.23,
+            "change": 1.6121283147085421
+          },
+          {
+            "frame": 830,
+            "distance_m": 18.73,
+            "change": 1.5481641889276077
+          }
+        ]
+      },
+      "forward_outside_grids": {
+        "samples": 1023,
+        "largest": 9.12,
+        "p95": 0.456,
+        "over_0.6": 33,
+        "over_2": 2,
+        "largest_steps": [
+          {
+            "frame": 38,
+            "distance_m": 58.33,
+            "change": 9.11966205282112
+          },
+          {
+            "frame": 848,
+            "distance_m": 17.83,
+            "change": 2.0683746084649357
+          },
+          {
+            "frame": 866,
+            "distance_m": 16.93,
+            "change": 1.8736374108451486
+          },
+          {
+            "frame": 614,
+            "distance_m": 29.53,
+            "change": 1.8325129984051074
+          },
+          {
+            "frame": 362,
+            "distance_m": 42.13,
+            "change": 1.7789148172757479
+          },
+          {
+            "frame": 596,
+            "distance_m": 30.43,
+            "change": 1.6143138422989551
+          },
+          {
+            "frame": 380,
+            "distance_m": 41.23,
+            "change": 1.6121283147085421
+          },
+          {
+            "frame": 830,
+            "distance_m": 18.73,
+            "change": 1.5481641889276077
+          }
+        ]
+      },
+      "reverse": {
+        "samples": 1084,
+        "largest": 3.042,
+        "p95": 0.585,
+        "over_0.6": 53,
+        "over_2": 1,
+        "largest_steps": [
+          {
+            "frame": 2289,
+            "distance_m": 58.58,
+            "change": -3.0420510504201843
+          },
+          {
+            "frame": 1370,
+            "distance_m": 12.63,
+            "change": 1.7952284090909103
+          },
+          {
+            "frame": 1622,
+            "distance_m": 25.23,
+            "change": 1.7817761249999933
+          },
+          {
+            "frame": 1388,
+            "distance_m": 13.53,
+            "change": 1.5667793076485452
+          },
+          {
+            "frame": 1604,
+            "distance_m": 24.33,
+            "change": 1.5600939787010333
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 1.5286536774628843
+          },
+          {
+            "frame": 1856,
+            "distance_m": 36.93,
+            "change": 1.4949901455767076
+          },
+          {
+            "frame": 1352,
+            "distance_m": 11.73,
+            "change": 1.490810689773518
+          }
+        ]
+      },
+      "reverse_outside_grids": {
+        "samples": 1021,
+        "largest": 3.042,
+        "p95": 0.446,
+        "over_0.6": 34,
+        "over_2": 1,
+        "largest_steps": [
+          {
+            "frame": 2289,
+            "distance_m": 58.58,
+            "change": -3.0420510504201843
+          },
+          {
+            "frame": 1370,
+            "distance_m": 12.63,
+            "change": 1.7952284090909103
+          },
+          {
+            "frame": 1622,
+            "distance_m": 25.23,
+            "change": 1.7817761249999933
+          },
+          {
+            "frame": 1388,
+            "distance_m": 13.53,
+            "change": 1.5667793076485452
+          },
+          {
+            "frame": 1604,
+            "distance_m": 24.33,
+            "change": 1.5600939787010333
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 1.5286536774628843
+          },
+          {
+            "frame": 1856,
+            "distance_m": 36.93,
+            "change": 1.4949901455767076
+          },
+          {
+            "frame": 1352,
+            "distance_m": 11.73,
+            "change": 1.490810689773518
+          }
+        ]
+      },
+      "return_cut": [
+        60.611004621848735,
+        60.66347542016807,
+        60.651137184873946,
+        60.599478991596634,
+        60.46085924369748,
+        60.59403550420168
+      ],
+      "before_cuts": 61.29474033613445
+    }
+  },
+  "fix": {
+    "patch": {
+      "forward": {
+        "samples": 1086,
+        "largest": 1.8,
+        "p95": 0.406,
+        "over_0.6": 31,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 48,
+            "distance_m": 57.83,
+            "change": 1.7998700767263358
+          },
+          {
+            "frame": 40,
+            "distance_m": 58.23,
+            "change": 1.094297282608693
+          },
+          {
+            "frame": 56,
+            "distance_m": 57.43,
+            "change": 1.0361928388746833
+          },
+          {
+            "frame": 1074,
+            "distance_m": 6.53,
+            "change": -1.0242490198449161
+          },
+          {
+            "frame": 46,
+            "distance_m": 57.93,
+            "change": 0.999467007672628
+          },
+          {
+            "frame": 1072,
+            "distance_m": 6.63,
+            "change": -0.9918531641982753
+          },
+          {
+            "frame": 1070,
+            "distance_m": 6.73,
+            "change": -0.9633934279949301
+          },
+          {
+            "frame": 1068,
+            "distance_m": 6.83,
+            "change": -0.9604191083180282
+          }
+        ]
+      },
+      "forward_outside_grids": {
+        "samples": 1023,
+        "largest": 1.8,
+        "p95": 0.35,
+        "over_0.6": 11,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 48,
+            "distance_m": 57.83,
+            "change": 1.7998700767263358
+          },
+          {
+            "frame": 40,
+            "distance_m": 58.23,
+            "change": 1.094297282608693
+          },
+          {
+            "frame": 56,
+            "distance_m": 57.43,
+            "change": 1.0361928388746833
+          },
+          {
+            "frame": 46,
+            "distance_m": 57.93,
+            "change": 0.999467007672628
+          },
+          {
+            "frame": 41,
+            "distance_m": 58.18,
+            "change": 0.9174425191815843
+          },
+          {
+            "frame": 44,
+            "distance_m": 58.03,
+            "change": 0.8112015345268588
+          },
+          {
+            "frame": 52,
+            "distance_m": 57.63,
+            "change": 0.8100898395721998
+          },
+          {
+            "frame": 255,
+            "distance_m": 47.48,
+            "change": -0.7311725396825466
+          }
+        ]
+      },
+      "reverse": {
+        "samples": 1084,
+        "largest": 1.242,
+        "p95": 0.396,
+        "over_0.6": 24,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 1249,
+            "distance_m": 6.58,
+            "change": 1.2424168196034628
+          },
+          {
+            "frame": 1253,
+            "distance_m": 6.78,
+            "change": 1.0624251632383945
+          },
+          {
+            "frame": 1251,
+            "distance_m": 6.68,
+            "change": 1.0406241185784708
+          },
+          {
+            "frame": 1261,
+            "distance_m": 7.18,
+            "change": 1.0339791204309847
+          },
+          {
+            "frame": 1257,
+            "distance_m": 6.98,
+            "change": 1.0135626361295849
+          },
+          {
+            "frame": 1255,
+            "distance_m": 6.88,
+            "change": 0.973991718489998
+          },
+          {
+            "frame": 1259,
+            "distance_m": 7.08,
+            "change": 0.9654793103534516
+          },
+          {
+            "frame": 1252,
+            "distance_m": 6.73,
+            "change": 0.9530985976446118
+          }
+        ]
+      },
+      "reverse_outside_grids": {
+        "samples": 1021,
+        "largest": 0.724,
+        "p95": 0.338,
+        "over_0.6": 5,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 2274,
+            "distance_m": 57.83,
+            "change": 0.7241731690304647
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 0.689311780626781
+          },
+          {
+            "frame": 1874,
+            "distance_m": 37.83,
+            "change": 0.6384728605042085
+          },
+          {
+            "frame": 2126,
+            "distance_m": 50.43,
+            "change": 0.6072354493927179
+          },
+          {
+            "frame": 2238,
+            "distance_m": 56.03,
+            "change": -0.600407672634276
+          },
+          {
+            "frame": 1892,
+            "distance_m": 38.73,
+            "change": 0.5992628235294291
+          },
+          {
+            "frame": 2239,
+            "distance_m": 56.08,
+            "change": 0.5982460358056159
+          },
+          {
+            "frame": 2279,
+            "distance_m": 58.08,
+            "change": -0.5501462915600968
+          }
+        ]
+      },
+      "return_cut": [
+        60.69841931818182,
+        60.70529886363636,
+        60.74059659090909,
+        60.67751875,
+        60.534105681818176,
+        60.67998693181818
+      ],
+      "before_cuts": 63.18662386363636
+    },
+    "margin": {
+      "forward": {
+        "samples": 1086,
+        "largest": 1.595,
+        "p95": 0.417,
+        "over_0.6": 30,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 48,
+            "distance_m": 57.83,
+            "change": 1.5950932019704425
+          },
+          {
+            "frame": 40,
+            "distance_m": 58.23,
+            "change": 1.0447314285714242
+          },
+          {
+            "frame": 1074,
+            "distance_m": 6.53,
+            "change": -0.9998057180730697
+          },
+          {
+            "frame": 1072,
+            "distance_m": 6.63,
+            "change": -0.9906646166330688
+          },
+          {
+            "frame": 1070,
+            "distance_m": 6.73,
+            "change": -0.9635218966943597
+          },
+          {
+            "frame": 1068,
+            "distance_m": 6.83,
+            "change": -0.9586096807193698
+          },
+          {
+            "frame": 1062,
+            "distance_m": 7.13,
+            "change": -0.9535460825828679
+          },
+          {
+            "frame": 56,
+            "distance_m": 57.43,
+            "change": 0.9491663054187143
+          }
+        ]
+      },
+      "forward_outside_grids": {
+        "samples": 1023,
+        "largest": 1.595,
+        "p95": 0.342,
+        "over_0.6": 10,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 48,
+            "distance_m": 57.83,
+            "change": 1.5950932019704425
+          },
+          {
+            "frame": 40,
+            "distance_m": 58.23,
+            "change": 1.0447314285714242
+          },
+          {
+            "frame": 56,
+            "distance_m": 57.43,
+            "change": 0.9491663054187143
+          },
+          {
+            "frame": 46,
+            "distance_m": 57.93,
+            "change": 0.9146955665024663
+          },
+          {
+            "frame": 41,
+            "distance_m": 58.18,
+            "change": 0.7896287895848033
+          },
+          {
+            "frame": 44,
+            "distance_m": 58.03,
+            "change": 0.736595467980294
+          },
+          {
+            "frame": 255,
+            "distance_m": 47.48,
+            "change": -0.7207130208333155
+          },
+          {
+            "frame": 53,
+            "distance_m": 57.58,
+            "change": 0.7143403651115534
+          }
+        ]
+      },
+      "reverse": {
+        "samples": 1084,
+        "largest": 1.211,
+        "p95": 0.384,
+        "over_0.6": 23,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 1249,
+            "distance_m": 6.58,
+            "change": 1.2110874980583617
+          },
+          {
+            "frame": 1253,
+            "distance_m": 6.78,
+            "change": 1.0574308367597354
+          },
+          {
+            "frame": 1251,
+            "distance_m": 6.68,
+            "change": 1.0407025794630442
+          },
+          {
+            "frame": 1261,
+            "distance_m": 7.18,
+            "change": 1.034977361990741
+          },
+          {
+            "frame": 1257,
+            "distance_m": 6.98,
+            "change": 1.0118885691873984
+          },
+          {
+            "frame": 1255,
+            "distance_m": 6.88,
+            "change": 0.9717648154663578
+          },
+          {
+            "frame": 1259,
+            "distance_m": 7.08,
+            "change": 0.9664560088294039
+          },
+          {
+            "frame": 1252,
+            "distance_m": 6.73,
+            "change": 0.95583043117729
+          }
+        ]
+      },
+      "reverse_outside_grids": {
+        "samples": 1021,
+        "largest": 0.72,
+        "p95": 0.337,
+        "over_0.6": 4,
+        "over_2": 0,
+        "largest_steps": [
+          {
+            "frame": 2274,
+            "distance_m": 57.83,
+            "change": 0.7197908026658979
+          },
+          {
+            "frame": 1874,
+            "distance_m": 37.83,
+            "change": 0.6480271870390197
+          },
+          {
+            "frame": 2090,
+            "distance_m": 48.63,
+            "change": 0.6130726636302342
+          },
+          {
+            "frame": 2239,
+            "distance_m": 56.08,
+            "change": 0.6106981280788233
+          },
+          {
+            "frame": 2238,
+            "distance_m": 56.03,
+            "change": -0.5927014778325059
+          },
+          {
+            "frame": 1892,
+            "distance_m": 38.73,
+            "change": 0.5761056404230231
+          },
+          {
+            "frame": 2285,
+            "distance_m": 58.38,
+            "change": 0.5579060384153678
+          },
+          {
+            "frame": 2279,
+            "distance_m": 58.08,
+            "change": -0.5469934975369455
+          }
+        ]
+      },
+      "return_cut": [
+        60.611004621848735,
+        60.66347542016807,
+        60.651137184873946,
+        60.599478991596634,
+        60.46085924369748,
+        60.59403550420168
+      ],
+      "before_cuts": 63.188775420168064
+    }
+  },
+  "fix_remaining_steps": {
+    "frames": "changes at frames 39 to 56 of the short walk, patch, display-luma levels",
+    "controls": {
+      "default": {
+        "exposure_stops": 3.79,
+        "patch_frame_38": 60.164,
+        "rise_to_frame_56": 9.437,
+        "mean": 0.524,
+        "sd": 0.511,
+        "largest": 1.8,
+        "frame_48": 1.8,
+        "changes": [
+          0.181,
+          1.094,
+          0.917,
+          0.031,
+          0.148,
+          0.811,
+          0.362,
+          0.999,
+          -0.182,
+          1.8,
+          -0.241,
+          0.372,
+          0.291,
+          0.81,
+          0.627,
+          0.296,
+          0.084,
+          1.036
+        ]
+      },
+      "specular environment term removed": {
+        "exposure_stops": 3.79,
+        "patch_frame_38": 60.164,
+        "rise_to_frame_56": 9.437,
+        "mean": 0.524,
+        "sd": 0.511,
+        "largest": 1.8,
+        "frame_48": 1.8,
+        "changes": [
+          0.181,
+          1.094,
+          0.917,
+          0.031,
+          0.148,
+          0.811,
+          0.362,
+          0.999,
+          -0.182,
+          1.8,
+          -0.241,
+          0.372,
+          0.291,
+          0.81,
+          0.627,
+          0.296,
+          0.084,
+          1.036
+        ]
+      },
+      "diffuse environment term removed": {
+        "exposure_stops": 3.79,
+        "patch_frame_38": 35.564,
+        "rise_to_frame_56": 0.445,
+        "mean": 0.025,
+        "sd": 0.375,
+        "largest": 0.815,
+        "frame_48": 0.606,
+        "changes": [
+          0.218,
+          0.199,
+          0.058,
+          -0.096,
+          0.164,
+          -0.38,
+          0.415,
+          0.259,
+          -0.541,
+          0.606,
+          -0.313,
+          -0.408,
+          0.216,
+          -0.493,
+          0.815,
+          -0.393,
+          0.068,
+          0.051
+        ]
+      },
+      "environment map off": {
+        "exposure_stops": -3,
+        "patch_frame_38": 229.799,
+        "rise_to_frame_56": 0.01,
+        "mean": 0.001,
+        "sd": 0.014,
+        "largest": 0.029,
+        "frame_48": -0.004,
+        "changes": [
+          0.018,
+          0.029,
+          -0.015,
+          0.001,
+          -0.01,
+          -0.013,
+          -0.013,
+          0.016,
+          0.014,
+          -0.004,
+          0.013,
+          -0.02,
+          0.001,
+          -0.005,
+          0.004,
+          -0.016,
+          0.011,
+          -0.001
+        ]
+      }
+    }
+  }
+}

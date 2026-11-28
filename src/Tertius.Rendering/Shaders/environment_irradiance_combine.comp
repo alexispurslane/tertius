@@ -1,0 +1,39 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "environment_irradiance_parts.glsl"
+
+layout(local_size_x = 64) in;
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray irradianceLevel0;
+layout(push_constant, std430) uniform IrradianceCombinePush
+{
+    uint draw;
+} combine;
+
+void main()
+{
+    uint texel = gl_GlobalInvocationID.x;
+    uint map = gl_WorkGroupID.z;
+    vec4 radiance = vec4(0.0);
+    float weight = 0.0;
+    for (uint face = 0u; face < 6u; face++)
+    {
+        uint slot = 6u * map + face;
+        uint index = slot * IrradianceTexels + texel;
+        // Signed difference after unsigned subtraction also works across the uint draw counter's wrap.
+        int drawsAfterThis = int(irradiance.endDraw[slot] - combine.draw);
+        vec4 light = irradiance.parts[index].target;
+        if (drawsAfterThis > 0)
+            light = mix(irradiance.parts[index].current, light, 1.0 / float(drawsAfterThis + 1));
+        // A refresh reaches its target on this draw and need not read an uninitialized or obsolete current value.
+        if (drawsAfterThis >= 0)
+            irradiance.parts[index].current = light;
+        radiance += light;
+        weight += irradiance.parts[index].weight;
+    }
+
+    uint layer = texel / IrradianceFaceTexels;
+    uint inFace = texel % IrradianceFaceTexels;
+    uvec2 xy = uvec2(inFace % IrradianceFaceSize, inFace / IrradianceFaceSize);
+    // Some capture texel has positive cosine for every direction, so weight is positive.
+    imageStore(irradianceLevel0, ivec3(xy, 6u * map + layer), radiance / weight);
+}

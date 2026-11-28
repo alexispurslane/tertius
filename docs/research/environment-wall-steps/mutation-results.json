@@ -1,0 +1,442 @@
+{
+ "rows": [
+  {
+   "id": "C01",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 269,
+   "change": "blend through a camera cut",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw"
+   ],
+   "seconds": 11.925057583000125,
+   "original": "if ((refreshedMaps & (1UL << map)) != 0)",
+   "replacement": "if (DrawnFor.IsEmpty && (refreshedMaps & (1UL << map)) != 0)",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C02",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 271,
+   "change": "use one map's turn for every chain length",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CapturingAWholeMapOnItsOrdinaryTurnStillEasesTheLight"
+   ],
+   "seconds": 11.579926834000162,
+   "original": "int slots = CubeFaces.Count * servedMaps;",
+   "replacement": "int slots = CubeFaces.Count * Math.Min(servedMaps, 1);",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C03",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 273,
+   "change": "round the draw count down",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend"
+   ],
+   "seconds": 13.382358625000052,
+   "original": "return (uint)((slots + faces - 1) / faces);",
+   "replacement": "return (uint)(slots / faces);",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C04",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+   "line": 361,
+   "change": "combine only map zero",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CapturingAWholeMapOnItsOrdinaryTurnStillEasesTheLight"
+   ],
+   "seconds": 16.65782979100004,
+   "original": "groupCountZ: (uint)maps",
+   "replacement": "groupCountZ: 1",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C05",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+   "line": 311,
+   "change": "treat a wrap as a capture of all six faces",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend"
+   ],
+   "seconds": 11.156042166000134,
+   "original": "Faces = (uint)faces,",
+   "replacement": "Faces = FaceRun(faces).Count == CubeFaces.Count ? (uint)FaceMask.All : (uint)faces,",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C06",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+   "line": 379,
+   "change": "build coarser irradiance levels only for map zero",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMapsPerFrameTests.ALitPuffOutsideTakesTheMeanRadianceOfTheOutsidesMap"
+   ],
+   "seconds": 31.080702415999895,
+   "original": "Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize, maps: (uint)maps);",
+   "replacement": "Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize);",
+   "classes": [
+    "EnvironmentMapsPerFrameTests"
+   ]
+  },
+  {
+   "id": "C07",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+   "line": 350,
+   "change": "omit the dependency between convolution and combine",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend"
+   ],
+   "seconds": 11.090544084000157,
+   "original": "barriers.Buffer(map.IrradianceContributions, BufferUse.ComputeWrite);\n        barriers.Image(cube,",
+   "replacement": "barriers.Image(cube,",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "C08",
+   "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+   "line": 326,
+   "change": "convolve only the first captured face",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMapsPerFrameTests.AfterTwoTurnsOfTheFacesEveryFacesFiltersAreTheBitsOfARefresh",
+    "EnvironmentMapsPerFrameTests.AMirrorReadsItsMapInItsFramesAxes",
+    "EnvironmentMapsPerFrameTests.AfterACutFromABrightPlaceIntoADarkRoomTheMapHoldsTheRoomInTheCutsDraw"
+   ],
+   "seconds": 31.20402591700031,
+   "original": "groupCountZ: (uint)BitOperations.PopCount(push.Faces)",
+   "replacement": "groupCountZ: 1",
+   "classes": [
+    "EnvironmentMapsPerFrameTests"
+   ]
+  },
+  {
+   "id": "G01",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+   "line": 38,
+   "change": "normalize by face count",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentPrefilterTests.AUniformMapGivesACubeOfItsOwnRadiance(faceSize: 32)",
+    "EnvironmentPrefilterTests.AUniformMapGivesACubeOfItsOwnRadiance(faceSize: 16)",
+    "EnvironmentPrefilterTests.EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap"
+   ],
+   "seconds": 28.66206074999991,
+   "original": "radiance / weight",
+   "replacement": "radiance / 6.0",
+   "classes": [
+    "EnvironmentPrefilterTests"
+   ]
+  },
+  {
+   "id": "G02",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+   "line": 74,
+   "change": "omit the cosine weight",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentPrefilterTests.EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap",
+    "EnvironmentPrefilterTests.TheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels",
+    "EnvironmentPrefilterTests.UnderASmallBrightSquareTheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels"
+   ],
+   "seconds": 30.20951508400003,
+   "original": "float w = cosine * direction.w;",
+   "replacement": "float w = direction.w;",
+   "classes": [
+    "EnvironmentPrefilterTests"
+   ]
+  },
+  {
+   "id": "G03",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+   "line": 101,
+   "change": "finish one draw late",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: False)"
+   ],
+   "seconds": 12.489852124999743,
+   "original": "prefilter.draw + prefilter.blendFrames - 1u",
+   "replacement": "prefilter.draw + prefilter.blendFrames",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "G04",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+   "line": 25,
+   "change": "publish every target immediately",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: True)"
+   ],
+   "seconds": 11.310009249999894,
+   "original": "if (drawsAfterThis > 0)",
+   "replacement": "if (drawsAfterThis > 1000)",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "G05",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+   "line": 28,
+   "change": "discard the light published partway through a blend",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived"
+   ],
+   "seconds": 11.164843333000135,
+   "original": "if (drawsAfterThis >= 0)",
+   "replacement": "if (drawsAfterThis == 0)",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "G06",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+   "line": 26,
+   "change": "spread the first partial update over an extra draw",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend",
+    "EnvironmentMotionTests.CapturingAWholeMapOnItsOrdinaryTurnStillEasesTheLight"
+   ],
+   "seconds": 10.847119417000158,
+   "original": "float(drawsAfterThis + 1)",
+   "replacement": "float(drawsAfterThis + 2)",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "G07",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+   "line": 60,
+   "change": "read the next capture face",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend"
+   ],
+   "seconds": 12.170286958999895,
+   "original": "vec3 ray = faceRay(captureFace,",
+   "replacement": "vec3 ray = faceRay((captureFace + 1u) % 6u,",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "G08",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+   "line": 39,
+   "change": "use the wrong receiving direction",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentPrefilterTests.EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap",
+    "EnvironmentPrefilterTests.TheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels",
+    "EnvironmentPrefilterTests.UnderASmallBrightSquareTheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels"
+   ],
+   "seconds": 31.707254666999688,
+   "original": "normalize(faceRay(layer,",
+   "replacement": "normalize(faceRay((layer + 3u) % 6u,",
+   "classes": [
+    "EnvironmentPrefilterTests"
+   ]
+  },
+  {
+   "id": "G09",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+   "line": 98,
+   "change": "discard the captured open-sky share",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentPrefilterTests.EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap",
+    "EnvironmentPrefilterTests.TheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels",
+    "EnvironmentPrefilterTests.UnderASmallBrightSquareTheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels"
+   ],
+   "seconds": 31.888364917000217,
+   "original": "irradiance.parts[part].target = total;",
+   "replacement": "irradiance.parts[part].target = vec4(total.rgb, 0.0);",
+   "classes": [
+    "EnvironmentPrefilterTests"
+   ]
+  },
+  {
+   "id": "G10",
+   "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+   "line": 30,
+   "change": "keep only the last face's radiance",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend"
+   ],
+   "seconds": 12.877005791999636,
+   "original": "radiance += light;",
+   "replacement": "radiance = light;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R01",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 268,
+   "change": "blend through a camera cut",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: False)"
+   ],
+   "seconds": 12.97060458300075,
+   "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+   "replacement": "blendDrawsOfMaps[map] = turn;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R02",
+   "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+   "line": 31,
+   "change": "use one map's turn for every chain length",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CapturingAWholeMapOnItsOrdinaryTurnStillEasesTheLight"
+   ],
+   "seconds": 11.087908917000277,
+   "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+   "replacement": "(CubeFaces.Count * Math.Min(maps, 1) + facesPerFrame - 1) / facesPerFrame;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R03",
+   "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+   "line": 31,
+   "change": "round the turn down",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 1, facesPerFrame: 4)",
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 3, facesPerFrame: 4)",
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 42, facesPerFrame: 5)"
+   ],
+   "seconds": 4.243004334000034,
+   "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+   "replacement": "CubeFaces.Count * maps / facesPerFrame;",
+   "classes": [
+    "EnvironmentFacesTests"
+   ]
+  },
+  {
+   "id": "R04",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 268,
+   "change": "blend over half a turn",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: True)"
+   ],
+   "seconds": 10.691989165999985,
+   "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+   "replacement": "blendDrawsOfMaps[map] = refreshes ? 1 : (turn + 1) / 2;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R05",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 266,
+   "change": "capture a new map's faces in turn",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMapsPerFrameTests.WhenTheCameraEntersAChildItsNewMapAndTheOldCameraFramesMapRefresh",
+    "EnvironmentMapsPerFrameTests.AChainLongerThanEverBeforeGrowsTheMapsAndRefreshesEveryOne",
+    "EnvironmentMapsPerFrameTests.AfterAGrowthOfTheMapsAMatteSurfaceTakesTheDiffuseLightOfTheNewMaps"
+   ],
+   "seconds": 33.15681233399937,
+   "original": "if (refreshes)",
+   "replacement": "if (refreshes && everyFace)",
+   "classes": [
+    "EnvironmentMapsPerFrameTests"
+   ]
+  },
+  {
+   "id": "R06",
+   "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+   "line": 25,
+   "change": "size the records by a stride that the shaders do not use",
+   "result": "killed",
+   "killed_by": [
+    "IrradianceContributionLayoutTests.AShaderStepsThroughTheRecordsByTheStrideThatTheBufferSizeCounts(file: \"environment_irradiance_combine.comp\")",
+    "IrradianceContributionLayoutTests.AShaderStepsThroughTheRecordsByTheStrideThatTheBufferSizeCounts(file: \"environment_irradiance.comp\")"
+   ],
+   "seconds": 22.15673304200027,
+   "original": "public const int ContributionStride = 48;",
+   "replacement": "public const int ContributionStride = 64;",
+   "classes": [
+    "IrradianceContributionLayoutTests"
+   ]
+  },
+  {
+   "id": "R07",
+   "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+   "line": 22,
+   "change": "count a header shorter than the shaders' header",
+   "result": "killed",
+   "killed_by": [
+    "IrradianceContributionLayoutTests.AShaderFindsTheFirstRecordAfterTheHeaderThatTheBufferSizeCounts(file: \"environment_irradiance_combine.comp\")",
+    "IrradianceContributionLayoutTests.AShaderFindsTheFirstRecordAfterTheHeaderThatTheBufferSizeCounts(file: \"environment_irradiance.comp\")"
+   ],
+   "seconds": 19.710171249999803,
+   "original": "CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint);",
+   "replacement": "CubeFaces.Count * (EnvironmentChain.MaxMaps - 1) * sizeof(uint);",
+   "classes": [
+    "IrradianceContributionLayoutTests"
+   ]
+  }
+ ],
+ "reruns": {
+  "C02": {
+   "first_result": "build-failed",
+   "reason": "IDE0060 rejected the unused servedMaps parameter"
+  }
+ }
+}

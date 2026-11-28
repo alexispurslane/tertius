@@ -823,31 +823,22 @@ public sealed class EnvironmentMapsPerFrameTests
         }
     }
 
-    /// <summary>
-    /// Every specular level and every irradiance level of face <paramref name="face"/> of map <paramref name="map"/>, in
-    /// that order.
-    /// </summary>
-    private static Half[] FiltersOfFace(VulkanRenderer renderer, int map, CubeFace face)
+    /// <summary>All filtered levels of one face, from the mirror or diffuse level to the last mip.</summary>
+    private static Half[] FilteredFace(VulkanRenderer renderer, int map, CubeFace face, EnvironmentImage image)
     {
+        int levels =
+            image == EnvironmentImage.Specular
+                ? PrefilterLevels.Count(EnvironmentScenes.FaceSize)
+                : IrradianceCube.Levels;
         var all = new List<Half>();
-        for (int level = 0; level < PrefilterLevels.Count(EnvironmentScenes.FaceSize); level++)
-            all.AddRange(
-                renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Specular)
-            );
-        for (int level = 0; level < IrradianceCube.Levels; level++)
-            all.AddRange(
-                renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Irradiance)
-            );
+        for (int level = 0; level < levels; level++)
+            all.AddRange(renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: image));
         return [.. all];
     }
 
-    /// <summary>
-    /// The prefilter spreads over the faces' turns (ARCHITECTURE.md, "The prefilter"): a frame rebuilds the specular levels
-    /// and the irradiance of the faces that it drew, and every other face keeps its own, though a rough lobe or the cosine
-    /// of a texel near the drawn face sees its new light. That face's turn brings the new light into them.
-    /// </summary>
+    /// <summary>The reflection filter updates the captured face on its turn.</summary>
     [Fact]
-    public void AFrameRebuildsTheFiltersOfOnlyTheFacesThatItDrew()
+    public void AFrameRebuildsSpecularLevelsForOnlyTheFacesThatItDrew()
     {
         VulkanRenderer renderer = Renderer();
         try
@@ -860,7 +851,11 @@ public sealed class EnvironmentMapsPerFrameTests
             );
             Half[][] before =
             [
-                .. Enumerable.Range(0, CubeFaces.Count).Select(f => FiltersOfFace(renderer, 0, (CubeFace)f)),
+                .. Enumerable
+                    .Range(0, CubeFaces.Count)
+                    .Select(f =>
+                        FilteredFace(renderer: renderer, map: 0, face: (CubeFace)f, image: EnvironmentImage.Specular)
+                    ),
             ];
 
             // Frame 1 draws face −X of map 0 alone, in a dome of another color.
@@ -872,7 +867,12 @@ public sealed class EnvironmentMapsPerFrameTests
 
             for (int face = 0; face < CubeFaces.Count; face++)
             {
-                Half[] after = FiltersOfFace(renderer, 0, (CubeFace)face);
+                Half[] after = FilteredFace(
+                    renderer: renderer,
+                    map: 0,
+                    face: (CubeFace)face,
+                    image: EnvironmentImage.Specular
+                );
                 if ((CubeFace)face == CubeFace.NegativeX)
                     after.Should().NotEqual(before[face], "the drawn face's filters take its new light");
                 else
@@ -916,14 +916,16 @@ public sealed class EnvironmentMapsPerFrameTests
                 time: 0
             );
 
-            for (int face = 0; face < CubeFaces.Count; face++)
-                FiltersOfFace(turned, 0, (CubeFace)face)
-                    .Should()
-                    .Equal(
-                        FiltersOfFace(fresh, 0, (CubeFace)face),
-                        "face {0} was rebuilt from the same faces",
-                        (CubeFace)face
-                    );
+            foreach (EnvironmentImage image in new[] { EnvironmentImage.Specular, EnvironmentImage.Irradiance })
+                for (int face = 0; face < CubeFaces.Count; face++)
+                    FilteredFace(renderer: turned, map: 0, face: (CubeFace)face, image: image)
+                        .Should()
+                        .Equal(
+                            FilteredFace(renderer: fresh, map: 0, face: (CubeFace)face, image: image),
+                            "{0} face {1} contains the settled light",
+                            image,
+                            (CubeFace)face
+                        );
         }
         finally
         {

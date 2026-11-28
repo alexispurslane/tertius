@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -179,5 +181,41 @@ public sealed class EnvironmentFacesTests
 
         oldest.Should().BeGreaterThan(6 * 4 - 1, "the kept face waits for its slot in the new schedule");
         oldest.Should().BeLessThanOrEqualTo(6 * 3 + 6 * 4 - 2);
+    }
+
+    /// <summary>The slots of <paramref name="maps"/> maps that the <paramref name="draws"/> draws from <paramref name="start"/> draw.</summary>
+    private static int SlotsDrawn(long start, int draws, int facesPerFrame, int maps)
+    {
+        var drawn = new FaceMask[maps];
+        for (long frame = start; frame < start + draws; frame++)
+        {
+            FaceMask[] faces = InTurn(frame, facesPerFrame, maps);
+            for (int map = 0; map < maps; map++)
+                drawn[map] |= faces[map];
+        }
+
+        return drawn.Sum(mask => BitOperations.PopCount((uint)mask));
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(3, 1)]
+    [InlineData(1, 4)]
+    [InlineData(2, 6)]
+    [InlineData(3, 4)]
+    [InlineData(42, 5)]
+    public void ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(int maps, int facesPerFrame)
+    {
+        int turn = EnvironmentFaces.TurnDraws(maps: maps, facesPerFrame: facesPerFrame);
+
+        foreach (long start in new long[] { 0, 1, 7, 1_000_003 })
+        {
+            SlotsDrawn(start: start, draws: turn, facesPerFrame: facesPerFrame, maps: maps)
+                .Should()
+                .Be(6 * maps, $"a turn from frame {start}");
+            SlotsDrawn(start: start, draws: turn - 1, facesPerFrame: facesPerFrame, maps: maps)
+                .Should()
+                .BeLessThan(6 * maps, $"one draw fewer from frame {start}");
+        }
     }
 }

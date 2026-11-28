@@ -1140,12 +1140,9 @@ public sealed class EnvironmentPrefilterTests
     }
 
     /// <summary>
-    /// The prefilter records no barrier that the next one covers. For M drawn maps at 128 texels, whose mips take three
-    /// runs, the first frame's barriers are: one into the storage layout for the mips; one after each map's run but the
-    /// last drawn map's last run, whose writes the levels' barrier orders as it makes the mips read-only; that one; one
-    /// before each map's downsample of its irradiance cube; one between two maps of the levels, none after the last, whose
-    /// writes the specular map's read-only barrier and the readback's barrier order; and the readback's two, before and
-    /// after its copy. So 5M + 2 in all.
+    /// For M drawn maps, the three radiance and distance mip runs need 3M barriers, including entry to storage.
+    /// The specular and contribution dispatches need M. Combining irradiance and making its mips take two barriers
+    /// for all maps together, and the readback takes two. The first combine barrier also makes specular levels read-only.
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -1170,7 +1167,7 @@ public sealed class EnvironmentPrefilterTests
             int runs = PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(faceSize));
             int barriers = after.Flushes - before.Flushes;
             runs.Should().Be(3, "the count below assumes three runs of mips");
-            barriers.Should().Be(5 * maps + 2, "the prefilter of {0} maps records each barrier once", maps);
+            barriers.Should().Be(4 * maps + 4, "the prefilter of {0} maps records each barrier once", maps);
         }
         finally
         {

@@ -1,0 +1,252 @@
+[
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 269,
+  "original": "if ((refreshedMaps & (1UL << map)) != 0)",
+  "replacement": "if (DrawnFor.IsEmpty && (refreshedMaps & (1UL << map)) != 0)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "blend through a camera cut"
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 271,
+  "original": "int slots = CubeFaces.Count * servedMaps;",
+  "replacement": "int slots = CubeFaces.Count * Math.Min(servedMaps, 1);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "use one map's turn for every chain length"
+ },
+ {
+  "id": "C03",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 273,
+  "original": "return (uint)((slots + faces - 1) / faces);",
+  "replacement": "return (uint)(slots / faces);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "round the draw count down"
+ },
+ {
+  "id": "C04",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+  "line": 361,
+  "original": "groupCountZ: (uint)maps",
+  "replacement": "groupCountZ: 1",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "combine only map zero"
+ },
+ {
+  "id": "C05",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+  "line": 311,
+  "original": "Faces = (uint)faces,",
+  "replacement": "Faces = FaceRun(faces).Count == CubeFaces.Count ? (uint)FaceMask.All : (uint)faces,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "treat a wrap as a capture of all six faces"
+ },
+ {
+  "id": "C06",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+  "line": 379,
+  "original": "Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize, maps: (uint)maps);",
+  "replacement": "Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMapsPerFrameTests",
+  "note": "build coarser irradiance levels only for map zero"
+ },
+ {
+  "id": "C07",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+  "line": 350,
+  "original": "barriers.Buffer(map.IrradianceContributions, BufferUse.ComputeWrite);\n        barriers.Image(cube,",
+  "replacement": "barriers.Image(cube,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "omit the dependency between convolution and combine"
+ },
+ {
+  "id": "C08",
+  "file": "src/Tertius.Rendering/Passes/EnvironmentPrefilterPass.cs",
+  "line": 326,
+  "original": "groupCountZ: (uint)BitOperations.PopCount(push.Faces)",
+  "replacement": "groupCountZ: 1",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMapsPerFrameTests",
+  "note": "convolve only the first captured face"
+ },
+ {
+  "id": "G01",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+  "line": 38,
+  "original": "radiance / weight",
+  "replacement": "radiance / 6.0",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentPrefilterTests",
+  "note": "normalize by face count"
+ },
+ {
+  "id": "G02",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+  "line": 74,
+  "original": "float w = cosine * direction.w;",
+  "replacement": "float w = direction.w;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentPrefilterTests",
+  "note": "omit the cosine weight"
+ },
+ {
+  "id": "G03",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+  "line": 101,
+  "original": "prefilter.draw + prefilter.blendFrames - 1u",
+  "replacement": "prefilter.draw + prefilter.blendFrames",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "finish one draw late"
+ },
+ {
+  "id": "G04",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+  "line": 25,
+  "original": "if (drawsAfterThis > 0)",
+  "replacement": "if (drawsAfterThis > 1000)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "publish every target immediately"
+ },
+ {
+  "id": "G05",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+  "line": 28,
+  "original": "if (drawsAfterThis >= 0)",
+  "replacement": "if (drawsAfterThis == 0)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "discard the light published partway through a blend"
+ },
+ {
+  "id": "G06",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+  "line": 26,
+  "original": "float(drawsAfterThis + 1)",
+  "replacement": "float(drawsAfterThis + 2)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "spread the first partial update over an extra draw"
+ },
+ {
+  "id": "G07",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+  "line": 60,
+  "original": "vec3 ray = faceRay(captureFace,",
+  "replacement": "vec3 ray = faceRay((captureFace + 1u) % 6u,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "read the next capture face"
+ },
+ {
+  "id": "G08",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+  "line": 39,
+  "original": "normalize(faceRay(layer,",
+  "replacement": "normalize(faceRay((layer + 3u) % 6u,",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentPrefilterTests",
+  "note": "use the wrong receiving direction"
+ },
+ {
+  "id": "G09",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance.comp",
+  "line": 98,
+  "original": "irradiance.parts[part].target = total;",
+  "replacement": "irradiance.parts[part].target = vec4(total.rgb, 0.0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentPrefilterTests",
+  "note": "discard the captured open-sky share"
+ },
+ {
+  "id": "G10",
+  "file": "src/Tertius.Rendering/Shaders/environment_irradiance_combine.comp",
+  "line": 30,
+  "original": "radiance += light;",
+  "replacement": "radiance = light;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "keep only the last face's radiance"
+ },
+ {
+  "id": "R01",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 268,
+  "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+  "replacement": "blendDrawsOfMaps[map] = turn;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "blend through a camera cut"
+ },
+ {
+  "id": "R02",
+  "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+  "line": 31,
+  "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+  "replacement": "(CubeFaces.Count * Math.Min(maps, 1) + facesPerFrame - 1) / facesPerFrame;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "use one map's turn for every chain length"
+ },
+ {
+  "id": "R03",
+  "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+  "line": 31,
+  "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+  "replacement": "CubeFaces.Count * maps / facesPerFrame;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentFacesTests",
+  "note": "round the turn down"
+ },
+ {
+  "id": "R04",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 268,
+  "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+  "replacement": "blendDrawsOfMaps[map] = refreshes ? 1 : (turn + 1) / 2;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "blend over half a turn"
+ },
+ {
+  "id": "R05",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 266,
+  "original": "if (refreshes)",
+  "replacement": "if (refreshes && everyFace)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMapsPerFrameTests",
+  "note": "capture a new map's faces in turn"
+ },
+ {
+  "id": "R06",
+  "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+  "line": 25,
+  "original": "public const int ContributionStride = 48;",
+  "replacement": "public const int ContributionStride = 64;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "IrradianceContributionLayoutTests",
+  "note": "size the records by a stride that the shaders do not use"
+ },
+ {
+  "id": "R07",
+  "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+  "line": 22,
+  "original": "CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint);",
+  "replacement": "CubeFaces.Count * (EnvironmentChain.MaxMaps - 1) * sizeof(uint);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "IrradianceContributionLayoutTests",
+  "note": "count a header shorter than the shaders' header"
+ }
+]
