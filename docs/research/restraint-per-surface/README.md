@@ -38,6 +38,21 @@ The three ramps of a saturation s:
 
 Number 1 held Design 1 and now stops the shader build.
 
+### Names of the variants in one place
+
+| Rule | `render-variant.sh` name | Constants in `volume.glsl` (edit the `#define` lines) |
+|---|---|---|
+| today | `0` | `RESTRAINT_VARIANT 0` |
+| today with glow in full | `4` | `RESTRAINT_VARIANT 4` |
+| Design 2 | `2` | `RESTRAINT_VARIANT 2` |
+| ramp B, summed direct light | `3B` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 1`, `RESTRAINT_LAMPS 0` |
+| ramp B, each lamp judged alone | `3BL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 1`, `RESTRAINT_LAMPS 1` |
+| ramp C, summed direct light | `3C` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 0` |
+| ramp C, each lamp judged alone | `3CL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 1` |
+| ramp A (today's knee, out) | `3A`, `3AL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 0` |
+
+The gain is the second argument of `render-variant.sh`, or `COLOR_GAIN` with a decimal point. Example: ramp C, each lamp judged alone, gain 4 is `render-variant.sh 3CL 4.0 <set>...`, or `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 1`, `COLOR_GAIN 4.0`. Glow is in full in every variant but 0.
+
 where
 
 - C and G are the cell face's summed `color.rgb` and `color.w`.

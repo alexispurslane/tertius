@@ -11,6 +11,13 @@ wall's bounce light.
 - restraint-faint-beige: the warm-white star on a fainter beige wall of reflectance (0.62, 0.6, 0.56), closer to hull paint.
 - restraint-two-lamps: a white star (1, 1, 1) and the orange star (1, 0.4, 0) at the same place on the gray wall
   (0.8, 0.8, 0.8). Each star has the strength of the orange scene's star, so restraint-orange-lamp is the orange lamp alone.
+- restraint-second-bounce: the crossing scene for the second bounce. The gray receiver of the probe; a red floor slab
+  (0.9, 0.05, 0.05) at y = -1.2 m, from x = 1 to 3 m and z = -2.8 to -1.9 m, lit from above by the white star; and a
+  gray ceiling slab (0.65) at y = 0.4 m, from x = 1 to 3 m and z = -2.6 to -1.2 m, that faces down. The star does not
+  reach the ceiling's underside or the receiver's front, and the ceiling does not shade the red floor. So the ceiling
+  is lit only by the red floor's wash, and its own bounce, the second bounce, reaches the receiver. Both slabs span
+  x = 2 to 2.25 m, where the 0.25 m grid's edge moves when the camera crosses x = 0.125 m. The camera path is the
+  probe's sweep.
 """
 import json
 import subprocess
@@ -45,6 +52,31 @@ public static partial class DemoScenes
             world: world, resources: resources, lamp: new(1, 0.4f, 0), wall: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1),
             secondLamp: Vector3.One
         );
+
+    private static SceneInstance RestraintSecondBounce(World world, IRenderResources resources)
+    {
+        var scene = new SceneInstance();
+        FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(100)));
+        scene.Add("room", room.Entity);
+        BounceSlab(
+            world: world, resources: resources, scene: scene, frame: room, name: "receiver",
+            center: new(0.65, 0, -3), size: new(4.3f, 3.2f, 0.08f), color: new(x: 0.65f, y: 0.65f, z: 0.65f, w: 1)
+        );
+        BounceSlab(
+            world: world, resources: resources, scene: scene, frame: room, name: "red-floor",
+            center: new(2, -1.2, -2.35), size: new(2, 0.04f, 0.9f), color: new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1)
+        );
+        BounceSlab(
+            world: world, resources: resources, scene: scene, frame: room, name: "gray-ceiling",
+            center: new(2, 0.4, -1.9), size: new(2, 0.04f, 1.4f), color: new(x: 0.65f, y: 0.65f, z: 0.65f, w: 1)
+        );
+        Star(world: world, scene: scene, frame: room, center: Double3.Zero, direction: new(0, 1, -0.5));
+        world.Ambient = new() { Intensity = 0 };
+        AddCamera(world: world, scene: scene, frame: room, pose: LookingAt(new(0.05, 0, 0), new(0.8, -0.25, -3)));
+        for (int i = 0; i <= 96; i++)
+            scene.Add($"sweep-{i}", world.Spawn(ViewIn(room, LookingAt(new(0.0025 * i, 0, 0), new(0.8, -0.25, -3)))));
+        return scene;
+    }
 
     private static SceneInstance RestraintLampWall(
         World world, IRenderResources resources, Vector3 lamp, Vector4 wall, Vector3 secondLamp = default
@@ -87,7 +119,8 @@ assert text.count(line) == 1
 table.write_text(text.replace(line, line + '\n            new("restraint-orange-lamp", RestraintOrangeLamp),'
                                        '\n            new("restraint-warm-white", RestraintWarmWhite),'
                                        '\n            new("restraint-faint-beige", RestraintFaintBeige),'
-                                       '\n            new("restraint-two-lamps", RestraintTwoLamps),'))
+                                       '\n            new("restraint-two-lamps", RestraintTwoLamps),'
+                                       '\n            new("restraint-second-bounce", RestraintSecondBounce),'))
 
 # The deck cameras of set 1b: three views beside the warm gray glow of the station's floor, which lies from about 5 m
 # behind the deck camera and curves up. The offsets are from the deck camera's eye in the station's frame (+X up).
@@ -113,6 +146,12 @@ deck = json.loads((tools / "deck-still.json").read_text())
 for view in ("glow-back", "glow-up", "glow-along"):
     steps = [dict(step, entity=view) if step.get("entity") == "deck-camera" else step for step in deck["steps"]]
     (folder / f"{view}.json").write_text(json.dumps(dict(deck, steps=steps), indent=1) + "\n")
+
+crossing = json.loads(Path("captures/issue22/crossing.json").read_text())
+(folder / "crossing-second.json").write_text(json.dumps(dict(crossing, scene="restraint-second-bounce"), indent=1) + "\n")
+(folder / "second-outside.json").write_text(json.dumps(
+    {"scene": "restraint-second-bounce", "window": {"width": 640, "height": 360},
+     "steps": [{"do": "camera", "entity": "camera"}, {"do": "capture", "name": "second-outside"}]}, indent=2) + "\n")
 
 for scene, name in (("restraint-orange-lamp", "orange"), ("restraint-warm-white", "warm"),
                     ("restraint-faint-beige", "faint"), ("restraint-two-lamps", "two")):

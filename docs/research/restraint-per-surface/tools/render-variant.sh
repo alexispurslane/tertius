@@ -10,6 +10,8 @@
 #   orange    the orange-lamp scene at both poses
 #   two       the white and orange lamps together, and the orange lamp alone, at both poses
 #   crossing  the crossing film of the mixed probe (the camera path of #22's crossing.mp4), EV 0
+#   crossing-second  the same camera path through the second-bounce scene (restraint-second-bounce), EV 0
+#   second    one still of the second-bounce scene at the first camera
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
 #   glow      set 1b: three deck views beside the floor's glow (glow-back, glow-up, glow-along), like deck
@@ -97,16 +99,20 @@ for set in "$@"; do
             done
         done
         ;;
-    crossing)
-        [[ -f "$out/crossing/.done" ]] && continue
-        rm -rf "$out/crossing" "$out/crossing.mkv"
-        mkdir -p "$out/crossing"
+    crossing | crossing-second)
+        if [[ "$set" == crossing ]]; then film="$PWD/captures/issue22/crossing.json"; else film="$scope/crossing-second.json"; fi
+        [[ -f "$out/$set/.done" ]] && continue
+        rm -rf "$out/$set" "$out/$set.mkv"
+        mkdir -p "$out/$set"
         gpu_free
-        env TERTIUS_LIGHT_VOLUME=1 bash tools/gpu-lock.sh --shared "$out/crossing/render.log" \
+        env TERTIUS_LIGHT_VOLUME=1 bash tools/gpu-lock.sh --shared "$out/$set/render.log" \
             dotnet run --project src/Tertius.Demo -c Release --no-build -- \
-            --script "$PWD/captures/issue22/crossing.json" --headless --out "$out/crossing" \
-            --video "$out/crossing.mkv" --fps 60 "${probe[@]}"
-        touch "$out/crossing/.done"
+            --script "$film" --headless --out "$out/$set" \
+            --video "$out/$set.mkv" --fps 60 "${probe[@]}"
+        touch "$out/$set/.done"
+        ;;
+    second)
+        render "$out/second-outside" "$scope/second-outside.json" "${probe[@]}"
         ;;
     deck)
         TERTIUS_CONTENT_ROOT="$content" render "$out/deck" "$tools/deck-still.json" --size 1280x720
