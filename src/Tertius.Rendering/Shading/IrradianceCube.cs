@@ -3,14 +3,23 @@ using System.Numerics;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The irradiance cube of a map: D(n), the map's ambient diffuse radiance, for every unit normal n, convolved in each
-/// drawn frame from the map's radiance (https://github.com/alexispurslane/tertius/wiki/environment-map, "The irradiance"). environment_irradiance.comp is
-/// the GLSL copy of <see cref="Convolve"/>.
+/// The irradiance cube of a map: D(n), its ambient diffuse radiance for every unit normal n. Each captured face
+/// contributes its cosine-weighted radiance to every texel (ARCHITECTURE.md, "The prefilter").
 /// </summary>
 internal static class IrradianceCube
 {
     /// <summary>The texels along one side of a face of the cube's level 0.</summary>
     public const int FaceSize = 16;
+
+    /// <summary>The texels of level 0, across all its faces.</summary>
+    public const int Texels = CubeFaces.Count * FaceSize * FaceSize;
+
+    /// <summary>
+    /// The last blend draw of each capture face, followed by one std430 record per capture face and irradiance texel.
+    /// Each record has two vec4 sums and one float weight, rounded to a 48-byte stride.
+    /// </summary>
+    public static ulong ContributionBytes(int maps) =>
+        CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint) + (ulong)maps * CubeFaces.Count * Texels * 48;
 
     /// <summary>
     /// The face size of the radiance map's level that the cube convolves, or the map's own level 0 when that is smaller.
