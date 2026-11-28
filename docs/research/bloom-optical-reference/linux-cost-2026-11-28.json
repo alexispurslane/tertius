@@ -1,0 +1,95 @@
+{
+  "status": "two_failed_attempts_one_approved_staged_mirror_attempt_pending",
+  "before_commit": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
+  "after_commit": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+  "common_commit": "4da7acd35eada358715ce22ee1e914264ac393c7",
+  "script": "scripts/temporal-upscale-timing.json",
+  "script_sha256": "f881515e8d04e118ef2820e6c6068946bb70cc6601b59f3111895b34dd0633e4",
+  "output_pixels": [
+    1920,
+    1080
+  ],
+  "fixed_exposure_stops": 6.0043726,
+  "runs_per_tree_per_scenario": 5,
+  "scenarios": [
+    {
+      "upscaling": "off",
+      "expected_active_pixels": [
+        1920,
+        1080
+      ],
+      "observed_active_pixels": null
+    },
+    {
+      "upscaling": "fsr3",
+      "render_scale": 0.6666667,
+      "expected_active_pixels": [
+        1280,
+        720
+      ],
+      "observed_active_pixels": null
+    }
+  ],
+  "active_extent_preflight": {
+    "status": "specified_not_run",
+    "method": "separate untimed observation of submitted pending.RenderSize and pending.OutputSize in VulkanRenderer.CommitDrawnFrame; FrameContext.Extent returns History.RenderSize",
+    "per_tree_and_scenario": true,
+    "record": [
+      "submitted_frame",
+      "render_width",
+      "render_height",
+      "output_width",
+      "output_height",
+      "tree_commit",
+      "resolved_options",
+      "diagnostic_diff_sha256"
+    ],
+    "timed_binaries": "original source bytes restored and verified, rebuilt without diagnostic observation before warm-up and measurement"
+  },
+  "previous_planned_before_commit": "3b45a9adeb005c802f7ddb8f302c7636811ec4a7",
+  "before_commit_reason": "Match the candidate main merge: include the same expanded light-volume grid and synchronization fix in both trees; the older planned baseline excluded the grid expansion.",
+  "worker_script_sha256": "2ec6ca2a9004642935d966d5064ac6bb5182a2afd90865e00fcfaae65ec677d5",
+  "submission_ps1_sha256": "f602640e8bcdcb4b40ef40c9ca012eeba147c717e85f8f75e92c03003cc9ad13",
+  "jobs": [
+    {
+      "job_id": "ab29bcc7-7638-40ee-9280-401ae5aaa18b-u2",
+      "status": "failed",
+      "runpod_status": "FAILED",
+      "execution_seconds": 69.688,
+      "accounted_cost_usd": 0.0224,
+      "error": "command 1 failed with exit code 1",
+      "result_sha256": "f0539cc343c609c2864e8bebf218f2c9f7446ddf614c199a494777b3ab660e45",
+      "last_completed_stage": "Baseline diagnostic build passed; first demo launch stopped because ten canonical model.glb files were absent."
+    },
+    {
+      "job_id": "eb631130-8758-446d-8a83-d45ef9949cf5-u2",
+      "status": "failed",
+      "runpod_status": "FAILED",
+      "execution_seconds": 118.073,
+      "accounted_cost_usd": 0.0301,
+      "error": "command 1 failed with exit code 1",
+      "result_sha256": "8639cc616d8c9115f3a7ca4b5260331a6c88fde691fc42435103bc9bd34737fa",
+      "last_completed_stage": "Canonical assets Nix shell and Blender dependencies provisioned; Earth terrain fetch failed before model cooking.",
+      "asset_setup_seconds": 109.37873032304924,
+      "asset_setup_log_sha256": "f92e7fc7251bb61996ff2614ef92a0131e36e81158830b3e6ab561d51c1d4c6e",
+      "fetch_error": "AS9005: NOAA etopo180.dods TLS handshake timed out.",
+      "failed_url": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D"
+    }
+  ],
+  "total_accounted_cost_usd": 0.0525,
+  "active_extents_observed": false,
+  "matched_timings_available": false,
+  "performance_conclusion": null,
+  "third_job_submitted": false,
+  "retry_worker_sha256": "0716fe52a79756704315a17091c154e55c86f17a4c68ed1b6e5091ac2d82e3bd",
+  "retry_submission_sha256": "525a77e2d8d9c212cf7810afe5f14e01cc4e8b78dbb7039566632cd5157e8414",
+  "canonical_asset_manifest_available": false,
+  "mac_canonical_cooked_manifest_sha256": "0bc4de65f352f451dd55aa24698e78cf01b62d4cfeabeb00450767868835132b",
+  "approved_staging_route": {
+    "url": "https://upwell.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D",
+    "bytes": 9370338,
+    "sha256": "a14135cf20fe2d0a7a18af72a0999483735c1f7e47cf3dbdc24d819beda61b04",
+    "local_get_pin_verified": true,
+    "setup": "Download on worker, verify bytes and hash, then canonical setup.sh --staging <folder>. No asset or runtime edits."
+  }
+}

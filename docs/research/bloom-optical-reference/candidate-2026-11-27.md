@@ -76,3 +76,23 @@ The [mutation record](hardening-2026-11-27.json) gives one final outcome per mut
 The new B09 test computes the center of the halo's linear light from output pixel positions. One active source pixel spans 1/scale output pixels. The expected source position comes from the scene fixture, independently of the tested coordinate conversion. The baseline passed all five motion and light-center cases before the B09 mutant failed. The original energy tests remain unchanged.
 
 The final outcome is nine killed and one survived with a recorded judgment call. There were no timeouts, failed builds, empty test selections or equivalent-mutant classifications. No whole-feature mutation score is claimed for source writers or common exposure consumers; this run covers the bloom shader and pass.
+
+## Source and storage hardening
+
+The [source hardening record](source-hardening-2026-11-28.json) covers 22 selected faults in source writers, fresh ambient conversion and image formats. The first run caught 19 faults. Three survived because the selected fixtures did not check ambient light at a traced hit, the absolute brightness of broad reflected volume light, or atlas emission above the half-float range.
+
+Four new cases pass on the unmodified renderer. A scoped scripted rerun catches all three surviving faults:
+
+| Fault | Rendered failure |
+|---|---|
+| Double ambient light at a traced hit | A mirror sample reads 0.99853516 instead of 0.50001717 at zero exposure stops. The four-stop case fails too. |
+| Double broad reflected volume light | A white metal returns 9.34669 instead of the 4.671875 arriving at its surface. Its unit albedo requires one copy. |
+| Restore half-float atlas color | Captured emission stops at 65,504 instead of retaining 262,144 before display exposure. |
+
+The final result is 22 caught faults, with no surviving faults, timeouts, build failures or empty test selections. The [initial list](source-mutants-2026-11-28.json) and [scoped list](source-survivor-mutants-2026-11-28.json) reproduce the runs through `tools/mutate.py`. Both runs verify source bytes, file modes, the Git index and HEAD, then rebuild the unmodified assembly. This stage changes tests and evidence only.
+
+## Linux measurement status
+
+The [Linux record](linux-cost-2026-11-28.json) preserves two failed attempts. The first stopped before rendering because the canonical models were absent. The second provisioned the assets shell, then the primary NOAA terrain download timed out during its TLS handshake. Neither attempt produced frame-time measurements or observed render dimensions. Their total accounted cost is $0.0525.
+
+The asset sidecar already approves a hash-identical NOAA staging mirror. A fresh download matches all 9,370,338 bytes and the pinned SHA-256. One further attempt is approved to fetch that mirror on the worker, verify its pin and pass it to the existing asset setup command. The measurement retains the same immutable commits, 840-second limit and matched settings. Performance remains unmeasured until that attempt succeeds.

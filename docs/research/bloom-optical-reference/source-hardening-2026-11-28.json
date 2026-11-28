@@ -1,0 +1,575 @@
+{
+  "scope": "Twenty-two selected source-writer, ambient-boundary and storage-format faults on runtime f97. Bloom-only faults remain in hardening-2026-11-27.json. Common history/exposure consumers are separate.",
+  "runtime_commit": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+  "initial_counts": {
+    "killed": 19,
+    "survived": 3,
+    "timeout": 0,
+    "build_failed": 0,
+    "no_tests": 0
+  },
+  "final_counts": {
+    "killed": 22,
+    "survived": 0,
+    "timeout": 0,
+    "no_coverage": 0,
+    "build_failed": 0,
+    "no_tests": 0
+  },
+  "rows": [
+    {
+      "id": "A01",
+      "file": "src/Tertius.Rendering/Shaders/temporal.glsl",
+      "line": 112,
+      "change": "Lose scene ambient in a capped expose/unexpose round trip",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: False, volume: False)"
+      ],
+      "seconds": 63.02892033290118,
+      "original": "    if (s.model == ShadingHair)\n        light.specular *= specularWeight(lobesOf(s, V));\n    return light;",
+      "replacement": "    if (s.model == ShadingHair)\n        light.specular *= specularWeight(lobesOf(s, V));\n    light.diffuse = preExposed(light.diffuse) / exposureScale();\n    light.specular = preExposed(light.specular) / exposureScale();\n    return light;",
+      "classes": [
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A02",
+      "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+      "line": 90,
+      "change": "Read estimator units as scene units in the composite fallback",
+      "result": "killed",
+      "killed_by": [
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: -64, trace: False, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: False)",
+        "AmbientCutSourceTests.ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(incoming: 64, trace: True, volume: True)"
+      ],
+      "seconds": 61.844299458898604,
+      "original": "IndirectLight indirect = closedFormScene(withAmbientFootprint(s, pixel), V);",
+      "replacement": "IndirectLight indirect = closedForm(withAmbientFootprint(s, pixel), V);",
+      "classes": [
+        "AmbientCutSourceTests"
+      ]
+    },
+    {
+      "id": "A03",
+      "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+      "line": 467,
+      "change": "Double the scene ambient entering the hit estimator",
+      "result": "killed",
+      "killed_by": [
+        "AmbientReflectionSourceTests.AMirrorSampleKeepsTheAmbientLightOfTheSurfaceItHits(stops: 4)",
+        "AmbientReflectionSourceTests.AMirrorSampleKeepsTheAmbientLightOfTheSurfaceItHits(stops: 0)"
+      ],
+      "seconds": 45.987365582957864,
+      "original": "indirectDiffuse = preExposed(indirectDiffuse);",
+      "replacement": "indirectDiffuse = preExposed(2.0 * indirectDiffuse);",
+      "classes": [
+        "AmbientReflectionSourceTests"
+      ]
+    },
+    {
+      "id": "A04",
+      "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+      "line": 104,
+      "change": "Expose volume diffuse before storing scene radiance",
+      "result": "killed",
+      "killed_by": [
+        "LightVolumeRenderTests.ChangingExposureKeepsTheVolumesSceneRadianceUnchanged"
+      ],
+      "seconds": 69.7687177080661,
+      "original": "factors.diffuse * max(d.rgb, vec3(0))",
+      "replacement": "factors.diffuse * preExposed(max(d.rgb, vec3(0)))",
+      "classes": [
+        "LightVolumeRenderTests"
+      ]
+    },
+    {
+      "id": "A05",
+      "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+      "line": 108,
+      "change": "Double broad reflected volume radiance",
+      "result": "killed",
+      "killed_by": [
+        "VolumeSourceRadianceTests.AWhiteMetalReturnsTheBroadRadianceArrivingAtItsSurface"
+      ],
+      "seconds": 45.65142491552979,
+      "original": "factors.specular * max(g.rgb, vec3(0))",
+      "replacement": "2.0 * factors.specular * max(g.rgb, vec3(0))",
+      "classes": [
+        "VolumeSourceRadianceTests"
+      ]
+    },
+    {
+      "id": "W01",
+      "file": "src/Tertius.Rendering/Shaders/direct.frag",
+      "line": 32,
+      "change": "Reintroduce pre-exposure at the exact direct writer",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests.ASourceKeepsItsRadianceBeforeBloomEvenWhenItsDisplayedCoreIsWhite(source: MattePanel, exact: True)",
+        "BloomSourceLightTests.ASourceKeepsItsRadianceBeforeBloomEvenWhenItsDisplayedCoreIsWhite(source: GlossyPanel, exact: True)"
+      ],
+      "seconds": 67.66472883429378,
+      "original": "outDiffuse = vec4(direct.diffuse, 1.0);\n    outSpecular = vec4(direct.specular, 1.0);",
+      "replacement": "outDiffuse = vec4(preExposed(direct.diffuse), 1.0);\n    outSpecular = vec4(preExposed(direct.specular), 1.0);",
+      "classes": [
+        "BloomSourceLightTests"
+      ]
+    },
+    {
+      "id": "W02",
+      "file": "src/Tertius.Rendering/Shaders/direct_key_fill.frag",
+      "line": 29,
+      "change": "Reintroduce pre-exposure at the default key/fill writer",
+      "result": "killed",
+      "killed_by": [
+        "BloomSourceLightTests.ASourceKeepsItsRadianceBeforeBloomEvenWhenItsDisplayedCoreIsWhite(source: GlossyPanel, exact: False)",
+        "BloomSourceLightTests.ASourceKeepsItsRadianceBeforeBloomEvenWhenItsDisplayedCoreIsWhite(source: MattePanel, exact: False)"
+      ],
+      "seconds": 31.230000000447035,
+      "original": "outDiffuse = vec4(direct.diffuse, 1.0);\n    outSpecular = vec4(direct.specular, 1.0);",
+      "replacement": "outDiffuse = vec4(preExposed(direct.diffuse), 1.0);\n    outSpecular = vec4(preExposed(direct.specular), 1.0);",
+      "classes": [
+        "BloomSourceLightTests"
+      ]
+    },
+    {
+      "id": "W03",
+      "file": "src/Tertius.Rendering/Shaders/gbuffer.frag",
+      "line": 61,
+      "change": "Reintroduce pre-exposure before emission storage",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.EmissionStaysSceneReferredWhenItsDisplayExposureWouldOverflow"
+      ],
+      "seconds": 21.53426691610366,
+      "original": "outEmissive = vec4(s.emissive, normalSky);",
+      "replacement": "outEmissive = vec4(preExposed(s.emissive), normalSky);",
+      "classes": [
+        "PortableFloatTests"
+      ]
+    },
+    {
+      "id": "W04",
+      "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+      "line": 103,
+      "change": "Clip the composite scene source to the old display budget",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.TheBrightestLightOneCentimeterFromAMirrorRetainsFiniteSceneRadiance",
+        "PortableFloatTests.ReflectedLightStaysFiniteAndSceneReferredAtTheLargestExposure",
+        "PortableFloatTests.EmissionStaysSceneReferredWhenItsDisplayExposureWouldOverflow"
+      ],
+      "seconds": 58.49451870750636,
+      "original": "outColor = vec4(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, 1.0);",
+      "replacement": "outColor = vec4(min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);",
+      "classes": [
+        "PortableFloatTests"
+      ]
+    },
+    {
+      "id": "W05",
+      "file": "src/Tertius.Rendering/Shaders/transparent.frag",
+      "line": 45,
+      "change": "Clip glass to the old surface display budget",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.AGlassPaneKeepsItsSceneEmissionBeforeAnExtremeDisplayExposure",
+        "PortableFloatTests.AGlassPaneAddsItsSceneEmissionToTheTransmittedBackground",
+        "GlassRenderTests.ABrightPaneRetainsItsReflectionAndTransmittedSceneRadiance"
+      ],
+      "seconds": 69.8667211253196,
+      "original": "SceneRadianceLimit * (1.0 - transmittance)",
+      "replacement": "MaxRadiance * (1.0 - transmittance)",
+      "classes": [
+        "PortableFloatTests",
+        "GlassRenderTests"
+      ]
+    },
+    {
+      "id": "W06",
+      "file": "src/Tertius.Rendering/Shaders/fringe.frag",
+      "line": 41,
+      "change": "Clip fringe scene radiance before coverage blending",
+      "result": "killed",
+      "killed_by": [
+        "FringeRenderTests.AFringePremultipliesItsSceneRadianceAndPreservesAnEquallyBrightBackground"
+      ],
+      "seconds": 15.5029765823856,
+      "original": "vec3 radiance = surfaceRadiance(shading, s.emissive, V, ShadowMapsMainView);",
+      "replacement": "vec3 radiance = min(surfaceRadiance(shading, s.emissive, V, ShadowMapsMainView), vec3(MaxRadiance));",
+      "classes": [
+        "FringeRenderTests"
+      ]
+    },
+    {
+      "id": "W07",
+      "file": "src/Tertius.Rendering/Shaders/haze.frag",
+      "line": 32,
+      "change": "Double the scene haze share while forward surfaces retain the original",
+      "result": "killed",
+      "killed_by": [
+        "AtmosphereRenderTests.AFringeFadesIntoTheHazeByTheShareThatItCovers",
+        "AtmosphereRenderTests.AMirrorReflectsTheHazeOverAFarSurfaceAsTheEyeSeesIt",
+        "AtmosphereRenderTests.AnOpaquePaneFadesIntoTheHazeAsAnOpaqueSurfaceDoes"
+      ],
+      "seconds": 27.42199375014752,
+      "original": "vec3 airLight = frame.atmosphere.haze.rgb;",
+      "replacement": "vec3 airLight = 2.0 * frame.atmosphere.haze.rgb;",
+      "classes": [
+        "AtmosphereRenderTests"
+      ]
+    },
+    {
+      "id": "W08",
+      "file": "src/Tertius.Rendering/Shaders/impostor.frag",
+      "line": 63,
+      "change": "Pre-expose the billboard before downstream exposure",
+      "result": "killed",
+      "killed_by": [
+        "PreExposureTests.EachSourceIsDisplayedAtTheConfiguredExposure(writer: ImpostorBillboard)",
+        "PreExposureTests.AnImpostorBillboardShowsWhatItsGeometryShowsAtTheSameExposure"
+      ],
+      "seconds": 23.405848332680762,
+      "original": "outEmissive = vec4(color.rgb / coverage, 1.0);",
+      "replacement": "outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);",
+      "classes": [
+        "PreExposureTests"
+      ]
+    },
+    {
+      "id": "W09",
+      "file": "src/Tertius.Rendering/Shaders/impostor_capture.frag",
+      "line": 35,
+      "change": "Bake the current exposure into the persistent impostor atlas",
+      "result": "killed",
+      "killed_by": [
+        "PreExposureTests.EachSourceIsDisplayedAtTheConfiguredExposure(writer: ImpostorBillboard)",
+        "PreExposureTests.AnImpostorCaptureHoldsRadianceThatDoesNotDependOnTheExposure",
+        "PreExposureTests.AnImpostorBillboardShowsWhatItsGeometryShowsAtTheSameExposure"
+      ],
+      "seconds": 25.814648374915123,
+      "original": "vec3 color = surfaceRadiance(shading, s.emissive, V, ShadowMapsNone);",
+      "replacement": "vec3 color = preExposed(surfaceRadiance(shading, s.emissive, V, ShadowMapsNone));",
+      "classes": [
+        "PreExposureTests"
+      ]
+    },
+    {
+      "id": "W10",
+      "file": "src/Tertius.Rendering/Shaders/puff.vert",
+      "line": 50,
+      "change": "Pre-expose a puff before downstream exposure",
+      "result": "killed",
+      "killed_by": [
+        "PreExposureTests.EachSourceIsDisplayedAtTheConfiguredExposure(writer: LitPuff)",
+        "PreExposureTests.EachSourceIsDisplayedAtTheConfiguredExposure(writer: GlowPuff)"
+      ],
+      "seconds": 26.74830904137343,
+      "original": "outRadiance = exposed(radiance, 1.0, frame.params.x);",
+      "replacement": "outRadiance = exposed(radiance, exposureScale(), frame.params.x);",
+      "classes": [
+        "PreExposureTests"
+      ]
+    },
+    {
+      "id": "W11",
+      "file": "src/Tertius.Rendering/Shaders/skin_scatter_columns.comp",
+      "line": 22,
+      "change": "Add scattered light without removing its original diffuse source",
+      "result": "killed",
+      "killed_by": [
+        "SkinScatterRenderTests.ScatterLeavesAnEvenlyLitSkinPlaneAsItWas",
+        "SkinScatterRenderTests.ScatterTakesNoLightFromASurfaceThatIsNotSkin",
+        "SkinScatterRenderTests.ThePassesMatchTheirCopyInCSharp"
+      ],
+      "seconds": 15.487342957407236,
+      "original": "max(lit.rgb + scattered - diffuse.rgb, vec3(0.0))",
+      "replacement": "max(lit.rgb + scattered, vec3(0.0))",
+      "classes": [
+        "SkinScatterRenderTests"
+      ]
+    },
+    {
+      "id": "F01",
+      "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+      "line": 55,
+      "change": "Restore half-float storage for EmissiveFormat",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.APuffWhoseLightIsNotFiniteAddsNothing",
+        "PortableFloatTests.EmissionStaysSceneReferredWhenItsDisplayExposureWouldOverflow"
+      ],
+      "seconds": 22.654261708259583,
+      "original": "public const Format EmissiveFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "PortableFloatTests"
+      ]
+    },
+    {
+      "id": "F02",
+      "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+      "line": 60,
+      "change": "Restore half-float storage for HdrFormat",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.TheBrightestLightOneCentimeterFromAMirrorRetainsFiniteSceneRadiance",
+        "PortableFloatTests.APuffWhoseLightIsNotFiniteAddsNothing",
+        "PortableFloatTests.AGlassPaneKeepsItsSceneEmissionBeforeAnExtremeDisplayExposure"
+      ],
+      "seconds": 28.106348166242242,
+      "original": "public const Format HdrFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format HdrFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "PortableFloatTests"
+      ]
+    },
+    {
+      "id": "F03",
+      "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+      "line": 69,
+      "change": "Restore half-float storage for DirectFormat",
+      "result": "killed",
+      "killed_by": [
+        "PortableFloatTests.TheBrightestLightOneCentimeterFromAMirrorRetainsFiniteSceneRadiance",
+        "PortableFloatTests.APuffWhoseLightIsNotFiniteAddsNothing",
+        "PortableFloatTests.AGlassPaneKeepsItsSceneEmissionBeforeAnExtremeDisplayExposure"
+      ],
+      "seconds": 32.518286666832864,
+      "original": "public const Format DirectFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format DirectFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "PortableFloatTests"
+      ]
+    },
+    {
+      "id": "F04",
+      "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+      "line": 62,
+      "change": "Restore half-float storage for DiffuseFormat",
+      "result": "killed",
+      "killed_by": [
+        "SkinScatterRenderTests.ScatterLeavesAnEvenlyLitSkinPlaneAsItWas",
+        "SkinScatterRenderTests.ScatterCarriesRedPastTheTerminatorFartherThanBlue",
+        "SkinScatterRenderTests.TheDiffuseImageHoldsDOfSkinZeroAtOtherPixelsAndTheSkinMask"
+      ],
+      "seconds": 16.580802000127733,
+      "original": "public const Format DiffuseFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "SkinScatterRenderTests"
+      ]
+    },
+    {
+      "id": "F05",
+      "file": "src/Tertius.Rendering/Frame/ScatterImages.cs",
+      "line": 15,
+      "change": "Restore half-float storage for RowFormat",
+      "result": "killed",
+      "killed_by": [
+        "SkinScatterRenderTests.ScatterLeavesAnEvenlyLitSkinPlaneAsItWas",
+        "SkinScatterRenderTests.ScatterCarriesRedPastTheTerminatorFartherThanBlue",
+        "SkinScatterRenderTests.TheDiffuseImageHoldsDOfSkinZeroAtOtherPixelsAndTheSkinMask"
+      ],
+      "seconds": 14.862181167118251,
+      "original": "public const Format RowFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format RowFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "SkinScatterRenderTests"
+      ]
+    },
+    {
+      "id": "F06",
+      "file": "src/Tertius.Rendering/Frame/ImpostorAtlas.cs",
+      "line": 28,
+      "change": "Restore half-float storage for ColorFormat",
+      "result": "killed",
+      "killed_by": [
+        "ImpostorSourceRadianceTests.AnImpostorCaptureRetainsEmissionAboveTheHalfFloatRange"
+      ],
+      "seconds": 47.338667165488005,
+      "original": "public const Format ColorFormat = Format.R32G32B32A32Sfloat;",
+      "replacement": "public const Format ColorFormat = Format.R16G16B16A16Sfloat;",
+      "classes": [
+        "ImpostorSourceRadianceTests"
+      ]
+    }
+  ],
+  "initial_seconds": 1159,
+  "scoped_rerun_seconds": 163,
+  "baseline_new_cases": 4,
+  "restoration": "Both runs independently verified exact source bytes/modes, semantic Git index and HEAD. Both rebuilt the unmodified Checked assembly.",
+  "input_files": {
+    "src/Tertius.Rendering/Frame/ImpostorAtlas.cs": {
+      "sha256": "02148450f2866bc3acd872be1660318c396e5c021815f681037f1cf0891fa41f",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Frame/RenderTargets.cs": {
+      "sha256": "c982ef19aecf7fb86defaec651dfa258c292e3ef8d328e3cdbd2989ba6effb98",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Frame/ScatterImages.cs": {
+      "sha256": "b0993691867eaa7b62e3c4498e87d019820c2c4b00e664b45783119e7e1dec74",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/composite_pass.glsl": {
+      "sha256": "9337834a7fee1f6cb57d5bc3e09da97598c4bcb89daa8c95fa001893eeec2ae5",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/direct.frag": {
+      "sha256": "c04f105a628d0028a7cfa0fd7dd68c4ac126ffe9b2374b98bdf161fb3e6e20b1",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/direct_key_fill.frag": {
+      "sha256": "e7abf3adc8708bf07a2013eb6ce5357cd98c532bd4b0fbde04bb560fab352560",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/fringe.frag": {
+      "sha256": "0ff87d6311c824662e17f11b23c62771ee3402ba8ad4c729cb2ee95bb464c3ed",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/gbuffer.frag": {
+      "sha256": "d90448dc39a985d487db4beeafb6db515a75ac1cb2a8b23032daf7647763de29",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/haze.frag": {
+      "sha256": "81f0a5deaf2222bbeb5dd6a73137a8014d16dace17c0db298135b20bcd53866f",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/impostor.frag": {
+      "sha256": "9622a7082122904c0dae85f7c431c74a0a511bde7f91a8c5a80f3ffb1159c60a",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/impostor_capture.frag": {
+      "sha256": "51b57ea27e210ff3e77ee88bd3163502807a1069f4dbefbee2d773b763f5b46c",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/puff.vert": {
+      "sha256": "2df735aa7aa889b16203f530194d82d43a507b9ac42ab5183964f4012ffb8260",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/screen_trace.glsl": {
+      "sha256": "c134e85b3a4101a4b39a73c4c0eff95e327f2f27ae8b393c4d1512978e5a7748",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/skin_scatter_columns.comp": {
+      "sha256": "0fe9a0f27045c5fbdde65fe378916efd2a68f107fe8b0d66771e29957b7a0619",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/temporal.glsl": {
+      "sha256": "ae268a6274953f29e3987e29d8571de89f95233811dc9b31cee84958dded5b92",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/transparent.frag": {
+      "sha256": "a8d0cba87d051f4d55aade62d5f851aee178faa321b68f2930bff058fc58f49c",
+      "executable": false
+    },
+    "src/Tertius.Rendering/Shaders/volume_receive.glsl": {
+      "sha256": "83f0713d43e21680b8e163df8913bbd2e6069f3be5a6df2737838e5042cd1b35",
+      "executable": false
+    }
+  },
+  "survivor_evidence": {
+    "A03": "At 0 stops the doubled ambient mirror sample was 0.99853516 versus 0.50001717 expected; at 4 stops 15.9765625 versus 8.000275.",
+    "A05": "Doubling broad reflected volume radiance returned 9.34669 versus 4.671875 incoming to a unit-albedo white metal.",
+    "F06": "Half-float atlas storage retained 65504 instead of emitted scene radiance 262144 at display exposure -20 stops."
+  },
+  "coverage": {
+    "scope": "Owned BloomPass C# changed lines from 3b45a9ade to staged runtime; common C# coverage remains separate",
+    "source": "Reused prior source16 coverage; no coverage rerun",
+    "coverage_xml_sha256": "32c289d1ac6fae0bbca24c7194b5e787c34c6e1707b402ad043fc2466537a0ac",
+    "prior_source_sha256": "dce23967456104ca204944dae68bbc1ebe64ef45aa3af50f55469749cdbfbc79",
+    "final_source_sha256": "c825c6515b34467e70d0e0b52b49835012c5d7ce8eb3aee354878f9ae664b062",
+    "mapping": "Exact matching lines from archived measured source to final source; only comment/blank-line grouping changed",
+    "instrumented": 12,
+    "covered": 12,
+    "rows": [
+      {
+        "final_line": 40,
+        "covered_line": 40,
+        "hits": 1
+      },
+      {
+        "final_line": 41,
+        "covered_line": 41,
+        "hits": 1
+      },
+      {
+        "final_line": 42,
+        "covered_line": 42,
+        "hits": 1
+      },
+      {
+        "final_line": 43,
+        "covered_line": 43,
+        "hits": 1
+      },
+      {
+        "final_line": 44,
+        "covered_line": 44,
+        "hits": 1
+      },
+      {
+        "final_line": 45,
+        "covered_line": 45,
+        "hits": 1
+      },
+      {
+        "final_line": 59,
+        "covered_line": 59,
+        "hits": 1
+      },
+      {
+        "final_line": 101,
+        "covered_line": 101,
+        "hits": 1
+      },
+      {
+        "final_line": 125,
+        "covered_line": 124,
+        "hits": 1
+      },
+      {
+        "final_line": 131,
+        "covered_line": 130,
+        "hits": 1
+      },
+      {
+        "final_line": 132,
+        "covered_line": 131,
+        "hits": 1
+      },
+      {
+        "final_line": 161,
+        "covered_line": 158,
+        "hits": 1
+      }
+    ],
+    "changed_lines_without_mapped_instrumentation": [
+      34,
+      122,
+      136,
+      148
+    ],
+    "common_to_final_new_executable_lines": 0,
+    "limitations": "C# instrumentation excludes GLSL. Common FSR/history consumer coverage and mutants are not established by this focused report.",
+    "runtime_head": "80b48d5927f88bd4b03e42cf9535f03a5961ef5b",
+    "runtime_tree": "8ad555e15946d1bf308df34335b078da3cad9a9e",
+    "hook_commit": "433c273747de5592276a265aad7b4ada365a1244",
+    "verified_final_runtime_commit": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+    "verified_matched_baseline": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
+    "note": "Measured BloomPass executable edits and locations remain unchanged against matched main. This is reused evidence, not a fresh coverage run."
+  },
+  "production_changes_this_stage": false,
+  "artifact_sha256": {
+    "issue-3-source-mutants/results.json": "ca8e7729aa90c0822e21a3f21c8dea44a08fec346cadbf31fffb812c1de8bf44",
+    "issue-3-source-mutants/inputs.json": "4291f997521de34c5c4b77010c9fca0b00cd0de314b3e5b2386ce32bb0ac7b50",
+    "issue-3-survivor-mutants/results.json": "ee1ad141548dd184aea74890702424df2bf26f3dd8d315afe9f023cd0ddb60bc",
+    "issue-3-survivor-mutants/inputs.json": "18256000935fb515faf3ed93ff5783a45116e832c8979694f7fe417c3f270de5",
+    "issue-3-survivor-mutants/restore-1.build.log": "a5242c2d61642045ce7179c4dd45608b252a7f854ebf4c26de79a722d50c4a60"
+  }
+}
