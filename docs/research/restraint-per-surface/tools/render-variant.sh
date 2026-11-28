@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Research tool (issue #42): renders the pictures of one prototype restraint on the checked-out engine.
 #   nix develop --command bash docs/research/restraint-per-surface/tools/render-variant.sh <variant> <gain> <set>...
-# <variant> is RESTRAINT_VARIANT of volume.glsl (0 today, 2 Design 2, 3 the weighted split, 4 today with glow in full).
-# For variant 3 a letter names the ramp, RESTRAINT_RAMP (A, B or C), and a trailing L sets RESTRAINT_LAMPS 1 (each lamp
+# <variant> is RESTRAINT_VARIANT of volume.glsl (0 today, 2 Design 2, 3 the weighted split, 4 today with glow in full,
+# 5 the product rule on the mean paint). For variants 3 and 5 a letter names the ramp, RESTRAINT_RAMP (A, B or C), and a trailing L sets RESTRAINT_LAMPS 1 (each lamp
 # judged alone): 3A, 3C, 3AL. <gain> is COLOR_GAIN with a decimal point (1.0, 4.0). Each set is one of:
 #   probe     the mixed probe and the red-only probe at both poses, with the volume and HDR readback
 #   lamps     the orange-lamp, warm-white and faint-beige scenes at both poses
@@ -44,8 +44,9 @@ import re
 import sys
 from pathlib import Path
 path, spec, gain = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-number, ramp, lamps = re.fullmatch(r"([0-4])([ABC]?)(L?)", spec).groups()
-assert (number == "3") == (ramp != ""), "variant 3 needs a ramp letter, and only variant 3 takes one"
+number, ramp, lamps = re.fullmatch(r"([0-5])([ABC]?)(L?)", spec).groups()
+assert (number in "35") == (ramp != ""), "variants 3 and 5 need a ramp letter, and only they take one"
+assert number == "3" or not lamps, "only variant 3 takes L; variant 5 always judges each lamp alone"
 text = path.read_text()
 for old, new in (("#define RESTRAINT_VARIANT 0", f"#define RESTRAINT_VARIANT {number}"),
                  ("#define RESTRAINT_RAMP 0", f"#define RESTRAINT_RAMP {'ABC'.index(ramp) if ramp else 0}"),

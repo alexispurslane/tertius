@@ -94,13 +94,17 @@ vec3 restrainNeutral(vec3 radiance)
 //      gives a dim light of the same hue. RESTRAINT_RAMP selects the ramp, and RESTRAINT_LAMPS whether the first
 //      bounce judges the summed direct light or each lamp alone.
 //   4: today's restraint of scattered light, with the glow unrestrained.
-// Variants 2 to 4 send each surface's glow into the volume in full (the user's decision). After the capture, variants
+//   5: the product rule on the mean paint: the capture sums area x paint as today. The shading forms, for each lamp,
+//      P = (the cell face's mean paint) x (that lamp's light), and keeps gain x w(P) x (P - g) + share x g, with g the
+//      smallest channel of P and w(P) = mix(share, 1, ramp(saturation of P)). The second bounce does the same with the
+//      incoming light and no gain. It is exact for a cell face of one paint. RESTRAINT_RAMP selects the ramp.
+// Variants 2 to 5 send each surface's glow into the volume in full (the user's decision). After the capture, variants
 // 2 and 3 only add sums and multiply them by the light. (The old hybrid of variant 3, which moved the dropped colored
 // part into the gray level, was rejected by the user on 2026-11-28.)
 #ifndef RESTRAINT_VARIANT
 #define RESTRAINT_VARIANT 0
 #endif
-#if RESTRAINT_VARIANT == 1 || RESTRAINT_VARIANT < 0 || RESTRAINT_VARIANT > 4
+#if RESTRAINT_VARIANT == 1 || RESTRAINT_VARIANT < 0 || RESTRAINT_VARIANT > 5
 #error RESTRAINT_VARIANT names no variant
 #endif
 // PROTOTYPE (issue #42): the ramp of variant 3, of a saturation s from 0 to 1.
@@ -122,7 +126,7 @@ vec3 restrainNeutral(vec3 radiance)
 // Variants 2 and 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
 // adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
 // the neutral share.
-#if RESTRAINT_VARIANT == 0 || RESTRAINT_VARIANT == 4
+#if RESTRAINT_VARIANT == 0 || RESTRAINT_VARIANT == 4 || RESTRAINT_VARIANT == 5
 const float ReflectanceScale = 1.0;
 #else
 const float ReflectanceScale = 64.0;
@@ -132,7 +136,7 @@ const float ReflectanceScale = 64.0;
 // variant 3.
 float coloredWeight(vec3 c)
 {
-#if RESTRAINT_VARIANT == 3
+#if RESTRAINT_VARIANT == 3 || RESTRAINT_VARIANT == 5
     float peak = max(c.r, max(c.g, c.b));
     float valley = min(c.r, min(c.g, c.b));
     float saturation = (peak - valley) / max(peak, 1e-12);
@@ -176,12 +180,35 @@ vec3 grayPaintKeeps(vec3 light, float gain)
     return gain * coloredWeight(light) * (light - gray) + NeutralSourceShare * gray;
 }
 
+// The product rule of variant 5: what the volume keeps of the light `reflected` that leaves a surface, paint times
+// light. The colored part keeps its weight times `gain`, and the gray level the neutral share.
+vec3 productKeeps(vec3 reflected, float gain)
+{
+    float gray = min(reflected.r, min(reflected.g, reflected.b));
+    return gain * coloredWeight(reflected) * (reflected - gray) + NeutralSourceShare * gray;
+}
+
+#if RESTRAINT_VARIANT == 5
+// Variant 5 keeps the diffuse light of each lamp of a lighting group, for the product rule of each cell face. A group
+// with more lamps adds the rest into the last one.
+const int VolumeLampLimit = 16;
+vec3 volumeLamps[VolumeLampLimit];
+int volumeLampCount = 0;
+#endif
+
 // What gray paint keeps of one lamp's light in the first bounce, summed over the lamps by shapeLight when
-// volume_shade.frag defines VOLUME_JUDGES_LAMPS. Only variant 3 with RESTRAINT_LAMPS 1 reads the sum.
+// volume_shade.frag defines VOLUME_JUDGES_LAMPS. Only variant 3 with RESTRAINT_LAMPS 1 reads the sum. Variant 5 keeps
+// each lamp's light in volumeLamps instead.
 vec3 lampGrayKeeps(vec3 light)
 {
 #if RESTRAINT_VARIANT == 3 && RESTRAINT_LAMPS == 1
     return grayPaintKeeps(light, COLOR_GAIN);
+#elif RESTRAINT_VARIANT == 5
+    if (volumeLampCount < VolumeLampLimit)
+        volumeLamps[volumeLampCount++] = light;
+    else
+        volumeLamps[VolumeLampLimit - 1] += light;
+    return vec3(0);
 #else
     return vec3(0);
 #endif
@@ -190,7 +217,7 @@ vec3 lampGrayKeeps(vec3 light)
 // The emitted radiance that one surface sends into the volume.
 vec3 capturedEmission(vec3 glow)
 {
-#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3 || RESTRAINT_VARIANT == 4
+#if RESTRAINT_VARIANT >= 2
     return glow;
 #else
     return restrainNeutral(glow);
@@ -204,6 +231,8 @@ vec3 reflectedLight(vec4 color, float area, vec3 light, vec3 grayKeeps, float ga
 {
 #if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
     return (gain * color.rgb * light + color.w * grayKeeps) / ReflectanceScale;
+#elif RESTRAINT_VARIANT == 5
+    return area * productKeeps(color.rgb / area * light, gain);
 #else
     return area * restrainNeutral(color.rgb * light / area);
 #endif

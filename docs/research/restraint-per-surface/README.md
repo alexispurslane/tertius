@@ -35,6 +35,7 @@ The three ramps of a saturation s:
 | 2, Design 2: only gray on gray is held back | colored part in `color.rgb`, gray level in `color.w` | gain × C × L + G × (gain × λ + share × m) | in full |
 | 3, the weighted split (ramp A, B or C) | w_p × colored part in `color.rgb`, gray level in `color.w`, with w_p = mix(share, 1, ramp(saturation of the reflectance)) | gain × C × L + G × (gain × w_L × λ + share × m), with w_L = mix(share, 1, ramp(saturation of L)) | in full |
 | 4, today with unrestrained glow | reflectance | as today | in full |
+| 5, the product rule on the mean paint (ramp B or C) | reflectance, as today | for each lamp: area × keep(mean paint × that lamp's light), where keep(P) = gain × w(P) × (P − g) + share × g, g the smallest channel of P and w(P) = mix(share, 1, ramp(saturation of P)) | in full |
 
 Number 1 held Design 1 and now stops the shader build.
 
@@ -50,6 +51,8 @@ Number 1 held Design 1 and now stops the shader build.
 | ramp C, summed direct light | `3C` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 0` |
 | ramp C, each lamp judged alone | `3CL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 1` |
 | ramp A (today's knee, out) | `3A`, `3AL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 0` |
+| product rule on the mean paint, ramp B | `5B` | `RESTRAINT_VARIANT 5`, `RESTRAINT_RAMP 1` |
+| product rule on the mean paint, ramp C | `5C` | `RESTRAINT_VARIANT 5`, `RESTRAINT_RAMP 2` |
 
 The gain is the second argument of `render-variant.sh`, or `COLOR_GAIN` with a decimal point. Example: ramp C, each lamp judged alone, gain 4 is `render-variant.sh 3CL 4.0 <set>...`, or `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 1`, `COLOR_GAIN 4.0`. Glow is in full in every variant but 0.
 

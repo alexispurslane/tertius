@@ -82,7 +82,14 @@ void main()
         if (area <= 0.0)
             continue;
         vec3 emission = vec3(volume.surfaces[k].source.rgb) * EmissionScale;
+#if RESTRAINT_VARIANT == 5
+        // The product rule for each lamp of the group, on the cell face's mean paint.
+        vec3 reflected = vec3(0);
+        for (int lamp = 0; lamp < volumeLampCount; ++lamp)
+            reflected += reflectedLight(vec4(volume.surfaces[k].color), area, min(volumeLamps[lamp], vec3(MaxRadiance)), grayKeeps, COLOR_GAIN);
+#else
         vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light, grayKeeps, COLOR_GAIN);
+#endif
         volume.surfaces[k].source.rgb = floatBitsToUint(emission + reflected);
     }
 }
