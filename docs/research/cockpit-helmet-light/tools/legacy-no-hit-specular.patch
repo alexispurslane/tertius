@@ -1,0 +1,37 @@
+diff --git a/src/Tertius.Assets/GlbReader.cs b/src/Tertius.Assets/GlbReader.cs
+index 0a97f530e..b2fc0c4a0 100644
+--- a/src/Tertius.Assets/GlbReader.cs
++++ b/src/Tertius.Assets/GlbReader.cs
+@@ -434,6 +434,17 @@ internal static class GlbReader
+                 throw new GlbException($"image {index} does not decode: {ex.Message}");
+             }
+ 
++            if (System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_RECOLOR_BYTES") == bytes.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
++            {
++                string mode = System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_RECOLOR_MODE") ?? "blue";
++                for (int i = 0; i + 3 < result.Data.Length; i += 4)
++                {
++                    byte r = result.Data[i], g = result.Data[i + 1], b = result.Data[i + 2];
++                    if (mode == "black") { result.Data[i] = 0; result.Data[i + 1] = 0; result.Data[i + 2] = 0; }
++                    else if (mode == "gray") { byte y = (byte)((r * 54 + g * 183 + b * 19) >> 8); result.Data[i] = y; result.Data[i + 1] = y; result.Data[i + 2] = y; }
++                    else { result.Data[i] = b; result.Data[i + 2] = r; }
++                }
++            }
+             return new(Width: result.Width, Height: result.Height, Rgba: result.Data, Srgb: srgb);
+         }
+ 
+diff --git a/src/Tertius.Rendering/Shaders/screen_trace.glsl b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+index 11c4eeee0..09495dded 100644
+--- a/src/Tertius.Rendering/Shaders/screen_trace.glsl
++++ b/src/Tertius.Rendering/Shaders/screen_trace.glsl
+@@ -520,8 +520,8 @@ LeavingLight leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections
+     vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
+         + factors.diffuse * diffuseHistory;
+     vec3 specularHistory = holdsHistory(r.specular) ? lastLightOf(r.specular, KindReflection) : closedLight.specular;
+-    vec3 reflection = light
+-        + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb + specularHistory);
++    // Diagnostic only: a reflection ray reads the hit's diffuse light alone, as a diffuse ray does.
++    vec3 reflection = light;
+     return LeavingLight(min(reflection, vec3(MaxRadiance)), min(light, vec3(MaxRadiance)));
+ }
+ 
