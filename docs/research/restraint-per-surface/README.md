@@ -162,6 +162,25 @@ The largest one-frame change of each region's mean, in 8-bit display levels (`to
 - The ceiling's step at the grid's step is the same 2.92 levels (3%) in all three rules, so the restraint does not cause it. It belongs to the transport.
 - The ceiling's underside shows gray (91, 90, 90), not red. Gray light from elsewhere in the scene outweighs the floor's red wash on it, so this scene at gain 1 tests the second bounce of colored light only weakly.
 
+## The thin wall's unlit face at gain 1 and gain 4 (#47)
+
+The scene restraint-orange-lamp from the camera wall-back. That camera looks straight at the wall's face that the star does not light, from 1.5 m away. The orange star (1, 0.4, 0) lights the gray wall (0.8) only on its face toward the receiver. The wall is 0.04 m thick, at z = -1.12 to -1.08 m, and both faces lie in one 0.25 m cell (z = -1.25 to -1.0 m). Nothing on the camera's side can light the unlit face: there is no floor, the ambient light is 0, and the receiver lies behind the wall. Fixed exposure EV 0, 640 x 360.
+
+![the wall's unlit face: today, the weighted split ramp B per lamp at gain 1, the same at gain 4](evidence/wall-back-orange.png)
+
+| Still | Unlit face: 8-bit levels | Unlit face: scene-linear RGB | Receiver's lit part: scene-linear RGB |
+|---|---|---|---|
+| today | (241.5, 202.9, 74.7) | (2.019, 0.808, 0) | (0.161, 0.064, 0) |
+| weighted split, ramp B, per lamp, gain 1 | (241.4, 202.9, 74.6) | (2.017, 0.807, 0) | (0.161, 0.064, 0) |
+| the same at gain 4 | (255, 244.7, 188.3) | (8.069, 3.228, 0) | (0.643, 0.257, 0) |
+
+(Unlit face: region x 280 to 360, y 40 to 320. Receiver: x 10 to 120, y 20 to 230. Saturation 1.00 in every cell of the table.)
+
+- The unlit face takes the lamp's orange at about 12.5 times the light that the receiver legitimately gets from the wall's lit face. This is light on the wrong side of a wall thinner than its cell.
+- Today shows it at the same strength as the weighted split at gain 1 (ratio 0.999). Orange light on gray paint has saturation 1, so today's restraint passes it in full. The stack does not create the fault.
+- At gain 4 the light on the unlit face is exactly 4.00 times its value at gain 1, so the color gain multiplies all of it. At EV 0 it clips to near white-yellow.
+- This take cannot tell whether one transmission share per cell (#47) or the receiver reading its cell's light from behind (#48) carries it.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
