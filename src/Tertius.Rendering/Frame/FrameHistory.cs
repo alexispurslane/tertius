@@ -211,7 +211,7 @@ internal sealed class FrameHistory
     /// <paramref name="renderSize"/>, and changes no record. The draw resets when it is the first drawn frame, when the
     /// snapshot's count of camera cuts differs from the drawn frame's, when the output size changed, or when it is the
     /// first draw of a still. A change of the render size resets nothing. The draw refreshes every face of every map when
-    /// it is the first draw of a still or the eye jumped inside the camera's frame (<see cref="JumpsTheEye"/>).
+    /// it is the first draw of a still or the snapshot has a camera discontinuity (<see cref="CutsFrom"/>).
     /// </summary>
     /// <param name="draw">The draw of the snapshot, from 0 to <see cref="DrawsOf"/> − 1. The last one is the shown draw.</param>
     /// <returns>The history's one pending state, armed for this draw. The next Begin arms it again.</returns>
@@ -232,7 +232,7 @@ internal sealed class FrameHistory
             ExposureStep: exposureStep,
             FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
             // A map is captured at the eye, so the maps must hear of the eye's jump from the same source as the histories.
-            RefreshesEveryFace: (still && draw == 0) || JumpsTheEye(snapshot),
+            RefreshesEveryFace: (still && draw == 0) || CutsFrom(snapshot),
             DrawnFrames: DrawnFrames,
             RenderSize: renderSize,
             OutputSize: outputSize,
@@ -275,20 +275,13 @@ internal sealed class FrameHistory
 
     /// <summary>
     /// Whether <paramref name="snapshot"/> cuts the camera since the last drawn frame: its count of camera cuts differs from
-    /// that frame's. The count holds two causes: the eye jumped, or the camera's frame changed hands while the eye moved on
-    /// smoothly. False before the first drawn frame.
+    /// that frame's. A continuous handoff of the camera's frame preserves the count. False before the first drawn frame.
     /// </summary>
     private bool CutsFrom(RenderSnapshot snapshot) => drawn is { } last && last.CameraCuts != snapshot.CameraCuts;
 
     /// <summary>Whether the camera of <paramref name="snapshot"/> is in the frame of the last drawn frame's camera.</summary>
     private bool KeepsTheFrame(RenderSnapshot snapshot) =>
         drawn is { } last && last.Camera.FrameId == snapshot.OriginFrameId;
-
-    /// <summary>
-    /// Whether the eye jumped inside the camera's frame since the last drawn frame: a cut that keeps the camera's frame.
-    /// Every map is captured at the eye (ARCHITECTURE.md, "The frame history").
-    /// </summary>
-    private bool JumpsTheEye(RenderSnapshot snapshot) => CutsFrom(snapshot);
 
     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
     private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);

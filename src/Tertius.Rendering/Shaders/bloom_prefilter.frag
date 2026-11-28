@@ -7,7 +7,7 @@
 #include "exposure.glsl"
 
 // Threshold each original scene texel before interpolation. Exposure affects only this derived response.
-// Ordinary excess light keeps its amplitude. Above 8192, a C1 rational response approaches 16384.
+// Ordinary excess light keeps its amplitude. Above 128, a C1 rational response approaches 256.
 // This is an artistic extreme-glare response, separate from the optical reference for normal glow.
 vec3 thresholded(vec3 sourceColor)
 {
@@ -16,16 +16,17 @@ vec3 thresholded(vec3 sourceColor)
     float width = bloom.threshold * bloom.knee;
     float delta = brightness - bloom.threshold;
     float excess = max(delta, 0.0);
-    if (width > 0.0 && delta > -width && delta < width)
+    // A subnormal knee cannot reach a half-float bloom texel. Skip it before any driver can flush its divisor to zero.
+    if (width >= 1.17549435e-38 && delta > -width && delta < width)
     {
         float normalized = delta / width + 1.0;
         float soft = (width / (4.0 + 1e-5 / width)) * normalized * normalized;
         excess = max(excess, min(soft, brightness));
     }
-    if (excess > 8192.0)
+    if (excess > 128.0)
     {
-        float extreme = excess - 8192.0;
-        excess = 8192.0 + 8192.0 * (extreme / (8192.0 + extreme));
+        float extreme = excess - 128.0;
+        excess = 128.0 + 128.0 * (extreme / (128.0 + extreme));
     }
     return (color / max(brightness, 1e-5)) * excess;
 }
@@ -79,6 +80,6 @@ void main()
             vec3 texel = texelFetch(source, clamp(first + ivec2(x, y), ivec2(0), last), 0).rgb;
             sum += texelWeights[y * 6 + x] * thresholded(texel);
         }
-    // The response is at most 16384. Divide before the additive up chain; half-float rounding leaves ample room.
+    // The response is at most 256. Divide before the additive up chain; half-float rounding leaves ample room.
     outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
 }

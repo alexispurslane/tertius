@@ -422,7 +422,7 @@ public sealed class BloomTests
     [InlineData(4)]
     public void ALargeExtremeSquareKeepsItsHaloFinite(int levels)
     {
-        VulkanRenderer renderer = Headless(Shaped(strength: 1f / 65536, levels: levels, threshold: 0, knee: 0));
+        VulkanRenderer renderer = Headless(Shaped(strength: 1f / 256, levels: levels, threshold: 0, knee: 0));
         try
         {
             Capture image = Render(
@@ -439,7 +439,7 @@ public sealed class BloomTests
                     .ReadGlowLevel(i)
                     .Should()
                     .OnlyContain(
-                        value => float.IsFinite(value) && value >= 0 && value <= 32768,
+                        value => float.IsFinite(value) && value >= 0 && value <= 512,
                         "every level stays finite before the additive tone consumer"
                     );
         }

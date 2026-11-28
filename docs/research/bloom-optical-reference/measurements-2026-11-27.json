@@ -1,0 +1,709 @@
+{
+  "status": "Measured candidate, common integration and hardening pending",
+  "source_units": "W/(m2 sr)",
+  "halo_sum_units": "Rec709 linear radiance times output pixels; strength included",
+  "source_reports": {
+    "every-light-pair/GlossyPanel-x1000.json": {
+      "Source": "GlossyPanel",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 36.699318,
+      "BrightCoreRadiance": 36699.316,
+      "DimOutsideEnergy": 2544.948612602219,
+      "BrightOutsideEnergy": 19053.25173772167,
+      "UncompressedHaloRatio": 1029.2199781370919,
+      "ActualHaloRatio": 7.486694090156758,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.15362697721498192,
+        0.03125208047010822,
+        0.004559082321852449
+      ],
+      "BrightRingMeans": [
+        1.1502991226781456,
+        0.23355066215723144,
+        0.03405328728023121
+      ]
+    },
+    "every-light-pair/GlossyPanel-x2.json": {
+      "Source": "GlossyPanel",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 36.699318,
+      "BrightCoreRadiance": 73.398636,
+      "DimOutsideEnergy": 2544.948612602219,
+      "BrightOutsideEnergy": 5163.585124646898,
+      "UncompressedHaloRatio": 2.029249226885125,
+      "ActualHaloRatio": 2.028954572629706,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.15362697721498192,
+        0.03125208047010822,
+        0.004559082321852449
+      ],
+      "BrightRingMeans": [
+        0.31173819446844964,
+        0.06340531060507631,
+        0.00924752121095875
+      ]
+    },
+    "every-light-pair/Lamp-x1000.json": {
+      "Source": "Lamp",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 64,
+      "BrightCoreRadiance": 64000,
+      "DimOutsideEnergy": 4875.397706866264,
+      "BrightOutsideEnergy": 19771.8295058012,
+      "UncompressedHaloRatio": 1015.8571428571431,
+      "ActualHaloRatio": 4.055429053091515,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.29432538688007004,
+        0.05976837877851246,
+        0.008714052630892876
+      ],
+      "BrightRingMeans": [
+        1.193671212435472,
+        0.2423903283250622,
+        0.03533800614019662
+      ]
+    },
+    "every-light-pair/Lamp-x2.json": {
+      "Source": "Lamp",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 64,
+      "BrightCoreRadiance": 128,
+      "DimOutsideEnergy": 4875.397706866264,
+      "BrightOutsideEnergy": 9820.969826459885,
+      "UncompressedHaloRatio": 2.0158730158730163,
+      "ActualHaloRatio": 2.014393577087778,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.29432538688007004,
+        0.05976837877851246,
+        0.008714052630892876
+      ],
+      "BrightRingMeans": [
+        0.5928094464417404,
+        0.12039404962549512,
+        0.01755819216274954
+      ]
+    },
+    "every-light-pair/MattePanel-x1000.json": {
+      "Source": "MattePanel",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 50.86741,
+      "BrightCoreRadiance": 50867.406,
+      "DimOutsideEnergy": 3718.9539046889345,
+      "BrightOutsideEnergy": 19070.662497977355,
+      "UncompressedHaloRatio": 1020.0331380280385,
+      "ActualHaloRatio": 5.127964203571511,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.22451241811566638,
+        0.04559228956072136,
+        0.006648227981406789
+      ],
+      "BrightRingMeans": [
+        1.151276924605918,
+        0.23380132663083036,
+        0.034090582467493746
+      ]
+    },
+    "every-light-pair/MattePanel-x2.json": {
+      "Source": "MattePanel",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 50.86741,
+      "BrightCoreRadiance": 101.73482,
+      "DimOutsideEnergy": 3718.9539046889345,
+      "BrightOutsideEnergy": 7513.734255406163,
+      "UncompressedHaloRatio": 2.020053247196971,
+      "ActualHaloRatio": 2.0203891868443677,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.22451241811566638,
+        0.04559228956072136,
+        0.006648227981406789
+      ],
+      "BrightRingMeans": [
+        0.45362939276681247,
+        0.09211371455013348,
+        0.01343081965606668
+      ]
+    },
+    "key-and-fill/GlossyPanel-x1000.json": {
+      "Source": "GlossyPanel",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 36.699318,
+      "BrightCoreRadiance": 36699.316,
+      "DimOutsideEnergy": 2544.948612602219,
+      "BrightOutsideEnergy": 19053.25173772167,
+      "UncompressedHaloRatio": 1029.2199781370919,
+      "ActualHaloRatio": 7.486694090156758,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.15362697721498192,
+        0.03125208047010822,
+        0.004559082321852449
+      ],
+      "BrightRingMeans": [
+        1.1502991226781456,
+        0.23355066215723144,
+        0.03405328728023121
+      ]
+    },
+    "key-and-fill/GlossyPanel-x2.json": {
+      "Source": "GlossyPanel",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 36.699318,
+      "BrightCoreRadiance": 73.398636,
+      "DimOutsideEnergy": 2544.948612602219,
+      "BrightOutsideEnergy": 5163.585124646898,
+      "UncompressedHaloRatio": 2.029249226885125,
+      "ActualHaloRatio": 2.028954572629706,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.15362697721498192,
+        0.03125208047010822,
+        0.004559082321852449
+      ],
+      "BrightRingMeans": [
+        0.31173819446844964,
+        0.06340531060507631,
+        0.00924752121095875
+      ]
+    },
+    "key-and-fill/Lamp-x10.json": {
+      "Source": "Lamp",
+      "Factor": 10,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 64000,
+      "BrightCoreRadiance": 640000,
+      "DimOutsideEnergy": 19771.8295058012,
+      "BrightOutsideEnergy": 19802.888367056847,
+      "UncompressedHaloRatio": 10.000140627197299,
+      "ActualHaloRatio": 1.0015708643070451,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        1.193671212435472,
+        0.2423903283250622,
+        0.03533800614019662
+      ],
+      "BrightRingMeans": [
+        1.1954831823838497,
+        0.24277992782648997,
+        0.035399207982444544
+      ]
+    },
+    "key-and-fill/Lamp-x1000.json": {
+      "Source": "Lamp",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 64,
+      "BrightCoreRadiance": 64000,
+      "DimOutsideEnergy": 4875.397706866264,
+      "BrightOutsideEnergy": 19771.8295058012,
+      "UncompressedHaloRatio": 1015.8571428571431,
+      "ActualHaloRatio": 4.055429053091515,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.29432538688007004,
+        0.05976837877851246,
+        0.008714052630892876
+      ],
+      "BrightRingMeans": [
+        1.193671212435472,
+        0.2423903283250622,
+        0.03533800614019662
+      ]
+    },
+    "key-and-fill/Lamp-x2.json": {
+      "Source": "Lamp",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 64,
+      "BrightCoreRadiance": 128,
+      "DimOutsideEnergy": 4875.397706866264,
+      "BrightOutsideEnergy": 9820.969826459885,
+      "UncompressedHaloRatio": 2.0158730158730163,
+      "ActualHaloRatio": 2.014393577087778,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.29432538688007004,
+        0.05976837877851246,
+        0.008714052630892876
+      ],
+      "BrightRingMeans": [
+        0.5928094464417404,
+        0.12039404962549512,
+        0.01755819216274954
+      ]
+    },
+    "key-and-fill/MattePanel-x1000.json": {
+      "Source": "MattePanel",
+      "Factor": 1000,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 50.867405,
+      "BrightCoreRadiance": 50867.406,
+      "DimOutsideEnergy": 3718.9539046889345,
+      "BrightOutsideEnergy": 19070.662497977355,
+      "UncompressedHaloRatio": 1020.0331135980483,
+      "ActualHaloRatio": 5.127964203571511,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.22451241811566638,
+        0.04559228956072136,
+        0.006648227981406789
+      ],
+      "BrightRingMeans": [
+        1.151276924605918,
+        0.23380132663083036,
+        0.034090582467493746
+      ]
+    },
+    "key-and-fill/MattePanel-x2.json": {
+      "Source": "MattePanel",
+      "Factor": 2,
+      "Width": 640,
+      "Height": 360,
+      "Side": 24,
+      "Margin": 2,
+      "VerticalFovRadians": 1.0471976,
+      "SourceSolidAngleSteradians": 0.005917162319026174,
+      "ExposureStops": 0,
+      "ExposureScale": 1,
+      "Threshold": 1,
+      "Knee": 0.5,
+      "Strength": 0.25,
+      "Levels": 6,
+      "DimCoreRadiance": 50.867405,
+      "BrightCoreRadiance": 101.73481,
+      "DimOutsideEnergy": 3718.9539046889345,
+      "BrightOutsideEnergy": 7513.734255406163,
+      "UncompressedHaloRatio": 2.0200531340906767,
+      "ActualHaloRatio": 2.0203891868443677,
+      "RingInnerRadiiPixels": [
+        24,
+        48,
+        96
+      ],
+      "DimRingMeans": [
+        0.22451241811566638,
+        0.04559228956072136,
+        0.006648227981406789
+      ],
+      "BrightRingMeans": [
+        0.45362939276681247,
+        0.09211371455013348,
+        0.01343081965606668
+      ]
+    }
+  },
+  "scenes": {
+    "issue-3-candidate-128-helmet-on": {
+      "Scene": "helmet",
+      "BloomEnabled": true,
+      "Tick": 94901,
+      "OutputWidth": 1280,
+      "OutputHeight": 720,
+      "RenderWidth": 848,
+      "RenderHeight": 477,
+      "AppliedExposureStops": 6.0043726,
+      "OriginalSceneUnits": "W/(m2 sr), before exposure",
+      "BloomInputUnits": "W/(m2 sr) multiplied by exposure scale",
+      "ValidationMessages": [],
+      "OutputRegion": [
+        530,
+        316,
+        54,
+        54
+      ],
+      "SceneRadiance": {
+        "Pixels": 1260,
+        "Maximum": 0.58125883,
+        "Mean": 0.04813825,
+        "P50": 0.0034368737,
+        "P90": 0.15750386,
+        "P99": 0.47258765,
+        "Above1024": 0,
+        "Above8192": 0
+      },
+      "ExposedSceneRadiance": {
+        "Pixels": 1260,
+        "Maximum": 37.313484,
+        "Mean": 3.0901997,
+        "P50": 0.22062759,
+        "P90": 10.110845,
+        "P99": 30.337418,
+        "Above1024": 0,
+        "Above8192": 0
+      },
+      "ReconstructedRadiance": {
+        "Pixels": 2916,
+        "Maximum": 31.515625,
+        "Mean": 2.463169,
+        "P50": 0.34643555,
+        "P90": 7.3007812,
+        "P99": 27.09375,
+        "Above1024": 0,
+        "Above8192": 0
+      }
+    },
+    "issue-3-candidate-128-settled-on": {
+      "Scene": "egress-settled",
+      "BloomEnabled": true,
+      "Tick": 177902,
+      "OutputWidth": 960,
+      "OutputHeight": 540,
+      "RenderWidth": 640,
+      "RenderHeight": 360,
+      "AppliedExposureStops": 4.17438,
+      "OriginalSceneUnits": "W/(m2 sr), before exposure",
+      "BloomInputUnits": "W/(m2 sr) multiplied by exposure scale",
+      "ValidationMessages": [],
+      "OutputRegion": [
+        280,
+        200,
+        320,
+        190
+      ],
+      "SceneRadiance": {
+        "Pixels": 27178,
+        "Maximum": 1578.6647,
+        "Mean": 0.6740888,
+        "P50": 0,
+        "P90": 0.0012885184,
+        "P99": 2.3378537,
+        "Above1024": 4,
+        "Above8192": 0
+      },
+      "ExposedSceneRadiance": {
+        "Pixels": 27178,
+        "Maximum": 28503.846,
+        "Mean": 12.171123,
+        "P50": 0,
+        "P90": 0.02326506,
+        "P99": 42.21151,
+        "Above1024": 34,
+        "Above8192": 13
+      },
+      "ReconstructedRadiance": {
+        "Pixels": 60800,
+        "Maximum": 12352,
+        "Mean": 5.071053,
+        "P50": 0,
+        "P90": 0.025360107,
+        "P99": 12.234375,
+        "Above1024": 58,
+        "Above8192": 7
+      }
+    },
+    "issue-3-candidate-128-settled-off": {
+      "Scene": "egress-settled",
+      "BloomEnabled": false,
+      "Tick": 177902,
+      "OutputWidth": 960,
+      "OutputHeight": 540,
+      "RenderWidth": 640,
+      "RenderHeight": 360,
+      "AppliedExposureStops": 4.17438,
+      "OriginalSceneUnits": "W/(m2 sr), before exposure",
+      "BloomInputUnits": "W/(m2 sr) multiplied by exposure scale",
+      "ValidationMessages": [],
+      "OutputRegion": [
+        280,
+        200,
+        320,
+        190
+      ],
+      "SceneRadiance": {
+        "Pixels": 27178,
+        "Maximum": 1578.6647,
+        "Mean": 0.6740888,
+        "P50": 0,
+        "P90": 0.0012885184,
+        "P99": 2.3378537,
+        "Above1024": 4,
+        "Above8192": 0
+      },
+      "ExposedSceneRadiance": {
+        "Pixels": 27178,
+        "Maximum": 28503.846,
+        "Mean": 12.171123,
+        "P50": 0,
+        "P90": 0.02326506,
+        "P99": 42.21151,
+        "Above1024": 34,
+        "Above8192": 13
+      },
+      "ReconstructedRadiance": {
+        "Pixels": 60800,
+        "Maximum": 12352,
+        "Mean": 5.071053,
+        "P50": 0,
+        "P90": 0.025360107,
+        "P99": 12.234375,
+        "Above1024": 58,
+        "Above8192": 7
+      }
+    }
+  },
+  "continuous_comparison": {
+    "exposure_float32_bits_equal_all_frames": true,
+    "frames": 800,
+    "samples": [
+      {
+        "frame": 500,
+        "region": [
+          280,
+          200,
+          320,
+          190
+        ],
+        "off_white_pixels": 725,
+        "dark_pixels": 54148,
+        "dark_hull_pixels": 9057,
+        "1024": {
+          "white_pixels": 2700,
+          "mean_added_code_over_dark": 174.1404668685824,
+          "mean_added_code_over_dark_hull": 173.94806963306468
+        },
+        "128": {
+          "white_pixels": 897,
+          "mean_added_code_over_dark": 103.79941395188496,
+          "mean_added_code_over_dark_hull": 107.22008759339002
+        }
+      },
+      {
+        "frame": 600,
+        "region": [
+          280,
+          200,
+          320,
+          190
+        ],
+        "off_white_pixels": 641,
+        "dark_pixels": 56866,
+        "dark_hull_pixels": 6811,
+        "1024": {
+          "white_pixels": 1524,
+          "mean_added_code_over_dark": 142.10780900127787,
+          "mean_added_code_over_dark_hull": 140.61302794499096
+        },
+        "128": {
+          "white_pixels": 794,
+          "mean_added_code_over_dark": 89.56358808426828,
+          "mean_added_code_over_dark_hull": 91.95830274555865
+        }
+      },
+      {
+        "frame": 700,
+        "region": [
+          280,
+          200,
+          320,
+          190
+        ],
+        "off_white_pixels": 663,
+        "dark_pixels": 56448,
+        "dark_hull_pixels": 7168,
+        "1024": {
+          "white_pixels": 1648,
+          "mean_added_code_over_dark": 146.24205758692366,
+          "mean_added_code_over_dark_hull": 144.65680803571428
+        },
+        "128": {
+          "white_pixels": 806,
+          "mean_added_code_over_dark": 91.40655116213152,
+          "mean_added_code_over_dark_hull": 93.36118861607143
+        }
+      }
+    ]
+  }
+}

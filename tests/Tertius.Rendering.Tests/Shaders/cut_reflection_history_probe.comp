@@ -1,0 +1,15 @@
+#version 460
+// Read one retained reflection texel through the tracer's actual exposure conversion.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec3 light = lastLightOf(Reprojection(pixel, vec4(1.0, 0.0, 0.0, 0.0)));
+    imageStore(specularSample, pixel, vec4(light, 1.0));
+}

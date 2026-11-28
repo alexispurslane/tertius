@@ -44,12 +44,12 @@ public sealed class BloomSourceLightTests
     }
 
     [Theory]
-    [InlineData(Source.Lamp, 10, false)]
-    [InlineData(Source.Lamp, 10, true)]
-    [InlineData(Source.MattePanel, 10, false)]
-    [InlineData(Source.MattePanel, 10, true)]
-    [InlineData(Source.GlossyPanel, 10, false)]
-    [InlineData(Source.GlossyPanel, 10, true)]
+    [InlineData(Source.Lamp, 2, false)]
+    [InlineData(Source.Lamp, 2, true)]
+    [InlineData(Source.MattePanel, 2, false)]
+    [InlineData(Source.MattePanel, 2, true)]
+    [InlineData(Source.GlossyPanel, 2, false)]
+    [InlineData(Source.GlossyPanel, 2, true)]
     public void ABrighterSourceWithTheSameWhiteCoreGlowsByItsOwnLightAboveTheThreshold(
         Source source,
         float factor,
@@ -64,13 +64,13 @@ public sealed class BloomSourceLightTests
                 renderer: renderer,
                 source: source,
                 factor: 1,
-                name: $"bloom-source-{source}-dim"
+                name: $"bloom-source-{source}-{exact}-dim"
             );
             (Capture brightImage, float[] brightHdr, float[] brightGlow) = Render(
                 renderer: renderer,
                 source: source,
                 factor: factor,
-                name: $"bloom-source-{source}-x{factor}"
+                name: $"bloom-source-{source}-{exact}-x{factor}"
             );
 
             float dimBrightness = CoreBrightness(dimHdr);
@@ -98,7 +98,8 @@ public sealed class BloomSourceLightTests
                 dimEnergy: dim,
                 brightEnergy: bright,
                 dimImage: dimImage,
-                brightImage: brightImage
+                brightImage: brightImage,
+                exact: exact
             );
 
             (bright / dim)
@@ -133,13 +134,13 @@ public sealed class BloomSourceLightTests
                 renderer: renderer,
                 source: source,
                 factor: 1,
-                name: $"bloom-input-{source}-dim"
+                name: $"bloom-input-{source}-{exact}-dim"
             );
             (Capture brightImage, float[] brightHdr, float[] brightGlow) = Render(
                 renderer: renderer,
                 source: source,
                 factor: 1000,
-                name: $"bloom-input-{source}-x1000"
+                name: $"bloom-input-{source}-{exact}-x1000"
             );
             Report(
                 source: source,
@@ -152,7 +153,8 @@ public sealed class BloomSourceLightTests
                 dimEnergy: OutsideEnergy(dimGlow),
                 brightEnergy: OutsideEnergy(brightGlow),
                 dimImage: dimImage,
-                brightImage: brightImage
+                brightImage: brightImage,
+                exact: exact
             );
             dimImage.Luma(Width / 2, Height / 2).Should().BeGreaterThan(254 / 255f);
             brightImage.Luma(Width / 2, Height / 2).Should().BeGreaterThan(254 / 255f);
@@ -187,11 +189,11 @@ public sealed class BloomSourceLightTests
         VulkanRenderer renderer = Headless(Bloom.Default);
         try
         {
-            (_, _, float[] first) = Render(renderer: renderer, source: Source.Lamp, factor: 1000, name: "extreme-lamp");
+            (_, _, float[] first) = Render(renderer: renderer, source: Source.Lamp, factor: 10, name: "extreme-lamp");
             (_, _, float[] second) = Render(
                 renderer: renderer,
                 source: Source.Lamp,
-                factor: 10000,
+                factor: 100,
                 name: "brighter-extreme-lamp"
             );
             (OutsideEnergy(second) / OutsideEnergy(first))
@@ -200,6 +202,54 @@ public sealed class BloomSourceLightTests
                     1.01,
                     2,
                     "extreme glare grows monotonically and sublinearly while ordinary glow keeps its strength"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TwoExtremeWhiteSourcesRetainDistinguishableHaloEnergy()
+    {
+        VulkanRenderer renderer = Headless(Bloom.Default);
+        try
+        {
+            (Capture firstImage, float[] firstHdr, float[] firstGlow) = Render(
+                renderer: renderer,
+                source: Source.Lamp,
+                factor: 1000,
+                name: "extreme-radiance-64000"
+            );
+            (Capture secondImage, float[] secondHdr, float[] secondGlow) = Render(
+                renderer: renderer,
+                source: Source.Lamp,
+                factor: 10000,
+                name: "extreme-radiance-640000"
+            );
+            double first = OutsideEnergy(firstGlow),
+                second = OutsideEnergy(secondGlow);
+            Report(
+                source: Source.Lamp,
+                factor: 10,
+                bloom: Bloom.Default,
+                dimHdr: firstHdr,
+                brightHdr: secondHdr,
+                dimGlow: firstGlow,
+                brightGlow: secondGlow,
+                dimEnergy: first,
+                brightEnergy: second,
+                dimImage: firstImage,
+                brightImage: secondImage
+            );
+            firstImage.Luma(Width / 2, Height / 2).Should().BeGreaterThan(254 / 255f);
+            secondImage.Luma(Width / 2, Height / 2).Should().BeGreaterThan(254 / 255f);
+            second
+                .Should()
+                .BeGreaterThan(
+                    first,
+                    "the compressed extreme response retains a measured difference through half-float filtering"
                 );
         }
         finally
@@ -246,6 +296,61 @@ public sealed class BloomSourceLightTests
     [Collection(GpuCollection.Name)]
     public sealed class MovingHighlights
     {
+        [Theory]
+        [InlineData(1)]
+        [InlineData(0.5f)]
+        public void TemporalUpscalingKeepsTheHaloCenteredOnItsSource(float scale)
+        {
+            VulkanRenderer renderer = Headless(Bloom.Default, new Fsr3Upscaling(new FixedRenderScale(scale), 0));
+            try
+            {
+                const float offset = 0.25f;
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    (_, _, float[] glow) = Render(
+                        renderer: renderer,
+                        source: Source.Lamp,
+                        factor: 1,
+                        name: "centered-bloom-source",
+                        offsetPixels: offset,
+                        time: frame / 60d,
+                        side: 4
+                    );
+                    double energy = 0,
+                        weightedX = 0,
+                        weightedY = 0;
+                    for (int y = 0; y < Height / 2; y++)
+                    for (int x = 0; x < Width / 2; x++)
+                    {
+                        int i = 4 * (y * (Width / 2) + x);
+                        double light = Luminance(new(glow[i], glow[i + 1], glow[i + 2]));
+                        energy += light;
+                        weightedX += (2 * x + 1) * light;
+                        weightedY += (2 * y + 1) * light;
+                    }
+                    energy.Should().BeGreaterThan(0, "the source produces a measurable halo");
+                    (weightedX / energy)
+                        .Should()
+                        .BeApproximately(
+                            Width / 2 + offset,
+                            1 / scale,
+                            "the halo stays within one active source pixel of the source's output position"
+                        );
+                    (weightedY / energy)
+                        .Should()
+                        .BeApproximately(
+                            Height / 2,
+                            1 / scale,
+                            "the halo stays within one active source pixel of the source's output position"
+                        );
+                }
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
         [Theory]
         [InlineData(false, 1)]
         [InlineData(true, 1)]
@@ -386,24 +491,24 @@ public sealed class BloomSourceLightTests
             )
         );
         Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
-        ReportSourceStages(renderer, source, factor);
+        ReportSourceStages(renderer, name);
         return (image, renderer.ReadPostHdr(), renderer.ReadGlowLevel(0));
     }
 
-    private static void ReportSourceStages(VulkanRenderer renderer, Source source, float factor)
+    private static void ReportSourceStages(VulkanRenderer renderer, string name)
     {
         if (Environment.GetEnvironmentVariable("TERTIUS_BLOOM_SOURCE_REPORT") is { Length: > 0 } folder)
         {
             Directory.CreateDirectory(folder);
             (float[] emission, float[] diffuse, float[] specular) = renderer.ReadSourceLight();
             File.WriteAllText(
-                Path.Combine(folder, $"{source}-factor{factor}-stages.json"),
+                Path.Combine(folder, $"{name}-stages.json"),
                 JsonSerializer.Serialize(
                     new
                     {
                         EmissionCore = CoreBrightness(emission),
-                        DemodulatedDiffuseCore = CoreBrightness(diffuse),
-                        DemodulatedSpecularCore = CoreBrightness(specular),
+                        DiffuseRadianceCore = CoreBrightness(diffuse),
+                        SpecularRadianceCore = CoreBrightness(specular),
                     },
                     new JsonSerializerOptions { WriteIndented = true }
                 )
@@ -453,11 +558,13 @@ public sealed class BloomSourceLightTests
         double dimEnergy,
         double brightEnergy,
         Capture dimImage,
-        Capture brightImage
+        Capture brightImage,
+        bool exact = false
     )
     {
         if (Environment.GetEnvironmentVariable("TERTIUS_BLOOM_SOURCE_REPORT") is not { Length: > 0 } folder)
             return;
+        folder = Path.Combine(folder, exact ? "every-light-pair" : "key-and-fill");
         Directory.CreateDirectory(folder);
         static double[] Rings(float[] glow) =>
             BloomHalo.RingMeans(
@@ -496,7 +603,7 @@ public sealed class BloomSourceLightTests
                     BrightCoreRadiance = CoreBrightness(brightHdr),
                     DimOutsideEnergy = dimEnergy * bloom.Strength,
                     BrightOutsideEnergy = brightEnergy * bloom.Strength,
-                    ExpectedHaloRatio = ThresholdedRatio(dimHdr, bloom, factor),
+                    UncompressedHaloRatio = ThresholdedRatio(dimHdr, bloom, factor),
                     ActualHaloRatio = brightEnergy / dimEnergy,
                     RingInnerRadiiPixels = new[] { 24, 48, 96 },
                     DimRingMeans = Rings(dimGlow).Select(value => value * bloom.Strength),

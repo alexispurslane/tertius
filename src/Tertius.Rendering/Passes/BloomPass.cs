@@ -31,7 +31,7 @@ internal sealed unsafe class BloomPass : RenderPass
     {
         RenderTargets targets = context.Targets;
         GpuImage[] levels = targets.Glow;
-        // The threshold compares the pre-exposed HDR image directly, so the exposure enters it nowhere.
+        // The prefilter exposes original scene texels before applying this display threshold.
         var push = new BloomPushConstants
         {
             Threshold = bloom.Threshold,
@@ -119,6 +119,7 @@ internal sealed unsafe class BloomPass : RenderPass
             ColorAttachmentCount = 1,
             PColorAttachments = &color,
         };
+
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, sourceSet };
@@ -132,6 +133,7 @@ internal sealed unsafe class BloomPass : RenderPass
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
+
         var viewport = new Viewport(
             x: 0,
             y: 0,
@@ -143,6 +145,7 @@ internal sealed unsafe class BloomPass : RenderPass
         var scissor = new Rect2D(new Offset2D(0, 0), target.Extent);
         vk.CmdSetViewport(commandBuffer: commandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
         vk.CmdSetScissor(commandBuffer: commandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
+
         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }

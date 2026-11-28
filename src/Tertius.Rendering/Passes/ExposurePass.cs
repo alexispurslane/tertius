@@ -94,11 +94,14 @@ internal sealed unsafe class ExposurePass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         GpuBuffer histogram = context.Exposure.Histogram;
+
         barriers.Buffer(histogram, BufferUse.ComputeRead);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
+
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, adapt);
         BindSets(context);
+
         ExposureAdaptPushConstants push = PushConstants(context.History.ExposureStep, phase);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
