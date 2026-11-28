@@ -1,0 +1,26 @@
+{
+  "status": "complete",
+  "required_evidence_returned": true,
+  "error": null,
+  "missing_required": [],
+  "phase": {
+    "phase": "complete",
+    "offline_transport_replay": true
+  },
+  "restoration": {
+    "all_diagnostic_source_restored": true,
+    "offline_transport_replay": true,
+    "note": "No source was edited or process started in this proof."
+  },
+  "archive_bytes": 580543,
+  "archive_base64_bytes": 774060,
+  "archive_sha256": "94f8fe2d37369c0d478a573a70e73f457a38c900a53127b7e4f61f465e0ac0c0",
+  "archived_files": 59,
+  "verified_redundant_copies": 0,
+  "handler_output_limit_bytes": 8000000,
+  "final_metadata_reserve_base64_bytes": 65536,
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "returned_base64_bytes": 775052
+}

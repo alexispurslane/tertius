@@ -141,6 +141,10 @@ print(json.dumps({"status": "PASS", "network_and_child_processes": "forbidden by
     "unchanged_gpu_workers": proposed.kinds["gpu"].workers, "unchanged_cpu": True,
     "queue_and_execution_ttl_seconds": gpu_job.QUEUE_SECONDS,
     "latest_start_seconds_after_submission_for_full_proposed_execution": gpu_job.QUEUE_SECONDS - 1980,
-    "compressed_row_gate_bytes": 6500000, "that_gate_in_base64_bytes": 4 * ((6500000 + 2) // 3),
+    "obsolete_compressed_row_gate_removed": True,
+    "proposal_worker_sha256": hashlib.sha256((proposal / "worker.py").read_bytes()).hexdigest(),
+    "proposal_output_globs": json.loads((proposal / "config.json").read_text())["output_globs"],
+    "proposal_final_metadata_reserve_base64_bytes": 65536,
+    "output_completeness_proof": "../output-budget/offline-check.json",
     "handler_total_base64_output_limit_bytes": handler.Limits().output_bytes,
     "arithmetic_is_not_a_live_endpoint_test": True}, indent=2))

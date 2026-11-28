@@ -1,0 +1,215 @@
+{
+  "status": "PASS: offline output transport only",
+  "network_and_child_processes": "forbidden by audit hook",
+  "new_gpu_submissions": 0,
+  "canonical_submit_called": false,
+  "representative_inputs": "All saved top-level Linux output files, eight pinned diagnostic gzip files, unchanged local full-scope rows repeated into two labeled replay rounds, simulated final writes and clock padding.",
+  "analysis_limits": "Mac rows supply no Linux timing. Repeated replay rounds are not independent measurements. require_sizes=False only for the archived fixture predating derived size fields. Production analysis defaults to True.",
+  "saved_top_level_linux_files": {
+    "active-extents.json": {
+      "bytes": 121589,
+      "sha256": "80d1741c4bfb73e653088359dd0c24dd6a5b5e708c2ade79b00b836a981a8f37"
+    },
+    "after-ExposurePass.cs.patch": {
+      "bytes": 1352,
+      "sha256": "a9604e4eddf3e0e13526aee1c158086cef4e803539c5ed393924265ade3b346f"
+    },
+    "after-GpuTimer.cs.patch": {
+      "bytes": 488,
+      "sha256": "4f9388ec35072b1fd1e61bcdd827f8a1475b78bbaf3f97f35c208e2390724304"
+    },
+    "after-VulkanRenderer.cs.patch": {
+      "bytes": 698,
+      "sha256": "c379a13500f87b00c9282f7899b7cce872e31237e9b888b0fd0dc15f712ded2c"
+    },
+    "after-diagnostic-build.log": {
+      "bytes": 76,
+      "sha256": "eca656f3ec405ca0003bd2d92cca4c83461eb21f57279f8761e6748e49f0fed7"
+    },
+    "after-pristine-binaries.json": {
+      "bytes": 387,
+      "sha256": "513316577a4ed9a2b9c6a64198e8e6ea263ea918bf1f3e55eb082bacb9ab4eac"
+    },
+    "after-pristine-build.log": {
+      "bytes": 76,
+      "sha256": "b21348d51e895edaeb647f94220c72644cf79ff5c449c87956287d5a79af5411"
+    },
+    "asset-source-before.json": {
+      "bytes": 13658,
+      "sha256": "d681d81223d087d7a5c8e50f45dcf21183c0df6ede4121cba02240ce22172183"
+    },
+    "assets-before.json": {
+      "bytes": 14387,
+      "sha256": "f8573d21172d205eba87e5f357b21d57186f2af7d7282bf6ffb33fbcfd996c75"
+    },
+    "assets.log": {
+      "bytes": 37904,
+      "sha256": "b87b694ba6e5c86bfb761487fbb9a506576e3492f86afab90d5bd5e57f18706a"
+    },
+    "before-ExposurePass.cs.patch": {
+      "bytes": 1184,
+      "sha256": "50e84a327b837a2a314804ed1dec3e9336947b2dd8e7689623c4b51bfec18bf4"
+    },
+    "before-GpuTimer.cs.patch": {
+      "bytes": 490,
+      "sha256": "5afdf20830498ae9e5a74903b6242c0e770d786ccaecfac8eecd5017648832bb"
+    },
+    "before-VulkanRenderer.cs.patch": {
+      "bytes": 700,
+      "sha256": "219610b0342df687d09fc702141acab76ee170e1f9ef58aeffa887c6ce23bf83"
+    },
+    "before-diagnostic-build.log": {
+      "bytes": 76,
+      "sha256": "7d572991158a473d7cc57ff9c76334675a9348bdab8ab078a406d39ed9bf26ef"
+    },
+    "before-pristine-binaries.json": {
+      "bytes": 387,
+      "sha256": "7f1dbc0e124c057bcca4998fc9541cbfeb44dad211013eac69688e18ce654eba"
+    },
+    "before-pristine-build.log": {
+      "bytes": 76,
+      "sha256": "c8a8951085d4095a819a74b055c25cc67a191fed67f435af2c9471959844d934"
+    },
+    "capacity.json": {
+      "bytes": 1650,
+      "sha256": "85d6542fd47d9d941ec0e5e4153987e82d99cd876680fd664b9dc633e4ba1094"
+    },
+    "commands.jsonl": {
+      "bytes": 2100,
+      "sha256": "b876a976445d994afb8cacedc25f1153e9e889231c6152c9a72148b06b71981f"
+    },
+    "device.csv": {
+      "bytes": 142,
+      "sha256": "09dcc984280a008a2dec68c85d845cff1a484d14a41edd94dfbc2f31790567a4"
+    },
+    "diagnostic-after.log": {
+      "bytes": 18776,
+      "sha256": "2189bb5cdeb4e2745108b077b37a099246250e986867b4a4b0d876e8ecc6d549"
+    },
+    "diagnostic-before.log": {
+      "bytes": 30118,
+      "sha256": "1a2dcfed67b47c757c987800adc3475ba68d174d948801ee2009a38ee045112e"
+    },
+    "harness.json": {
+      "bytes": 4227,
+      "sha256": "9ae572a266fff052b7d50fd4c10e82ca561da7c5ba022d14e1d643b85a916681"
+    },
+    "initial-memory.csv": {
+      "bytes": 13,
+      "sha256": "d1a3b35a0510488e01a10ddffc036395614f098c615532ce03ba44763bfffc42"
+    },
+    "mirror.json": {
+      "bytes": 221,
+      "sha256": "be6866838250abd41967f7393dbbab437c95dccbd3a7d1a05a02d58838a4e7f6"
+    },
+    "phase.json": {
+      "bytes": 123,
+      "sha256": "024d0e6d2890eab65dd34c4b3b158f77834ad9f1c23a666ccbef38fc1c348b3e"
+    },
+    "restoration.json": {
+      "bytes": 180,
+      "sha256": "2f6f848dca9b00cdc9a577a0f2ad53a784da70913cd952acf74f73b50d72b3b1"
+    }
+  },
+  "input_bytes": 4374051,
+  "local_archive_seconds": 0.10022987518459558,
+  "local_archive_seconds_are_not_linux_performance": true,
+  "source_sha256": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "fixture.cs.txt": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "emit_proposal.py": "4807cb0813e076cead0f46a913debeb323a32e88c0dd04970f7282c74997d8f6"
+  },
+  "canonical_handler_sha256": "d9f9a0cbb2bc703eedf62219b3385b4e376719dc3f8040f685ad008a36089fab",
+  "canonical_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "pins": {
+    "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "baseline_tree": "c71ef26f4f8a9462a917ca2ae1b3c362230e9e9e",
+    "candidate_tree": "76b5d43a9f3f841b19d7d542b93dc0308ba7a43e",
+    "local_fixture_csharp_sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+    "linux_cooked_manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75"
+  },
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "accepted": {
+    "status": "complete",
+    "required_evidence_returned": true,
+    "error": null,
+    "missing_required": [],
+    "phase": {
+      "phase": "complete",
+      "offline_transport_replay": true
+    },
+    "restoration": {
+      "all_diagnostic_source_restored": true,
+      "offline_transport_replay": true,
+      "note": "No source was edited or process started in this proof."
+    },
+    "archive_bytes": 580543,
+    "archive_base64_bytes": 774060,
+    "archive_sha256": "94f8fe2d37369c0d478a573a70e73f457a38c900a53127b7e4f61f465e0ac0c0",
+    "archived_files": 59,
+    "verified_redundant_copies": 0,
+    "handler_output_limit_bytes": 8000000,
+    "final_metadata_reserve_base64_bytes": 65536,
+    "output_globs": [
+      "linux-out/return/*"
+    ],
+    "returned_base64_bytes": 775052
+  },
+  "accepted_skipped": {},
+  "accepted_collected_files": {
+    "linux-out/return/evidence.tar.gz": {
+      "raw_bytes": 580543,
+      "base64_bytes": 774060
+    },
+    "linux-out/return/status.json": {
+      "raw_bytes": 744,
+      "base64_bytes": 992
+    }
+  },
+  "replayed_analysis_status": "all observation gates passed",
+  "replayed_analysis_rows": 24,
+  "rejected": {
+    "status": "overflow",
+    "required_evidence_returned": false,
+    "error": null,
+    "missing_required": [],
+    "phase": {
+      "phase": "complete",
+      "offline_transport_replay": true
+    },
+    "restoration": {
+      "all_diagnostic_source_restored": true,
+      "offline_transport_replay": true,
+      "note": "No source was edited or process started in this proof."
+    },
+    "archive_bytes": 6684088,
+    "archive_base64_bytes": 8912120,
+    "archive_sha256": "51d737e673a20af53f220b2e7855d3d28f490194e6fd995bd3367f2edded1e15",
+    "archived_files": 60,
+    "verified_redundant_copies": 0,
+    "handler_output_limit_bytes": 8000000,
+    "final_metadata_reserve_base64_bytes": 65536,
+    "output_globs": [
+      "linux-out/return/*"
+    ],
+    "returned_base64_bytes": 1224,
+    "evidence_worker_path": "linux-out/evidence.tar.gz",
+    "note": "No measurement archive returned. All rows and provenance remain only on this worker. No automatic retry."
+  },
+  "rejected_skipped": {},
+  "rejected_collected_base64_bytes": 1224,
+  "regression_tests": "../test_output_budget.py",
+  "approval": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "reason": "Inert proposal. No new spending authorized."
+  }
+}

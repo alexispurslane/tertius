@@ -1,8 +1,56 @@
 """Validate pristine observations. Local replay supplies correctness evidence only."""
 import gzip
+import hashlib
 import json
 import statistics
 from pathlib import Path
+import tarfile
+import tempfile
+
+
+def analyze_returned(root, require_sizes=True):
+    """Reject incomplete canonical returns, verify archived bytes, then analyze raw observations."""
+    root = Path(root)
+    result = read(root / 'result.json')
+    if result.get('skipped'):
+        raise ValueError('Canonical collector skipped required output: ' + str(result['skipped']))
+    if result.get('status') != 'ok':
+        raise ValueError('Canonical job did not succeed: ' + str(result.get('status')))
+    folder = root / 'linux-out/return'
+    report = read(folder / 'status.json')
+    if report['status'] != 'complete' or report['required_evidence_returned'] is not True:
+        raise ValueError('Returned evidence is ' + report['status'])
+    archive_path = folder / 'evidence.tar.gz'
+    if not archive_path.is_file():
+        raise ValueError('Returned measurement archive is missing')
+    if hashlib.sha256(archive_path.read_bytes()).hexdigest() != report['archive_sha256']:
+        raise ValueError('Returned archive hash differs')
+    with tempfile.TemporaryDirectory(prefix='issue4-returned-') as temporary:
+        extracted = Path(temporary)
+        with tarfile.open(archive_path) as archive:
+            archive.extractall(extracted, filter='data')
+        manifest = read(extracted / 'evidence-manifest.json')
+        for entry in manifest['files']:
+            path = extracted / entry['path']
+            if not path.is_file():
+                raise ValueError('Required archived file is missing: ' + entry['path'])
+            if path.stat().st_size != entry['bytes'] or hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
+                raise ValueError('Archived file hash differs: ' + entry['path'])
+        restoration = read(extracted / 'restoration.json')
+        if restoration.get('all_diagnostic_source_restored') is not True:
+            raise ValueError('Source restoration was not verified')
+        config = read(extracted / 'harness.json')['config']
+        for relative, expected in config['retained_diagnostics_sha256'].items():
+            path = extracted / 'retained-diagnostics' / relative
+            if not path.is_file():
+                raise ValueError('Required retained diagnostic is missing: ' + relative)
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise ValueError('Retained diagnostic hash differs: ' + relative)
+        try:
+            return analyze_runs(extracted, [('r1-before', 'before'), ('r1-after', 'after'),
+                ('r2-after', 'after'), ('r2-before', 'before')], require_sizes=require_sizes)
+        except FileNotFoundError as error:
+            raise ValueError('Required measurement output is missing: ' + str(error.filename)) from error
 
 
 def read(path):
@@ -76,3 +124,11 @@ def analyze_runs(root, visits, require_sizes=True):
     return dict(status='all observation gates passed', visits=visits, rows=rows,
         paired_round_differences=differences, shared_real_references_within_tolerance=True,
         gpu_wall_alignment='GPU identities 25..119 are inside the measured wall interval. Identity 24 is excluded. The last wall draw has no GPU result.')
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--returned', required=True, type=Path)
+    args = parser.parse_args()
+    print(json.dumps(analyze_returned(args.returned), indent=2))

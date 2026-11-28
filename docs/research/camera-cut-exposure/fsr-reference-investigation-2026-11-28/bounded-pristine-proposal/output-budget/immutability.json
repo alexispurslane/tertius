@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "engine_test_and_film_sources_equal_candidate588": true,
+  "canonical_runpod_files_equal_prior_stage": true,
+  "external_payload_matches_repository": true,
+  "immutable_prior_artifacts_sha256": {
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "fixture.cs.txt": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+    "full-scope-tested-fixture.cs.txt": "fed86224f0ff8c2ad778bb4feff11f0abbc135fcbfb037c0ef4d0f74bfddc119",
+    "local-verification.json": "f4f59ca3f15b9e8301873ab4dca534395087372491974a1b488722c7205e434f",
+    "local-harness-evidence.tar.gz": "b899f228b7bd97cb7a2aca012a253b5f18f52c6a16e4d2fe8ce7b7ab60afa856",
+    "analyzer-local-replay.json": "5c1880744ce1e4b632cbd367b75d0bea5eb34e733b037dce92e7b60d71cab4b0",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54"
+  },
+  "new_submissions": 0,
+  "local_builds_captures_mutations_or_full_suites_repeated": false
+}

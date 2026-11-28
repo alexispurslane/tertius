@@ -1,0 +1,9 @@
+{
+  "status": "ok",
+  "files": [
+    "linux-out/return/evidence.tar.gz",
+    "linux-out/return/status.json"
+  ],
+  "skipped": {},
+  "offline_transport_replay": true
+}

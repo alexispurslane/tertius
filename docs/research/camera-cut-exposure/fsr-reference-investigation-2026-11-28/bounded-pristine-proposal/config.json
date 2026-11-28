@@ -120,5 +120,15 @@
     "platform_labels": "Local synthetic/continuous/fixed correctness and retained Linux diagnostics remain separately labeled.",
     "paid_or_policy_approval": false
   },
-  "output_completeness_limit": "The 6.5 MB compressed-row gate can exceed the 8 MB aggregate base64 handler file limit. Returned file completeness still needs review."
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "output_evidence": {
+    "handler_aggregate_base64_limit_bytes": 8000000,
+    "final_metadata_reserve_base64_bytes": 65536,
+    "archive": "linux-out/return/evidence.tar.gz",
+    "status": "linux-out/return/status.json",
+    "overflow": "Explicit failure; metadata only. Complete raw evidence remains on worker, without automatic retry.",
+    "offline_proof": "output-budget/offline-check.json"
+  }
 }

@@ -14,8 +14,124 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import tarfile
 import time
 import urllib.request
+
+
+OUTPUT_GLOBS = ['linux-out/return/*']
+OUTPUT_LIMIT = 8_000_000
+FINAL_METADATA_RESERVE = 65_536  # Base64 bytes, included within OUTPUT_LIMIT.
+VISITS = [('r1-before', 'before'), ('r1-after', 'after'), ('r2-after', 'after'), ('r2-before', 'before')]
+REQUIRED_METADATA = [
+    'device.csv', 'initial-memory.csv', 'mirror.json', 'assets.log',
+    'assets-before.json', 'assets-after.json', 'asset-source-before.json', 'asset-source-after.json',
+    'harness.json', 'before-pristine-build.log', 'after-pristine-build.log',
+    'before-pristine-binaries.json', 'after-pristine-binaries.json', 'capacity.json',
+    'clocks.csv', 'commands.jsonl', 'matched-summary.json', 'phase.json', 'restoration.json',
+    *[label + '.log' for label, _ in VISITS]]
+
+
+def encoded_bytes(paths):
+    """Count the handler's base64 bytes, with padding rounded for each file."""
+    return sum(4 * ((path.stat().st_size + 2) // 3) for path in paths)
+
+
+def finish_output(out, *, complete, error=None):
+    """Seal all finished evidence before return. Overflow returns failure metadata only."""
+    try:
+        return seal_output(out, complete=complete, error=error)
+    except Exception as failure:
+        returned = out / 'return'
+        returned.mkdir(exist_ok=True)
+        for path in returned.iterdir():
+            path.unlink()
+        report = {'status': 'packaging-failed', 'required_evidence_returned': False,
+            'error': f'{type(failure).__name__}: {failure}'[:2000],
+            'measurement_error': str(error)[:2000] if error else None,
+            'note': 'Evidence remains only on this worker. No automatic retry.'}
+        for name in ('phase', 'restoration'):
+            path = out / (name + '.json')
+            if path.is_file():
+                report[name] = json.loads(path.read_text())
+        write(returned / 'status.json', report)
+        return report
+
+
+def seal_output(out, *, complete, error):
+    """Archive evidence once and admit it only with the final metadata reserve intact."""
+    returned = out / 'return'
+    returned.mkdir(exist_ok=True)
+    # A repeated offline check must not leave a previously accepted archive advertised.
+    for path in returned.iterdir():
+        path.unlink()
+    required = [*REQUIRED_METADATA,
+        *[f'{label}/{mode}/{lane}/rows.json' for label, _ in VISITS
+          for mode in ('native', 'fsr') for lane in ('cut', 'steady')],
+        *[f'retained-diagnostics/diagnostic-{tree}/{mode}/{lane}/rows.json.gz'
+          for tree in ('before', 'after') for mode in ('native', 'fsr') for lane in ('cut', 'steady')]]
+    missing = [name for name in required if not (out / name).is_file()]
+    restoration = json.loads((out / 'restoration.json').read_text()) if (out / 'restoration.json').exists() else {}
+    phase = json.loads((out / 'phase.json').read_text()) if (out / 'phase.json').exists() else {}
+    status = 'failed'
+    if complete:
+        status = 'complete' if not missing and restoration.get('all_diagnostic_source_restored') is True else 'incomplete'
+    archive_path = out / 'evidence.tar.gz'
+    paths, duplicates = [], {}
+    for path in sorted(out.rglob('*')):
+        if not path.is_file() or returned in path.parents or path == archive_path:
+            continue
+        other = path.with_suffix('') if path.suffix == '.gz' else path.with_suffix('.json.gz')
+        # Prefer raw new rows and the pinned gzip diagnostics. Verify equality before omitting a copy.
+        redundant = ((path.name == 'rows.json.gz' and 'retained-diagnostics' not in path.parts)
+                     or (path.name == 'rows.json' and 'retained-diagnostics' in path.parts))
+        if redundant and other.is_file():
+            raw, compressed = (other, path) if path.suffix == '.gz' else (path, other)
+            if raw.read_bytes() == gzip.decompress(compressed.read_bytes()):
+                duplicates[str(path.relative_to(out))] = str(other.relative_to(out))
+                continue
+        paths.append(path)
+    manifest = {'files': [{'path': str(path.relative_to(out)), 'bytes': path.stat().st_size,
+                         'sha256': sha(path)} for path in paths], 'verified_redundant_copies': duplicates}
+    manifest_path = out / 'evidence-manifest.json'
+    # The manifest describes evidence, rather than a previous copy of itself.
+    paths = [path for path in paths if path != manifest_path]
+    manifest['files'] = [entry for entry in manifest['files'] if entry['path'] != manifest_path.name]
+    write(manifest_path, manifest)
+    def stable_header(header):
+        header.mtime = header.uid = header.gid = 0
+        header.uname = header.gname = ''
+        header.pax_headers = {}
+        return header
+    with archive_path.open('wb') as raw_archive:
+        with gzip.GzipFile(fileobj=raw_archive, filename='', mode='wb', mtime=0, compresslevel=9) as compressed:
+            with tarfile.open(fileobj=compressed, mode='w') as archive:
+                for path in [*paths, manifest_path]:
+                    archive.add(path, arcname=str(path.relative_to(out)), recursive=False, filter=stable_header)
+    archive_encoded = encoded_bytes([archive_path])
+    report = {'status': status, 'required_evidence_returned': status == 'complete',
+        'error': str(error)[:2000] if error else None, 'missing_required': missing,
+        'phase': phase, 'restoration': restoration, 'archive_bytes': archive_path.stat().st_size,
+        'archive_base64_bytes': archive_encoded, 'archive_sha256': sha(archive_path),
+        'archived_files': len(paths) + 1, 'verified_redundant_copies': len(duplicates),
+        'handler_output_limit_bytes': OUTPUT_LIMIT, 'final_metadata_reserve_base64_bytes': FINAL_METADATA_RESERVE,
+        'output_globs': OUTPUT_GLOBS, 'returned_base64_bytes': 0}
+    if archive_encoded > OUTPUT_LIMIT - FINAL_METADATA_RESERVE:
+        report.update(status='overflow', required_evidence_returned=False,
+            evidence_worker_path='linux-out/evidence.tar.gz',
+            note='No measurement archive returned. All rows and provenance remain only on this worker. No automatic retry.')
+    else:
+        shutil.move(archive_path, returned / archive_path.name)
+    status_path = returned / 'status.json'
+    while True:
+        write(status_path, report)
+        size = encoded_bytes(list(returned.iterdir()))
+        if size == report['returned_base64_bytes']:
+            break
+        report['returned_base64_bytes'] = size
+    if encoded_bytes([status_path]) > FINAL_METADATA_RESERVE or size > OUTPUT_LIMIT:
+        raise RuntimeError('Final output metadata exceeded its reserved budget.')
+    return report
 
 
 def sha(path):
@@ -120,7 +236,7 @@ def remaining_projection(out):
             durations = {}
             real_draws = []
             for lane in ['cut', 'steady']:
-                data = json.loads((out / 'retained-diagnostics' / ('diagnostic-' + tree) / mode / lane / 'rows.json').read_text())
+                data = json.loads(gzip.decompress((out / 'retained-diagnostics' / ('diagnostic-' + tree) / mode / lane / 'rows.json.gz').read_bytes()))
                 frequency = data['Frequency']
                 for row in data['Rows']:
                     if row.get('Kind') == 'case-duration':
@@ -155,6 +271,8 @@ def main():
         raise RuntimeError('INERT: new Issue #4 paid approval and coordinator review are required before worker execution.')
     if config['baseline_sha'] != config['main_baseline_sha']:
         raise RuntimeError('Baseline must be the reviewed main commit with allocator fix #35.')
+    if config['output_globs'] != OUTPUT_GLOBS:
+        raise RuntimeError('Output globs must select only the sealed return folder.')
     for key in ['baseline_sha', 'candidate_sha', 'issue3_final_sha', 'main_baseline_sha']:
         value = config[key]
         if not isinstance(value, str) or len(value) != 40 or any(c not in '0123456789abcdef' for c in value):
@@ -168,6 +286,8 @@ def main():
     started = time.monotonic()
     original = {}
     provenance = {}
+    complete = False
+    failure = None
     def phase(name):
         write(out / 'phase.json', {'phase': name, 'elapsed_seconds': time.monotonic() - started})
     def run(command, log, tree=None, extra=None, cap=140):
@@ -204,17 +324,13 @@ def main():
              '-p:RunAnalyzers=false'], label + '-build.log', tree)
     def measure(tree, label, diagnostic=False):
         folder = out / label
-        try:
-            run(['dotnet', 'tests/Tertius.Host.Tests/bin/Release/net11.0/Tertius.Host.Tests.dll',
-                 '-class', 'Tertius.Host.Tests.LinuxExposureMeasurements', '-explicit', 'only',
-                 '-maxThreads', '1', '-noColor'], label + '.log', tree,
-                {'TERTIUS_LINUX_OUT': str(folder), 'TERTIUS_LINUX_BATCH': '1',
-                 'TERTIUS_LINUX_DIAGNOSTIC': str(int(diagnostic)),
-                 'TERTIUS_LINUX_VALIDATE': str(int(diagnostic)),
-                 'TERTIUS_LINUX_SCRIPTS': str(base / 'linux-scripts')}, cap=config['pristine_process_timeout_seconds'])
-        finally:
-            for rows_path in folder.rglob('rows.json'):
-                rows_path.with_suffix('.json.gz').write_bytes(gzip.compress(rows_path.read_bytes(), mtime=0))
+        run(['dotnet', 'tests/Tertius.Host.Tests/bin/Release/net11.0/Tertius.Host.Tests.dll',
+             '-class', 'Tertius.Host.Tests.LinuxExposureMeasurements', '-explicit', 'only',
+             '-maxThreads', '1', '-noColor'], label + '.log', tree,
+            {'TERTIUS_LINUX_OUT': str(folder), 'TERTIUS_LINUX_BATCH': '1',
+             'TERTIUS_LINUX_DIAGNOSTIC': str(int(diagnostic)),
+             'TERTIUS_LINUX_VALIDATE': str(int(diagnostic)),
+             'TERTIUS_LINUX_SCRIPTS': str(base / 'linux-scripts')}, cap=config['pristine_process_timeout_seconds'])
     try:
         phase('verify device and pinned trees')
         run(['nvidia-smi', '--query-gpu=name,uuid,driver_version,pci.bus_id', '--format=csv'], 'device.csv')
@@ -281,8 +397,6 @@ def main():
             if sha(path) != expected:
                 raise RuntimeError('Retained diagnostic bytes changed.')
         shutil.copytree(retained, out / 'retained-diagnostics')
-        for path in (out / 'retained-diagnostics').rglob('rows.json.gz'):
-            path.with_suffix('').write_bytes(gzip.decompress(path.read_bytes()))
         for name, tree in trees.items():
             build(tree, name + '-pristine')
             write(out / (name + '-pristine-binaries.json'), {
@@ -312,8 +426,7 @@ def main():
             monitor.wait(timeout=5)
             clocks.close()
         analyzer = runpy.run_path(str(base / 'analyze_runs.py'))['analyze_runs']
-        visits = [('r1-before', 'before'), ('r1-after', 'after'), ('r2-after', 'after'), ('r2-before', 'before')]
-        write(out / 'matched-summary.json', analyzer(out, visits))
+        write(out / 'matched-summary.json', analyzer(out, VISITS))
         phase('verify assets and source restoration')
         after_assets = verify_assets(trees['before'], config['linux_cooked_manifest_sha256'])
         if after_assets != assets:
@@ -321,21 +434,31 @@ def main():
         for name, tree in trees.items():
             if checked(['git', 'diff', '--name-only'], tree) or source_manifest(tree) != provenance[name]:
                 raise RuntimeError('Source changed during measurement.')
-        output_bytes = sum(path.stat().st_size for path in out.rglob('*.gz'))
-        write(out / 'compressed-output-size.json', {'compressed_rows_bytes': output_bytes,
-            'raw_rows_stay_on_worker': True, 'handler_output_limit_bytes': 8_000_000})
-        if output_bytes > 6_500_000:
-            raise RuntimeError('Compressed measurement rows leave too little room for the 8 MB result cap.')
         write(out / 'assets-after.json', after_assets)
         write(out / 'asset-source-after.json', {name: source_manifest(tree) for name, tree in trees.items()})
-        phase('complete')
+        complete = True
+    except BaseException as error:
+        failure = f'{type(error).__name__}: {error}'
+        raise
     finally:
-        for path, data in original.items():
-            path.write_bytes(data)
-        write(out / 'restoration.json', {'all_diagnostic_source_restored': all(
-            not checked(['git', 'diff', '--name-only'], base / name) for name in ['before', 'after']),
-            'elapsed_seconds': time.monotonic() - started,
-            'note': 'A failed diagnostic phase is not valid timed evidence. No automatic resubmission.'})
+        try:
+            for path, data in original.items():
+                path.write_bytes(data)
+            restored = all(not checked(['git', 'diff', '--name-only'], base / name) for name in ['before', 'after'])
+            write(out / 'restoration.json', {'all_diagnostic_source_restored': restored,
+                'elapsed_seconds': time.monotonic() - started,
+                'note': 'A failed phase is not valid timed evidence. No automatic resubmission.'})
+            if not restored:
+                complete = False
+                failure = 'Source restoration verification failed.'
+        except Exception as error:
+            complete = False
+            failure = f'Restoration verification failed: {error}'
+            write(out / 'restoration.json', {'all_diagnostic_source_restored': False, 'error': failure[:2000]})
+        phase('complete' if complete else 'failed')
+        report = finish_output(out, complete=complete, error=failure)
+        if report['status'] != 'complete':
+            raise RuntimeError('Returned evidence is ' + report['status'] + '. No automatic resubmission.')
 
 
 if __name__ == '__main__':
