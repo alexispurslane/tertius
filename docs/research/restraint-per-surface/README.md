@@ -181,6 +181,32 @@ The scene restraint-orange-lamp from the camera wall-back. That camera looks str
 - At gain 4 the light on the unlit face is exactly 4.00 times its value at gain 1, so the color gain multiplies all of it. At EV 0 it clips to near white-yellow.
 - This take cannot tell whether one transmission share per cell (#47) or the receiver reading its cell's light from behind (#48) carries it.
 
+### A test of one cause: the final filter's read at cell faces with surface
+
+The line orchestrator's hypothesis: the final filter pass (`volume_filter.comp`, `finalPass == 1`) reads the sweep's interpolated input `incomingOf(volume.field[index])`. For a direction such as (3, 1, -1) the sweep's four upwind taps have the weights 4/9, 2/9, 2/9 and 1/9, and the first two lie in the cell's own layer along the wall. There, the neighbor cells that hold the same wall send the lit face's grazing light. The bounce pass (`finalPass == 0`) already reads the strictly upwind corner instead (`incidentAtSurface`). The research switch `FILTER_UPWIND_AT_SURFACE 1` (in `volume.glsl`, used in `volume_filter.comp`) makes the final pass read that corner too, at every cell face that holds surface area. Cell faces without surface keep the old read. The weighted split, ramp B, each lamp alone.
+
+![the wall's unlit face, switch off and on, at gain 1 and gain 4](evidence/wall-back-filter-switch.png)
+
+| Still | Unlit face, mean: scene-linear RGB | Unlit face, middle (x 296 to 344): red | Receiver's lit part: scene-linear RGB |
+|---|---|---:|---|
+| gain 1, switch off | (2.017, 0.807, 0) | 2.0 | (0.161, 0.064, 0) |
+| gain 1, switch on | (0.060, 0.024, 0) | 0.003 | (0.205, 0.082, 0) |
+| gain 4, switch off | (8.069, 3.228, 0) | 8.1 | (0.643, 0.257, 0) |
+| gain 4, switch on | (0.242, 0.097, 0) | 0.012 | (0.819, 0.328, 0) |
+
+- The switch removes 97% of the light on the unlit face, and 99.85% in its middle. What is left lies in bands about 0.075 m wide at the face's left and right edges (red up to 0.45 at gain 1). There the trilinear read of the surface blends in the cells beside the wall, which hold no surface and keep the old read.
+- In the display picture the middle of the face shows 15 to 42 levels. That is glare from the bright receiver beside it, which the scene-linear readback does not hold.
+- The receiver's legitimate wash rises by 27% with the switch, at both gains. A likely reason: the receiver's own cells, in its layer, hold the receiver slab, which blocks part of the light that passes through them. The old read takes 6/9 of its light from those cells, and the strictly upwind corner lies in the open air in front of the receiver. Not confirmed.
+
+The deck still (set 1's camera, 1280 x 720, the weighted split ramp B per lamp at gain 1), switch off against switch on, from the scene-linear readback:
+
+![signed change of luminance: red brighter, blue darker, full color at 10%](evidence/deck-filter-signed-change.png)
+
+- Frame mean +0.15%. The largest tile (column 5, row 3 of 8 x 4, the near floor) changes by +4.2%.
+- Only the near floor changes, inside the reach of the 0.25 m grid. The edge of the change is the V of that grid's fade. The near floor's bottom rows rise by 2.7% on average and by up to 4.7% (99th percentile of all pixels). The crate's face, the ring above and everything outside the 0.25 m grid change by 0.00%.
+- No pixel gets darker (1st percentile 0.00%). The switch takes no light from contact shadows, from under the crates or from corners in this frame.
+- [`evidence/deck-filter-difference-x16.png`](evidence/deck-filter-difference-x16.png) is the absolute difference of the display pictures times 16. It shows the same smooth lift of the near floor and the antialiasing at edges, with no pattern of cells.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
