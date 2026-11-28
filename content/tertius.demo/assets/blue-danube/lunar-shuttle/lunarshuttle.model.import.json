@@ -43,7 +43,7 @@
       "The glow map is baked into constant emission after clearing painted yellow window glow on the cut openings: each remaining glowing triangle takes the mean glow over its UV footprint, quantized into at most 4 emission levels.",
       "The low-detail mesh, the collision mesh, the specular map and the gear animation are not used; the gear stays in the file's rest pose.",
       "Finish (tools/blue-danube-assets/finish.py, the \"finish\" block of the conversion, fixed parameters and seeds): the diffuse map is desaturated by 30 % and lifted by 35 % on its light texels; grime is drawn near the dorsal hatch and the gear bays and a heat tint near the three nozzles; hazard stripes ring the dorsal hatch, an airlock frame marks the starboard boarding doorway, and the markings BD-07 (top) and 07 (belly) are drawn; PBR metallic/roughness and normal maps are generated.",
-      "Fitted cabin overlay (tools/blue-danube-assets/shuttle_cabin.py): cuts the 21 real window openings (5 cockpit, 16 side cabin) and starboard boarding doorway from fuselage_hi, sets opaque hull backs (double-sided), adds a separate stowable hatch_door piece, and builds the fitted textured playable cabin interior."
+      "Fitted cabin overlay (tools/blue-danube-assets/shuttle_cabin.py): cuts the 21 real window openings (5 cockpit, 16 side cabin) and starboard boarding doorway from fuselage_hi, sets opaque hull backs (double-sided), adds a separate stowable hatch_door piece, and builds the fitted textured playable cabin interior. The baked glow faces stay single-sided and get a reversed opaque backing in a non-glowing copy of the hull material, so they glow from their painted side only."
     ],
     "approved": {
       "on": "2026-11-24",

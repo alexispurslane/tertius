@@ -113,6 +113,7 @@ def build(pieces, convert):
 
     # Sanity-check that no interior cabin vertex protrudes outside the fuselage bounding envelope.
     _check_cabin_bounds(cabin_objs)
+    glow_backs = _back_glow_faces(shuttle)
 
     report = {
         "windowsCut": len(windows),
@@ -130,6 +131,7 @@ def build(pieces, convert):
             "zRange": [HATCH_Z_MIN, HATCH_Z_MAX],
             "outerCorners": [[round(float(c), 4) for c in p] for p in door_outer_quad],
         },
+        "glowBacks": glow_backs,
         "cabinObjects": [o.name for o in cabin_objs],
         "hatchDoorPiece": hatch_door.name,
     }
@@ -138,10 +140,55 @@ def build(pieces, convert):
 
 def _make_hull_opaque_double_sided(shuttle):
     """Ensures every opaque material on the exterior shuttle exports with doubleSided=true so GlbReader.WithBackFaces
-    produces opaque wall backs blocking sightlines from inside."""
+    produces opaque wall backs blocking sightlines from inside. The glow bake's copies (`<material>.glowN`) stay
+    single-sided: a reversed copy of a glow face would glow into the closed inside of the hull (#20, #47).
+    `_back_glow_faces` gives them their opaque backs instead."""
     for mat in shuttle.data.materials:
-        if mat is not None:
+        if mat is not None and not _is_glow(mat):
             mat.use_backface_culling = False
+
+
+def _is_glow(material):
+    return ".glow" in material.name
+
+
+def _back_glow_faces(shuttle):
+    """Gives every face of a glow-bake material an opaque back that does not glow: a reversed copy of the face on new
+    vertices at the same places, with the same UVs, in a single-sided copy of the material that the bake split the
+    glow from (`<material>.backing`). The copy is single-sided too, or the reader's reversed copy of it would lie on the
+    glow face. Returns the number of backing faces."""
+    mesh = shuttle.data
+    backing_of_base, backing_of_slot = {}, {}
+    for slot, material in enumerate(list(mesh.materials)):
+        if material is None or not _is_glow(material):
+            continue
+        base = material.name.split(".glow")[0]
+        if base not in backing_of_base:
+            backing = bpy.data.materials[base].copy()
+            backing.name = f"{base}.backing"
+            backing.use_backface_culling = True
+            mesh.materials.append(backing)
+            backing_of_base[base] = len(mesh.materials) - 1
+        backing_of_slot[slot] = backing_of_base[base]
+    if not backing_of_slot:
+        return 0
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    uv_layers = list(bm.loops.layers.uv.values())
+    glow_faces = [f for f in bm.faces if f.material_index in backing_of_slot]
+    for face in glow_faces:
+        loops = list(reversed(face.loops))
+        verts = [bm.verts.new(loop.vert.co) for loop in loops]
+        back = bm.faces.new(verts)
+        back.material_index = backing_of_slot[face.material_index]
+        back.smooth = False
+        for new_loop, old_loop in zip(back.loops, loops):
+            for layer in uv_layers:
+                new_loop[layer].uv = old_loop[layer].uv
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+    return len(glow_faces)
 
 
 # ---------------------------------------------------------------------------

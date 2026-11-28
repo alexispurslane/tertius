@@ -455,5 +455,106 @@ class TheShuttleCabinOverlay(unittest.TestCase):
         self.assertTrue(data["source"]["changes"], "procedural edits are documented in source.changes")
 
 
+def _read_glb(path):
+    """The JSON document of a .glb and a function that reads an accessor as a list of tuples."""
+    import struct
+    data = path.read_bytes()
+    length = struct.unpack_from("<I", data, 12)[0]
+    doc = json.loads(data[20:20 + length])
+    binary = 20 + length + 8
+    formats = {5126: "f", 5125: "I", 5123: "H", 5121: "B"}
+    widths = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
+
+    def accessor(index):
+        a = doc["accessors"][index]
+        view = doc["bufferViews"][a["bufferView"]]
+        fmt = "<" + formats[a["componentType"]] * widths[a["type"]]
+        size = struct.calcsize(fmt)
+        stride = view.get("byteStride", 0) or size
+        start = binary + view.get("byteOffset", 0) + a.get("byteOffset", 0)
+        return [struct.unpack_from(fmt, data, start + k * stride) for k in range(a["count"])]
+
+    return doc, accessor
+
+
+class TheShuttleGlowFaces(unittest.TestCase):
+    """A glow face of the shuttle emits from its painted side only, and its back is an opaque face that does not glow
+    (shuttle_cabin.py, _back_glow_faces). The reader gives a double-sided material reversed copies of its triangles
+    (GlbReader.WithBackFaces), so a double-sided glow material would glow into the closed inside of the hull (#20, #47).
+    The faces that this guards: the eight lamp patches on the nose (glow0 to glow3) and the two small glow0 patches
+    under the cockpit ceiling. The opaque back applies to the glow bake's faces (`*.glowN`): the hull's backs block
+    sightlines from inside, and the cabin's own screens are single-sided faces of the overlay."""
+
+    MODEL = TOOLS.parent / "content/tertius.demo/bin/assets/blue-danube/lunar-shuttle/lunarshuttle.model/model.glb"
+
+    def setUp(self):
+        if not self.MODEL.exists():
+            self.skipTest("needs the cooked Lunar Shuttle (tools/blue-danube-assets/setup.sh --only lunar-shuttle)")
+        self.doc, accessor = _read_glb(self.MODEL)
+        self.glow, self.backs = [], {}
+        for mesh in self.doc["meshes"]:
+            for part in mesh["primitives"]:
+                material = self.doc["materials"][part["material"]]
+                strength = material.get("extensions", {}).get("KHR_materials_emissive_strength", {}).get(
+                    "emissiveStrength", 1.0)
+                emits = max(material.get("emissiveFactor", [0, 0, 0])) * strength > 0
+                positions = accessor(part["attributes"]["POSITION"])
+                indices = [i[0] for i in accessor(part["indices"])]
+                for k in range(0, len(indices), 3):
+                    corners = tuple(tuple(round(c, 4) for c in positions[i]) for i in indices[k:k + 3])
+                    if emits:
+                        self.glow.append((material, corners))
+                    else:
+                        self.backs.setdefault(self._turn(corners), []).append(material)
+
+    @staticmethod
+    def _turn(corners):
+        """The triangle's corners from its smallest corner on, so two listings of one winding compare equal."""
+        first = corners.index(min(corners))
+        return corners[first:] + corners[:first]
+
+    @staticmethod
+    def _patches(triangles):
+        """The patches of glow triangles (triangles of one material joined by a shared corner), each with its material and centre
+        in the shuttle frame (art x 1.6 + (0, 0, 1), DemoScenes.Shuttle)."""
+        parent = {}
+
+        def root(x):
+            while parent.setdefault(x, x) != x:
+                x = parent[x]
+            return x
+
+        for material, corners in triangles:
+            for c in corners[1:]:
+                parent[root((material["name"], c))] = root((material["name"], corners[0]))
+        groups = {}
+        for material, corners in triangles:
+            groups.setdefault(root((material["name"], corners[0])), []).append((material["name"], corners))
+        lines = []
+        for members in groups.values():
+            points = [c for _, corners in members for c in corners]
+            centre = [sum(p[i] for p in points) / len(points) * 1.6 + (1.0 if i == 2 else 0.0) for i in range(3)]
+            names = ", ".join(sorted({name.rsplit(".", 1)[-1] for name, _ in members}))
+            lines.append(f"  ({centre[0]:+.2f}, {centre[1]:+.2f}, {centre[2]:+.2f}) m: {names}, {len(members)} triangles")
+        return f"{len(groups)} patches\n" + "\n".join(sorted(lines))
+
+    def test_no_glow_material_is_double_sided(self):
+        double = [(m, c) for m, c in self.glow if m.get("doubleSided", False)]
+        if double:
+            self.fail("these glow faces also glow from their back, into the hull: " + self._patches(double))
+
+    def test_every_glow_triangle_has_an_opaque_single_sided_back_that_does_not_glow(self):
+        bare = []
+        for material, corners in self.glow:
+            if ".glow" not in material["name"]:
+                continue  # the cabin's own screens, such as Cabin_Display, are single-sided faces of the overlay
+            backs = self.backs.get(self._turn(corners[::-1]), [])
+            if not any(b.get("alphaMode", "OPAQUE") == "OPAQUE" and not b.get("doubleSided", False) for b in backs):
+                bare.append((material, corners))
+        self.assertTrue(any(".glow" in m["name"] for m, _ in self.glow), "the shuttle has glow faces of the glow bake")
+        if bare:
+            self.fail("these glow faces have no opaque back: " + self._patches(bare))
+
+
 if __name__ == "__main__":
     unittest.main()
