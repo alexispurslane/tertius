@@ -25,7 +25,8 @@ void main()
     for (int side = 0; side < 6; ++side)
     {
         int k = cell * 6 + side;
-        ivec4 an = volume.surfaces[k].areaNormal;
+        SurfaceBucket bucket = volume.surfaces[k];
+        ivec4 an = bucket.areaNormal;
         if (an.w == 0)
             continue;
         float area = dot(vec3(an.xyz), projected) / 4096.0;
@@ -33,12 +34,10 @@ void main()
         if (area <= 0)
             continue;
         front += area;
-        vec3 light = volume.whiteLight[tileIndex(level, c) * 6 + side].rgb;
+        vec3 radiance = uintBitsToFloat(bucket.source.rgb) / float(an.w);
         if (pass.bounceNumber != 0u)
-            light += volume.bounce[k].rgb;
-        vec3 diffuse = restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / float(an.w));
-        vec3 emission = vec3(volume.surfaces[k].emission.rgb) * (EmissionScale / float(an.w));
-        source += area * (emission + diffuse);
+            radiance += restrainNeutral(vec3(bucket.color.rgb) * volume.bounce[k].rgb / float(an.w));
+        source += area * radiance;
     }
     float clear = 1.0 - min(1.0, max(front, back));
 

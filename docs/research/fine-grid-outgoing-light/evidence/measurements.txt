@@ -1,0 +1,87 @@
+# Readbacks of the volume buffer and the HDR image, from captures/issue22.
+# Fix: 3b9e7c8ff, the commit that render-evidence.sh rendered. Baseline: that commit with the engine change reversed, equal to main d3123fe71 in the volume pass and its shaders.
+
+## deck-gray, candidate: transfer between grids in the last frame
+233 directional-volume light evaluations
+grid 0→1: (128, 64, 64) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+grid 1→2: (184, 120, 120) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+
+## deck-gray, baseline: transfer between grids in the last frame
+255 directional-volume light evaluations
+grid 0→1: (128, 64, 0) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+grid 1→2: (184, 120, 0) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+
+## deck-art, candidate: transfer between grids in the last frame
+183 directional-volume light evaluations
+grid 0→1: (0, 0, 0) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+grid 1→2: (192, 96, 96) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+
+## deck-art, baseline: transfer between grids in the last frame
+197 directional-volume light evaluations
+grid 0→1: (0, 0, 0) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+grid 1→2: (192, 96, 16) (parent buckets inheriting area, inheriting light, preserving pure inherited light)
+
+## probe, candidate, outside, camera x = 0.05 m
+14 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.996094, inherited area: 0.000000
+outgoing RGB times area per parent face: (3.8601720333099365, 1.9300860166549683, 1.9300860166549683), inherited contribution: (0.0, 0.0, 0.0)
+own shell contribution: (3.8601720333099365, 1.9300860166549683, 1.9300860166549683)
+
+## probe, candidate, across, camera x = 0.2 m
+24 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.998047, inherited area: 0.500000
+outgoing RGB times area per parent face: (98.81282806396484, 1.9300860166549683, 1.9300860166549683), inherited contribution: (96.88274383544922, 0.0, 0.0)
+own shell contribution: (1.930084228515625, 1.9300860166549683, 1.9300860166549683)
+
+## probe, baseline, outside, camera x = 0.05 m
+22 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.996094, inherited area: 0.000000
+outgoing RGB times area per parent face: (3.86017182469368, 1.93008591234684, 1.93008591234684), inherited contribution: (0.0, 0.0, 0.0)
+
+## probe, baseline, across, camera x = 0.2 m
+40 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.998047, inherited area: 0.500000
+outgoing RGB times area per parent face: (3.867740789055824, 1.93008591234684, 1.93008591234684), inherited contribution: (96.88274383544922, 0.0, 0.0)
+
+## probe, candidate, shell-only, camera x = 0.2 m
+14 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.498047, inherited area: 0.000000
+outgoing RGB times area per parent face: (1.9300860166549683, 1.9300860166549683, 1.9300860166549683), inherited contribution: (0.0, 0.0, 0.0)
+own shell contribution: (1.9300860166549683, 1.9300860166549683, 1.9300860166549683)
+
+## probe, candidate, red-outside, camera x = 0.05 m
+14 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.498047, inherited area: 0.000000
+outgoing RGB times area per parent face: (96.50430297851562, 0.0, 0.0), inherited contribution: (0.0, 0.0, 0.0)
+own shell contribution: (96.50430297851562, 0.0, 0.0)
+
+## probe, candidate, red-across, camera x = 0.2 m
+22 directional-volume light evaluations
+0.5 m cell (12, 6, 5), -Z face
+area per parent face: 0.500000, inherited area: 0.500000
+outgoing RGB times area per parent face: (96.88274383544922, 0.0, 0.0), inherited contribution: (96.88274383544922, 0.0, 0.0)
+own shell contribution: (0.0, 0.0, 0.0)
+
+## probe, outside: receiver center pixel, scene-linear W/(m² sr), baseline line first
+center RGB (0.0578925684094429, 0.02894628420472145, 0.02894628420472145), center red minus green 0.028946, central 25×25 median tint 0.029690
+center RGB (0.0578925684094429, 0.02894628420472145, 0.02894628420472145), center red minus green 0.028946, central 25×25 median tint 0.029690
+
+## probe, across: receiver center pixel, scene-linear W/(m² sr), baseline line first
+center RGB (0.05965498834848404, 0.028771301731467247, 0.028771301731467247), center red minus green 0.030884, central 25×25 median tint 0.033927
+center RGB (0.9959977269172668, 0.028777003288269043, 0.028777003288269043), center red minus green 0.967221, central 25×25 median tint 1.088671
+
+## whole-frame means
+captures/issue22/baseline/outside: mean red 0.0254, mean green 0.01271 W/(m² sr)
+captures/issue22/baseline/across: mean red 0.0479, mean green 0.01303 W/(m² sr)
+captures/issue22/candidate/outside: mean red 0.0254, mean green 0.01271 W/(m² sr)
+captures/issue22/candidate/across: mean red 0.6719, mean green 0.01303 W/(m² sr)
+captures/issue22/candidate/red-outside: mean red 0.6367, mean green 0.00000 W/(m² sr)
+captures/issue22/candidate/red-across: mean red 0.6827, mean green 0.00000 W/(m² sr)
+captures/issue22/baseline/deck-art: mean red 3.4748, mean green 3.58031 W/(m² sr)
+captures/issue22/candidate/deck-art: mean red 3.4748, mean green 3.58031 W/(m² sr)

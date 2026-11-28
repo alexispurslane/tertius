@@ -10,10 +10,8 @@ const int Levels = 3;
 const int Reach = 16;
 const int MaxSide = 18;
 const int Directions = 32;
-// 2 × 16³ + 18³ cells and 2 × 4³ + 6³ lighting groups.
+// 2 × 16³ + 18³ cells.
 const int CellCount = 14024;
-const int TileCount = 344;
-const int MaxLevelTiles = 216;
 
 // The cells beyond the reach on each face of a level's grid.
 int guardOf(int level)
@@ -46,6 +44,11 @@ int cellIndex(int level, ivec3 c)
     int side = sideOf(level);
     return c.x + side * (c.y + side * c.z);
 }
+// The surface bucket of a cell face: each cell holds six, one for each signed axis.
+int bucketIndex(int level, ivec3 c, int side)
+{
+    return (firstCellOf(level) + cellIndex(level, c)) * 6 + side;
+}
 ivec3 coordinates(int level, int i)
 {
     int side = sideOf(level);
@@ -76,17 +79,6 @@ int tilesOf(int level)
 {
     int n = tilesPerAxisOf(level);
     return n * n * n;
-}
-// Every level before the outer one holds 4³ groups.
-int firstTileOf(int level)
-{
-    return level * 64;
-}
-int tileIndex(int level, ivec3 c)
-{
-    int n = tilesPerAxisOf(level);
-    ivec3 t = (c + tileShiftOf(level)) / 4;
-    return firstTileOf(level) + t.x + n * (t.y + n * t.z);
 }
 // The lowest cell of a level's group `tile`, which can lie outside the grid for a group of the guard shell.
 ivec3 tileOrigin(int level, int tile)

@@ -1,0 +1,36 @@
+timed-start
+timed-end
+../out/fix/run-5/gpu-timings.json
+GPU deformation: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 120 frames
+GPU shadow maps: mean 0.106 ms, median 0.106 ms, p95 0.109 ms over 120 frames
+GPU local shadows: mean 0.148 ms, median 0.157 ms, p95 0.171 ms over 120 frames
+GPU environment faces: mean 0.102 ms, median 0.085 ms, p95 0.158 ms over 120 frames
+GPU environment prefilter: mean 0.086 ms, median 0.085 ms, p95 0.087 ms over 120 frames
+GPU G-buffer: mean 0.291 ms, median 0.290 ms, p95 0.294 ms over 120 frames
+GPU back faces: mean 0.055 ms, median 0.055 ms, p95 0.055 ms over 120 frames
+GPU surface test: mean 0.136 ms, median 0.136 ms, p95 0.136 ms over 120 frames
+GPU depth pyramid: mean 0.230 ms, median 0.230 ms, p95 0.231 ms over 120 frames
+GPU key and fill: mean 0.116 ms, median 0.115 ms, p95 0.119 ms over 120 frames
+GPU direct light: mean 1.516 ms, median 1.483 ms, p95 1.779 ms over 120 frames
+GPU directional light volume: mean 1.186 ms, median 1.185 ms, p95 1.190 ms over 120 frames
+GPU light pyramid: mean 0.192 ms, median 0.192 ms, p95 0.193 ms over 120 frames
+GPU ray plan: mean 0.512 ms, median 0.512 ms, p95 0.513 ms over 120 frames
+GPU reflection rays: mean 0.500 ms, median 0.499 ms, p95 0.508 ms over 120 frames
+GPU screen trace resolve: mean 0.119 ms, median 0.119 ms, p95 0.120 ms over 120 frames
+GPU reflection share: mean 0.013 ms, median 0.013 ms, p95 0.013 ms over 120 frames
+GPU accumulate indirect specular: mean 0.724 ms, median 0.724 ms, p95 0.726 ms over 120 frames
+GPU composite: mean 0.322 ms, median 0.321 ms, p95 0.323 ms over 120 frames
+GPU scatter rows: mean 0.027 ms, median 0.027 ms, p95 0.027 ms over 120 frames
+GPU scatter columns: mean 0.018 ms, median 0.018 ms, p95 0.018 ms over 120 frames
+GPU haze: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 120 frames
+GPU transparent: mean 0.151 ms, median 0.150 ms, p95 0.157 ms over 120 frames
+GPU exposure: mean 0.076 ms, median 0.076 ms, p95 0.077 ms over 120 frames
+GPU FSR 3.1: mean 1.169 ms, median 1.168 ms, p95 1.174 ms over 120 frames
+GPU bloom: mean 0.297 ms, median 0.297 ms, p95 0.298 ms over 120 frames
+GPU tone map: mean 0.130 ms, median 0.130 ms, p95 0.130 ms over 120 frames
+GPU exposure adapt: mean 0.008 ms, median 0.008 ms, p95 0.008 ms over 120 frames
+GPU outlines: mean 0.000 ms, median 0.000 ms, p95 0.000 ms over 120 frames
+GPU capture: mean 2.161 ms, median 2.118 ms, p95 2.361 ms over 120 frames
+GPU frame span: mean 10.388 ms, median 10.331 ms, p95 10.639 ms over 120 frames
+GPU run deformation..outlines: mean 8.228 ms, median 8.189 ms, p95 8.477 ms over 120 frames
+../out/fix/run-5/exposure.json
