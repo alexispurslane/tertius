@@ -1,0 +1,16 @@
+[
+  {
+    "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+    "linux_bytes": 7168340,
+    "mac_bytes": 7168352,
+    "linux_sha256": "905ee1e5fd13bd1b342e83cad9cd4ad64f59403dd2ae9f58720515071737d794",
+    "mac_sha256": "796463e0bfdfcc534ad69e9f1a481b574beb5866da5e048962471e03bb9b9ed6"
+  },
+  {
+    "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+    "linux_bytes": 30278568,
+    "mac_bytes": 30278568,
+    "linux_sha256": "75de1453542f7eaec8d7ed91ec9bdbc7c186fd4cdf9e1284754158125bb4a96c",
+    "mac_sha256": "6140f41b141b59212708fd94b3803b8ffbaff2b4db8e207a55bc37891886bd8f"
+  }
+]

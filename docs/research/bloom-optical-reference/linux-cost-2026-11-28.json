@@ -1,5 +1,5 @@
 {
-  "status": "two_failed_attempts_one_approved_staged_mirror_attempt_pending",
+  "status": "completed_matched_measurement",
   "before_commit": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
   "after_commit": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
   "common_commit": "4da7acd35eada358715ce22ee1e914264ac393c7",
@@ -18,7 +18,10 @@
         1920,
         1080
       ],
-      "observed_active_pixels": null
+      "observed_active_pixels": [
+        1920,
+        1080
+      ]
     },
     {
       "upscaling": "fsr3",
@@ -27,11 +30,14 @@
         1280,
         720
       ],
-      "observed_active_pixels": null
+      "observed_active_pixels": [
+        1280,
+        720
+      ]
     }
   ],
   "active_extent_preflight": {
-    "status": "specified_not_run",
+    "status": "verified_four_tree_scenario_combinations_152_submitted_frames_each",
     "method": "separate untimed observation of submitted pending.RenderSize and pending.OutputSize in VulkanRenderer.CommitDrawnFrame; FrameContext.Extent returns History.RenderSize",
     "per_tree_and_scenario": true,
     "record": [
@@ -74,16 +80,29 @@
       "asset_setup_log_sha256": "f92e7fc7251bb61996ff2614ef92a0131e36e81158830b3e6ab561d51c1d4c6e",
       "fetch_error": "AS9005: NOAA etopo180.dods TLS handshake timed out.",
       "failed_url": "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D"
+    },
+    {
+      "job_id": "d03d314f-0fdc-475d-8bd2-19ea3388a6a6-u2",
+      "status": "ok",
+      "runpod_status": "COMPLETED",
+      "execution_seconds": 776.44,
+      "command_seconds": 768.3518180259271,
+      "accounted_cost_usd": 0.1354,
+      "timeout_seconds": 840,
+      "endpoint": "shmmav4u60m5u8",
+      "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+      "result_sha256": "bac304aaf9af50ca86d7fce3213f4508e8cb3afe1ba94b7ee26b01efdf90319d",
+      "asset_setup_seconds": 153.22870442294516
     }
   ],
-  "total_accounted_cost_usd": 0.0525,
-  "active_extents_observed": false,
-  "matched_timings_available": false,
-  "performance_conclusion": null,
-  "third_job_submitted": false,
-  "retry_worker_sha256": "0716fe52a79756704315a17091c154e55c86f17a4c68ed1b6e5091ac2d82e3bd",
-  "retry_submission_sha256": "525a77e2d8d9c212cf7810afe5f14e01cc4e8b78dbb7039566632cd5157e8414",
-  "canonical_asset_manifest_available": false,
+  "total_accounted_cost_usd": 0.1879,
+  "active_extents_observed": true,
+  "matched_timings_available": true,
+  "performance_conclusion": "Both capture-excluded median frame spans increased in this matched deck run. All five paired deltas are positive in each scenario, while individual-run ranges overlap. This measures the complete source/formats/consumer/bloom change, not the artistic bloom curve alone.",
+  "third_job_submitted": true,
+  "retry_worker_sha256": "f7147c06b2f2592b35a4fdca5a6bba9dad9e4f614769e0f1fcaa57597f1fc5d8",
+  "retry_submission_sha256": "8b571dbecaa0fbc82b249b10160b8b7884c3a650311c3c131a80b5b45ee41c2a",
+  "canonical_asset_manifest_available": true,
   "mac_canonical_cooked_manifest_sha256": "0bc4de65f352f451dd55aa24698e78cf01b62d4cfeabeb00450767868835132b",
   "approved_staging_route": {
     "url": "https://upwell.pfeg.noaa.gov/erddap/griddap/etopo180.dods?altitude%5B0:10:10800%5D%5B0:10:21600%5D",
@@ -91,5 +110,528 @@
     "sha256": "a14135cf20fe2d0a7a18af72a0999483735c1f7e47cf3dbdc24d819beda61b04",
     "local_get_pin_verified": true,
     "setup": "Download on worker, verify bytes and hash, then canonical setup.sh --staging <folder>. No asset or runtime edits."
+  },
+  "method": "Canonical tools/runpod/ab_report.py: each run is median frame span minus median capture pass, then median over five reversed-order rounds after a discarded warm-up run. Clock frequencies are not locked.",
+  "summary": {
+    "native": {
+      "base_ms": 14.021120000000002,
+      "variant_ms": 14.963871999999999,
+      "delta_ms": 0.9427519999999969,
+      "relative": 0.06723799525287544,
+      "separated": false,
+      "passes": [
+        {
+          "name": "direct light",
+          "before_ms": 3.8941280000000003,
+          "after_ms": 4.25096,
+          "delta_ms": 0.3568319999999998
+        },
+        {
+          "name": "light pyramid",
+          "before_ms": 0.258208,
+          "after_ms": 0.397664,
+          "delta_ms": 0.13945600000000002
+        },
+        {
+          "name": "bloom",
+          "before_ms": 0.198688,
+          "after_ms": 0.311728,
+          "delta_ms": 0.11304
+        },
+        {
+          "name": "composite",
+          "before_ms": 0.553728,
+          "after_ms": 0.659712,
+          "delta_ms": 0.10598399999999997
+        },
+        {
+          "name": "G-buffer",
+          "before_ms": 0.74488,
+          "after_ms": 0.80704,
+          "delta_ms": 0.06215999999999999
+        },
+        {
+          "name": "tone map",
+          "before_ms": 0.120528,
+          "after_ms": 0.173088,
+          "delta_ms": 0.052559999999999996
+        },
+        {
+          "name": "ray plan",
+          "before_ms": 0.900032,
+          "after_ms": 0.952288,
+          "delta_ms": 0.05225599999999997
+        },
+        {
+          "name": "local shadows",
+          "before_ms": 1.724656,
+          "after_ms": 1.750864,
+          "delta_ms": 0.02620800000000001
+        },
+        {
+          "name": "shadow maps",
+          "before_ms": 0.778624,
+          "after_ms": 0.755568,
+          "delta_ms": -0.023055999999999965
+        },
+        {
+          "name": "directional light volume",
+          "before_ms": 1.63912,
+          "after_ms": 1.660352,
+          "delta_ms": 0.02123200000000014
+        },
+        {
+          "name": "scatter rows",
+          "before_ms": 0.037408,
+          "after_ms": 0.056064,
+          "delta_ms": 0.018656000000000006
+        },
+        {
+          "name": "transparent",
+          "before_ms": 0.289584,
+          "after_ms": 0.294096,
+          "delta_ms": 0.004512000000000016
+        },
+        {
+          "name": "reflection rays",
+          "before_ms": 0.251712,
+          "after_ms": 0.24814399999999998,
+          "delta_ms": -0.0035680000000000156
+        },
+        {
+          "name": "back faces",
+          "before_ms": 0.33543999999999996,
+          "after_ms": 0.338144,
+          "delta_ms": 0.0027040000000000397
+        },
+        {
+          "name": "accumulate indirect specular",
+          "before_ms": 0.64168,
+          "after_ms": 0.64344,
+          "delta_ms": 0.0017599999999999838
+        },
+        {
+          "name": "environment faces",
+          "before_ms": 0.214352,
+          "after_ms": 0.214816,
+          "delta_ms": 0.00046400000000001995
+        },
+        {
+          "name": "depth pyramid",
+          "before_ms": 0.515152,
+          "after_ms": 0.515552,
+          "delta_ms": 0.00039999999999995595
+        },
+        {
+          "name": "scatter columns",
+          "before_ms": 0.038048,
+          "after_ms": 0.037664,
+          "delta_ms": -0.00038399999999999546
+        },
+        {
+          "name": "surface test",
+          "before_ms": 0.34916800000000003,
+          "after_ms": 0.348864,
+          "delta_ms": -0.00030400000000002647
+        },
+        {
+          "name": "key and fill",
+          "before_ms": 0.18064,
+          "after_ms": 0.180336,
+          "delta_ms": -0.0003039999999999987
+        },
+        {
+          "name": "screen trace resolve",
+          "before_ms": 0.17328,
+          "after_ms": 0.17344,
+          "delta_ms": 0.00016000000000002124
+        },
+        {
+          "name": "reflection share",
+          "before_ms": 0.023072,
+          "after_ms": 0.023152,
+          "delta_ms": 8.000000000000021e-05
+        },
+        {
+          "name": "deformation",
+          "before_ms": 0.010304,
+          "after_ms": 0.010256000000000001,
+          "delta_ms": -4.799999999999943e-05
+        },
+        {
+          "name": "outlines",
+          "before_ms": 0,
+          "after_ms": 0,
+          "delta_ms": 0
+        },
+        {
+          "name": "haze",
+          "before_ms": 0.000128,
+          "after_ms": 0.000128,
+          "delta_ms": 0.0
+        },
+        {
+          "name": "environment prefilter",
+          "before_ms": 0.084992,
+          "after_ms": 0.084992,
+          "delta_ms": 0.0
+        }
+      ],
+      "runs_capture_excluded_ms": {
+        "after": [
+          16.46296,
+          14.805072,
+          14.963871999999999,
+          16.341583999999997,
+          14.819583999999999
+        ],
+        "before": [
+          15.139568000000002,
+          13.886208,
+          14.068992000000001,
+          14.021120000000002,
+          13.890320000000003
+        ]
+      },
+      "paired_deltas_ms": [
+        1.3233919999999966,
+        0.9188639999999992,
+        0.894879999999997,
+        2.320463999999996,
+        0.9292639999999963
+      ],
+      "all_five_paired_deltas_positive": true
+    },
+    "mapped": {
+      "base_ms": 10.416656,
+      "variant_ms": 11.189072,
+      "delta_ms": 0.7724159999999998,
+      "relative": 0.0741520119316601,
+      "separated": false,
+      "passes": [
+        {
+          "name": "FSR 3.1",
+          "before_ms": 0.9439040000000001,
+          "after_ms": 1.176688,
+          "delta_ms": 0.23278399999999988
+        },
+        {
+          "name": "direct light",
+          "before_ms": 1.783792,
+          "after_ms": 1.944688,
+          "delta_ms": 0.16089599999999993
+        },
+        {
+          "name": "bloom",
+          "before_ms": 0.199328,
+          "after_ms": 0.29476800000000003,
+          "delta_ms": 0.09544000000000002
+        },
+        {
+          "name": "transparent",
+          "before_ms": 0.18907200000000002,
+          "after_ms": 0.27056,
+          "delta_ms": 0.081488
+        },
+        {
+          "name": "light pyramid",
+          "before_ms": 0.118944,
+          "after_ms": 0.190608,
+          "delta_ms": 0.071664
+        },
+        {
+          "name": "composite",
+          "before_ms": 0.253152,
+          "after_ms": 0.305984,
+          "delta_ms": 0.05283199999999999
+        },
+        {
+          "name": "shadow maps",
+          "before_ms": 0.788384,
+          "after_ms": 0.766848,
+          "delta_ms": -0.021536
+        },
+        {
+          "name": "directional light volume",
+          "before_ms": 1.638736,
+          "after_ms": 1.658336,
+          "delta_ms": 0.019600000000000062
+        },
+        {
+          "name": "ray plan",
+          "before_ms": 0.41488,
+          "after_ms": 0.433776,
+          "delta_ms": 0.01889599999999997
+        },
+        {
+          "name": "G-buffer",
+          "before_ms": 0.6268320000000001,
+          "after_ms": 0.64304,
+          "delta_ms": 0.01620799999999989
+        },
+        {
+          "name": "scatter rows",
+          "before_ms": 0.018528,
+          "after_ms": 0.026784,
+          "delta_ms": 0.008256
+        },
+        {
+          "name": "tone map",
+          "before_ms": 0.120464,
+          "after_ms": 0.128704,
+          "delta_ms": 0.008240000000000011
+        },
+        {
+          "name": "back faces",
+          "before_ms": 0.258944,
+          "after_ms": 0.264784,
+          "delta_ms": 0.005840000000000012
+        },
+        {
+          "name": "accumulate indirect specular",
+          "before_ms": 0.278432,
+          "after_ms": 0.277184,
+          "delta_ms": -0.0012480000000000269
+        },
+        {
+          "name": "key and fill",
+          "before_ms": 0.155536,
+          "after_ms": 0.156736,
+          "delta_ms": 0.0011999999999999789
+        },
+        {
+          "name": "environment faces",
+          "before_ms": 0.214304,
+          "after_ms": 0.215264,
+          "delta_ms": 0.0009600000000000164
+        },
+        {
+          "name": "local shadows",
+          "before_ms": 1.751872,
+          "after_ms": 1.751072,
+          "delta_ms": -0.0008000000000001339
+        },
+        {
+          "name": "screen trace resolve",
+          "before_ms": 0.07536,
+          "after_ms": 0.076144,
+          "delta_ms": 0.0007840000000000069
+        },
+        {
+          "name": "reflection rays",
+          "before_ms": 0.16104000000000002,
+          "after_ms": 0.160288,
+          "delta_ms": -0.0007520000000000027
+        },
+        {
+          "name": "surface test",
+          "before_ms": 0.137056,
+          "after_ms": 0.13648,
+          "delta_ms": -0.0005760000000000209
+        },
+        {
+          "name": "environment prefilter",
+          "before_ms": 0.084672,
+          "after_ms": 0.084928,
+          "delta_ms": 0.0002560000000000062
+        },
+        {
+          "name": "depth pyramid",
+          "before_ms": 0.224672,
+          "after_ms": 0.224448,
+          "delta_ms": -0.00022400000000000198
+        },
+        {
+          "name": "deformation",
+          "before_ms": 0.010272,
+          "after_ms": 0.010144,
+          "delta_ms": -0.00012799999999999964
+        },
+        {
+          "name": "scatter columns",
+          "before_ms": 0.017824,
+          "after_ms": 0.01776,
+          "delta_ms": -6.399999999999809e-05
+        },
+        {
+          "name": "reflection share",
+          "before_ms": 0.011904,
+          "after_ms": 0.011872,
+          "delta_ms": -3.199999999999904e-05
+        },
+        {
+          "name": "outlines",
+          "before_ms": 0,
+          "after_ms": 0,
+          "delta_ms": 0
+        },
+        {
+          "name": "haze",
+          "before_ms": 0.000128,
+          "after_ms": 0.000128,
+          "delta_ms": 0.0
+        }
+      ],
+      "runs_capture_excluded_ms": {
+        "after": [
+          11.189072,
+          11.149231999999998,
+          11.139056,
+          12.286528,
+          11.274895999999998
+        ],
+        "before": [
+          10.458799999999998,
+          10.400512,
+          10.416656,
+          10.397920000000001,
+          11.141583999999998
+        ]
+      },
+      "paired_deltas_ms": [
+        0.7302720000000011,
+        0.7487199999999969,
+        0.7224000000000004,
+        1.8886079999999996,
+        0.1333120000000001
+      ],
+      "all_five_paired_deltas_positive": true
+    }
+  },
+  "assets": {
+    "content_root": "/tmp/tertius-job-8udtdevk/before/content",
+    "entries": [
+      {
+        "path": "cargo-pod/cargo.model/model.glb",
+        "bytes": 1108392,
+        "sha256": "33ebb2c037da105046b58fc7aeaebc17c1b789e738c8a0d0acdda98b649b5fce"
+      },
+      {
+        "path": "crew/human_male.blend/model.glb",
+        "bytes": 31739944,
+        "sha256": "cad889c7c67289dd9f74f57c9c4f4489f190a3091118de3906d7ad7665a3e14d"
+      },
+      {
+        "path": "earth/material.zip",
+        "bytes": 27829898,
+        "sha256": "7dfc5d3c6c3a2201751bedece37e1ad64ce890f8b6d9beb0a9444582bb1068ad"
+      },
+      {
+        "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+        "bytes": 7168340,
+        "sha256": "905ee1e5fd13bd1b342e83cad9cd4ad64f59403dd2ae9f58720515071737d794"
+      },
+      {
+        "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+        "bytes": 30278568,
+        "sha256": "75de1453542f7eaec8d7ed91ec9bdbc7c186fd4cdf9e1284754158125bb4a96c"
+      },
+      {
+        "path": "props/industrial_caged_sconce.gltf/model.glb",
+        "bytes": 3582796,
+        "sha256": "7b5f1277b6e65edcf54e517323b125c2103ac707ef62f1ab72a2f2acd51d02b7"
+      },
+      {
+        "path": "props/industrial_storage_cart.gltf/model.glb",
+        "bytes": 3110332,
+        "sha256": "6f0601852b3ca836ab7b7c897eb1f4a4fc6093a142c7efb4a2a94f1da51035c6"
+      },
+      {
+        "path": "props/metal_stool_01.gltf/model.glb",
+        "bytes": 2374576,
+        "sha256": "683878e58209c1e0fe01cddb3bad99c650f4428616456bde3761caf9eea4436b"
+      },
+      {
+        "path": "props/metal_toolbox.gltf/model.glb",
+        "bytes": 3021736,
+        "sha256": "e8e5c5822dd96527e82d39decd2ae39ceaebbfe04e1525aaf8afdab606cb291c"
+      },
+      {
+        "path": "props/modified_thermos.gltf/model.glb",
+        "bytes": 2546192,
+        "sha256": "dd9f0f8f7bb51921288eb4fc5a7105dfbca5246e44ff76c1ac02cd657609a5cf"
+      },
+      {
+        "path": "props/modular_street_seating.gltf/model.glb",
+        "bytes": 8134140,
+        "sha256": "6a6a6ebbe4efcfa78bb91b6c8610c7d4880962e329bbd8d6b8343888ed0c2afa"
+      }
+    ],
+    "manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+    "mac_canonical_manifest_sha256": "0bc4de65f352f451dd55aa24698e78cf01b62d4cfeabeb00450767868835132b",
+    "matches_mac_cooked_bytes": false,
+    "shared_by": [
+      "before",
+      "after"
+    ]
+  },
+  "asset_differences": [
+    {
+      "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+      "linux_bytes": 7168340,
+      "mac_bytes": 7168352,
+      "linux_sha256": "905ee1e5fd13bd1b342e83cad9cd4ad64f59403dd2ae9f58720515071737d794",
+      "mac_sha256": "796463e0bfdfcc534ad69e9f1a481b574beb5866da5e048962471e03bb9b9ed6"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+      "linux_bytes": 30278568,
+      "mac_bytes": 30278568,
+      "linux_sha256": "75de1453542f7eaec8d7ed91ec9bdbc7c186fd4cdf9e1284754158125bb4a96c",
+      "mac_sha256": "6140f41b141b59212708fd94b3803b8ffbaff2b4db8e207a55bc37891886bd8f"
+    }
+  ],
+  "device": "name, uuid, driver_version, pci.bus_id\nNVIDIA RTX 2000 Ada Generation, GPU-41976f7e-5e33-342b-ff31-97707cb59880, 595.112.07, 00000000:C2:00.0",
+  "limitations": [
+    "Linux-cooked lunar shuttle and orbital station hashes differ from the Mac files. The other eight GLBs and Earth material match. Both measured trees share the same eleven Linux files; final rehash succeeded.",
+    "One deck timing scene at fixed exposure, with five runs per tree and scenario. No broad game-wide frame-rate claim.",
+    "Reported capture-excluded spans follow the canonical difference-of-medians tool; per-frame capture-excluded samples were not exported.",
+    "GPU clocks are logged but not locked. Reversed round order distributes drift; individual-run ranges overlap."
+  ],
+  "artifact_sha256": {
+    "mapped/out/after/run-1/gpu-timings.json": "4068ef5366f75c78558aec0ba30aae5f36b8899772e082dc256caa48c6114842",
+    "mapped/out/after/run-2/gpu-timings.json": "df1d0000b49f05709b2e06a53ea1fac24e05ff039e5ec433d9902f3d50804d4b",
+    "mapped/out/after/run-3/gpu-timings.json": "8fd15ed82446b0ed6bc695acb23edba8a69005add2c6231e7f7e3c0f136d4ac7",
+    "mapped/out/after/run-4/gpu-timings.json": "be36c24af1180a7bf09cb0a962a57714ecc1cb6323ac6b57cb5001aefa4b6166",
+    "mapped/out/after/run-5/gpu-timings.json": "8403b797d85e478ac96402ee73bcd3af7fc3d630d367fa944d34682cd7adee23",
+    "mapped/out/before/run-1/gpu-timings.json": "774da1c3f9e5ce46a608f64aed3c2cbf2b87c456d02fc400775eb87d542850ff",
+    "mapped/out/before/run-2/gpu-timings.json": "0c8a07a786c2e579f5adb27668fc5b0374c4728ae89bdbef27a6188ad7b2526b",
+    "mapped/out/before/run-3/gpu-timings.json": "06895f362faac8016ac8df63229be6aca2ffe231aeb87e1520e5de4eed544e07",
+    "mapped/out/before/run-4/gpu-timings.json": "59d6061b9471ef6dc6d101e0e6534c2b2261ba824072a10a9be5528f2bf99bc5",
+    "mapped/out/before/run-5/gpu-timings.json": "bf7f56242de0dc24dad17bcaeb2df0e132b91bf62d1892e61ed162a8bf9c46ca",
+    "mapped/out/clocks.csv": "cf0e01170fe86dec438ba963bac0e7ad1dd44048c34d7390b7708ba389dc1f78",
+    "mapped-ab.log": "c47ab2dbf35b63b8904b5b50e17f72ab8bb5708ce935047ce655078b632d8a7a",
+    "native/out/after/run-1/gpu-timings.json": "a792ec988de3a9e4a49b461e444563c3c438bb8c33e66f7d3b63e74263738780",
+    "native/out/after/run-2/gpu-timings.json": "1120b478c065da514053214932495c68458a5dd3e1b4dc00a11d2fd6a4bd461c",
+    "native/out/after/run-3/gpu-timings.json": "5956d3ad50a3cd026171d547876d8c38d34cf245f566cc5a9804a325fad277e9",
+    "native/out/after/run-4/gpu-timings.json": "ee6a761271c7b4f984a5a80d1853cdc2d8f82464186f87299a7349ce28d79c5a",
+    "native/out/after/run-5/gpu-timings.json": "07f82b56c6896cceffb7c5373511a088f6cdd2c40db8a0a40fc2f4f056329f67",
+    "native/out/before/run-1/gpu-timings.json": "437915ddd23fd9be8867126fe6032e746f969d7432a7afde5314bfe96d8fe3df",
+    "native/out/before/run-2/gpu-timings.json": "c7e4ecb18d23312552c07487e5a1e07ff388e852c1fa7354df1aec8e8f0f0cc2",
+    "native/out/before/run-3/gpu-timings.json": "a379408c50944936d732ec1c7ddefaa4421ff001f49d1cbb1e37dec1c28abaf6",
+    "native/out/before/run-4/gpu-timings.json": "0c6e9b8dd2b837e78b4a9e59f7a84f2ea416ccc05b1234282832fd3dffc7ca8d",
+    "native/out/before/run-5/gpu-timings.json": "441f2be20dcd2de7571bf89e6d2473f9e7620032ff0efc8caf6673ceaba0beb2",
+    "native/out/clocks.csv": "789ca34b1baebcef7ce1475eb8cc6f472d2e687ce670a4f0ae221def801cbe54",
+    "native-ab.log": "edd880ada4afe48709115d1f7040fefc927aa3fdb6660be2cea89e65ce306692",
+    "preflight/after-diagnostic-build.log": "695f514c7eec73c712cdd6a43a47fa8c2f1e746739b7a899b480069eb9acd8f2",
+    "preflight/after-mapped.log": "41689acf69cbe4a375c5b33469c846dc42463a1d24e08c152ed3e988428aca3f",
+    "preflight/after-native.log": "caf1f8129651f7d03475ed4f33c22238baf8af0cfc3f8e97dbe8ddc76fa5900a",
+    "preflight/after-pristine-build.log": "fb58e93a169d1252c496cee40180cd0cb30db3e527222a0b8e8fb7f155d3470b",
+    "preflight/after-source-restored.json": "f7e04201fc6532f5865273b9a09aab58e75c2d2df719836e7e1700df7a4d6f50",
+    "preflight/after.patch": "6198a741bb75eb75c44634896832e9d24ddedf627511a13cb6eff3a460de422e",
+    "preflight/approved-mirror.json": "ac7bb7a03d4b47a6a348345395278d3cd6615a0e96be2e2fe362b18a87db0d9f",
+    "preflight/asset-manifest.json": "92bbea0ce310dc7032c321fb80c554de8073b595c8fc26e748d73ad8fc290604",
+    "preflight/asset-manifest.txt": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+    "preflight/asset-setup-duration.json": "9d5cfc0769d8f73af427151f3363964d7390cc23ce3e9e2efc0c475056039704",
+    "preflight/asset-setup.log": "dccc45d777a0e21bd119d848ddd9fa9927d565ebe4bc9317a018f8dc99fa8dd0",
+    "preflight/before-diagnostic-build.log": "f04cfbef24b1f27fc2405d6f676956306c07d21c0c7c8901e75feed0bde0ed7b",
+    "preflight/before-mapped.log": "f2e519a8faec501fedfe9f90bed03887ccab23693858b2f3114e21d27a19283b",
+    "preflight/before-native.log": "51c7d2c64911f581ccaf086ae0a4c8cd80dbff84b5d74d5df99ab5ee8af47b83",
+    "preflight/before-pristine-build.log": "0e3719fe9f21d8f88b7c33de4dbbe07bd851d0521393b87e2ed54d54c99d041d",
+    "preflight/before-source-restored.json": "a502a036eec46509ec69ae6f96a39359fe1b03fe8cbe6b71e949db82723846a7",
+    "preflight/before.patch": "4990773b568b4f95ff6c781db838fc19e1d4f3bd7e168cb0a884bea15aaf3427",
+    "preflight/device.csv": "09dcc984280a008a2dec68c85d845cff1a484d14a41edd94dfbc2f31790567a4",
+    "preflight/observations.json": "2b81a2529034a7ffca396c3d3b73f15362bba8d234e0e397d3f2c7435d15c120",
+    "preflight/stage.json": "52d04827546756d3788bc21a802096145b7a1b05caa3af01f951059790781a10"
   }
 }
