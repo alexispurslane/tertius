@@ -15,11 +15,21 @@ internal static class IrradianceCube
     public const int Texels = CubeFaces.Count * FaceSize * FaceSize;
 
     /// <summary>
-    /// The last blend draw of each capture face, followed by one std430 record per capture face and irradiance texel.
-    /// Each record has two vec4 sums and one float weight, rounded to a 48-byte stride.
+    /// The bytes before the first contribution record: the last blend draw of each capture face of
+    /// <see cref="EnvironmentChain.MaxMaps"/> maps, one uint each. The GLSL copy is endDraw in
+    /// environment_irradiance_parts.glsl.
+    /// </summary>
+    public const int ContributionHeaderBytes = CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint);
+
+    /// <summary>The std430 stride of a contribution record: two vec4 sums and one float weight, rounded up to 16 bytes.</summary>
+    public const int ContributionStride = 48;
+
+    /// <summary>
+    /// The bytes of the contribution buffer of <paramref name="maps"/> maps: the header, then one record per capture face
+    /// and irradiance texel.
     /// </summary>
     public static ulong ContributionBytes(int maps) =>
-        CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint) + (ulong)maps * CubeFaces.Count * Texels * 48;
+        ContributionHeaderBytes + (ulong)maps * CubeFaces.Count * Texels * ContributionStride;
 
     /// <summary>
     /// The face size of the radiance map's level that the cube convolves, or the map's own level 0 when that is smaller.

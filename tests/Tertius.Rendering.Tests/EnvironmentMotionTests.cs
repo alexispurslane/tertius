@@ -232,9 +232,13 @@ public sealed class EnvironmentMotionTests
             float totalChange = Math.Abs(luma[^1] - luma[0]);
             totalChange.Should().BeGreaterThan(10, "the wall receives more light when the panel fills more of the map");
             float largestChange = luma.Zip(luma.Skip(1), (a, b) => Math.Abs(b - a)).Max();
+            TestContext.Current.TestOutputHelper!.WriteLine(
+                $"toward the panel {towardPanel}: total change {totalChange:F2}, largest change {largestChange:F2} levels"
+            );
+            // The blend moves at most 12 of the 90 levels in one frame. The capture schedule without a blend moved 59.
             largestChange
                 .Should()
-                .BeLessThan(totalChange / 3, "one frame should not account for a third of the walk's change");
+                .BeLessThan(totalChange / 5, "one frame should not account for a fifth of the walk's change");
         }
         finally
         {

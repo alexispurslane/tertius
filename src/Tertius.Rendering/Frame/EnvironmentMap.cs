@@ -89,7 +89,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly IrradianceReading?[] readings = new IrradianceReading?[EnvironmentChain.MaxMaps];
     private readonly long[] drawnFor = new long[EnvironmentChain.MaxMaps];
     private readonly FaceMask[] facesOfMaps = new FaceMask[EnvironmentChain.MaxMaps];
-    private ulong refreshedMaps;
+    private readonly uint[] blendDrawsOfMaps = new uint[EnvironmentChain.MaxMaps];
     private int drawnForLength;
     private MapImages images;
     private DrawnCube[] drawnCubes = [];
@@ -237,8 +237,9 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// The one choke point of the maps' automatic machinery (https://github.com/alexispurslane/tertius/wiki/environment-maps-per-frame, "Which faces a frame
     /// draws", decision 26): grows the images when the served chain is longer than ever before, then returns the faces that
     /// drawn frame <paramref name="frame"/> draws of each served map. A map draws every face when it is not kept from
-    /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. The pending masks and
-    /// refresh flags describe this draw. <see cref="Drew"/> stores the chain after submission.
+    /// <see cref="DrawnFor"/> or the draw refreshes every face, and its slots in turn otherwise. The returned masks and
+    /// <see cref="IrradianceBlendFrames"/> describe the draw that this call prepares, until the next call.
+    /// <see cref="Drew"/> stores the chain after submission.
     /// </summary>
     /// <param name="served">The served chain, frame ids root first: from 1 to <see cref="EnvironmentChain.MaxMaps"/> of them.</param>
     /// <param name="everyFace">
@@ -253,25 +254,28 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             Grow(served.Length);
         Span<FaceMask> faces = facesOfMaps.AsSpan(0, served.Length);
         EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
-        refreshedMaps = 0;
+        uint turn = (uint)EnvironmentFaces.TurnDraws(maps: served.Length, facesPerFrame: Setting.FacesPerFrame);
         for (int map = 0; map < faces.Length; map++)
-            if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, everyFace: everyFace))
-            {
+        {
+            bool refreshes = EnvironmentFaces.RefreshesAll(
+                drawnFor: DrawnFor,
+                served: served,
+                map: map,
+                everyFace: everyFace
+            );
+            if (refreshes)
                 faces[map] = FaceMask.All;
-                refreshedMaps |= 1UL << map;
-            }
+            blendDrawsOfMaps[map] = refreshes ? 1 : turn;
+        }
         return facesOfMaps.AsMemory(0, served.Length);
     }
 
-    /// <summary>Draws to reach the captured light. A refreshed map uses its capture in the current draw.</summary>
-    public uint IrradianceBlendFrames(int map, int servedMaps)
-    {
-        if ((refreshedMaps & (1UL << map)) != 0)
-            return 1;
-        int slots = CubeFaces.Count * servedMaps;
-        int faces = Setting.FacesPerFrame;
-        return (uint)((slots + faces - 1) / faces);
-    }
+    /// <summary>
+    /// The draws over which the faces of map <paramref name="map"/> that the last <see cref="FacesFor"/> chose move its
+    /// published diffuse light to their capture, the current draw included. An ordinary capture takes one turn of the
+    /// faces (<see cref="EnvironmentFaces.TurnDraws"/>). A refresh takes one draw.
+    /// </summary>
+    public uint IrradianceBlendFrames(int map) => blendDrawsOfMaps[map];
 
     /// <summary>
     /// Records that the drawn frame in frame slot <paramref name="slot"/> was submitted for the served chain

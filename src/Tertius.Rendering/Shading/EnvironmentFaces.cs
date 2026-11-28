@@ -24,6 +24,13 @@ internal static class EnvironmentFaces
     }
 
     /// <summary>
+    /// The fewest consecutive draws in which <see cref="InTurn"/> draws every slot of <paramref name="maps"/> served maps,
+    /// from any frame: ⌈6M / F⌉, with F = <paramref name="facesPerFrame"/>. One draw fewer leaves a slot out.
+    /// </summary>
+    public static int TurnDraws(int maps, int facesPerFrame) =>
+        (CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;
+
+    /// <summary>
     /// Whether map <paramref name="map"/> draws all six faces: it is not kept from the faces drawn for
     /// <paramref name="drawnFor"/>, or <paramref name="everyFace"/> asks every map for every face (decision 10).
     /// </summary>

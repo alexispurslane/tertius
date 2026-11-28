@@ -36,7 +36,7 @@ layout(push_constant, std430) uniform DownsamplePush
 {
     uint levelSize;   // W_k+1, of level k + 1 ≥ 1
     uint levelCount;  // the levels of the run, 1 to 3
-    uint map;         // m: the dispatch reads and writes layers 6m to 6m + 5
+    uint map;         // m: the first map of the dispatch, whose layers start at 6m
 } downsample;
 
 // Texel `texel` of the run's level `level`, 0 for level k.

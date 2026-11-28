@@ -41,6 +41,19 @@ The full match contains 2,352 frames per renderer. That includes both 1,100-fram
 
 At frame 38, the patch changes by −0.258 levels after the fix. The patch with the margin changes by −0.201 levels. The largest remaining forward change is +1.800 levels at frame 48, 57.83 m from the wall. That change is +1.705 with the screen tracer disabled, +1.294 with bloom disabled, and +0.631 at native resolution with FSR disabled. The native control changes the input sampling as well as turning off FSR. The matched tests use the default FSR and bloom settings.
 
+### Remaining forward steps
+
+These controls ran the short walk on the new renderer with the default settings and the fixed exposure of 3.79 stops. The default run gives the same patch values as the full walk at every frame from 38 to 56. From frame 38 to frame 56 the patch rises by 9.437 levels, a mean of 0.524 levels per frame. That is main's 9.092-level step spread over the 18 draws of one capture turn. The changes between consecutive frames scatter around that mean. The table gives the 18 changes at frames 39 to 56.
+
+| Control | Patch at frame 38 | Rise to frame 56 | Mean change | Standard deviation | Largest change | Change at frame 48 |
+|---|---:|---:|---:|---:|---:|---:|
+| Default settings | 60.164 | 9.437 | 0.524 | 0.511 | 1.800 | 1.800 |
+| Specular environment term removed | 60.164 | 9.437 | 0.524 | 0.511 | 1.800 | 1.800 |
+| Diffuse environment term removed | 35.564 | 0.445 | 0.025 | 0.375 | 0.815 | 0.606 |
+| Environment map off, −3 stops | 229.799 | 0.010 | 0.001 | 0.014 | 0.029 | −0.004 |
+
+The rise comes through the diffuse environment term, and its mean matches the eased capture. The specular-off video differs from the default video, but the patch values are the same in every frame. So the specular environment term does not reach the patch. With the diffuse term removed, the patch keeps a scatter with a standard deviation of 0.375 levels, but it does not rise. So the capture blend does not cause that scatter. The step at frame 48 falls to 0.631 levels at native resolution without FSR, so the sampling at a render scale of 2/3 is the likely source. The largest step, +1.800 levels at frame 48, is the mean rise of 0.524 levels plus 1.276 levels of scatter. With the map off, the hemisphere light puts the patch at 229.8 levels, where the tone curve compresses changes. So that control limits the scatter only weakly.
+
 The camera returns to the same point after the cut. The first frame back reads 60.698 levels in the patch on both renderers. The decoded RGB hashes match for all 32 frames, starting with the cut to the far camera and including all 30 frames after the cut back. The regression also cuts behind an opaque panel while the initial diffuse contribution is still blending. Both measured directions receive zero radiance from the blocked emitter on the first draw after the cut.
 
 The specular filters still read the original capture schedule. The reflection tests verify that two receivers at different positions see their own box intersections, and that the capture's open-sky share masks the reflected sky. The settled diffuse cubes match a fresh capture of the same scene. The convolution and combine shaders pass SPIR-V validation for Vulkan 1.3.
@@ -84,4 +97,4 @@ nix develop --command dotnet run -c Release --project src/Tertius.Demo -- --scri
 nix develop --command python3 -I docs/research/environment-wall-steps/walk.py measure /tmp/environment-wall-steps/walk.mkv /tmp/environment-wall-steps/measure
 ```
 
-Use `prepare --short` for the 90-frame capture controls. Run that script with `--screen-trace off --bloom off`.
+Use `prepare --short` for the 90-frame capture controls. Run that script with `--screen-trace off --bloom off`. The controls of the remaining forward steps use the same short script with the default settings. The map-off row adds `--environment-map off` and uses `--exposure -3`.

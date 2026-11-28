@@ -310,7 +310,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             Map = (uint)index,
             Faces = (uint)faces,
             Draw = unchecked((uint)context.Number),
-            BlendFrames = map.IrradianceBlendFrames(map: index, servedMaps: context.Scene.MapCount),
+            BlendFrames = map.IrradianceBlendFrames(index),
         };
         Push(
             vk: vk,

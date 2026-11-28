@@ -310,6 +310,127 @@
    "classes": [
     "EnvironmentMotionTests"
    ]
+  },
+  {
+   "id": "R01",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 268,
+   "change": "blend through a camera cut",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CuttingBehindAnOpaquePanelUsesTheDestinationLightOnTheFirstDraw",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: False)"
+   ],
+   "seconds": 12.97060458300075,
+   "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+   "replacement": "blendDrawsOfMaps[map] = turn;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R02",
+   "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+   "line": 31,
+   "change": "use one map's turn for every chain length",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.CapturingAWholeMapOnItsOrdinaryTurnStillEasesTheLight"
+   ],
+   "seconds": 11.087908917000277,
+   "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+   "replacement": "(CubeFaces.Count * Math.Min(maps, 1) + facesPerFrame - 1) / facesPerFrame;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R03",
+   "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+   "line": 31,
+   "change": "round the turn down",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 1, facesPerFrame: 4)",
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 3, facesPerFrame: 4)",
+    "EnvironmentFacesTests.ATurnIsTheFewestDrawsThatDrawEverySlotFromAnyFrame(maps: 42, facesPerFrame: 5)"
+   ],
+   "seconds": 4.243004334000034,
+   "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+   "replacement": "CubeFaces.Count * maps / facesPerFrame;",
+   "classes": [
+    "EnvironmentFacesTests"
+   ]
+  },
+  {
+   "id": "R04",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 268,
+   "change": "blend over half a turn",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMotionTests.ASecondCaptureStartsFromWhatTheWallAlreadyReceived",
+    "EnvironmentMotionTests.AWrapInTheCaptureOrderLetsAnUntouchedFaceFinishItsBlend",
+    "EnvironmentMotionTests.WalkingPastAnOffscreenPanelDoesNotStepTheLightOnADistantWall(towardPanel: True)"
+   ],
+   "seconds": 10.691989165999985,
+   "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+   "replacement": "blendDrawsOfMaps[map] = refreshes ? 1 : (turn + 1) / 2;",
+   "classes": [
+    "EnvironmentMotionTests"
+   ]
+  },
+  {
+   "id": "R05",
+   "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+   "line": 266,
+   "change": "capture a new map's faces in turn",
+   "result": "killed",
+   "killed_by": [
+    "EnvironmentMapsPerFrameTests.WhenTheCameraEntersAChildItsNewMapAndTheOldCameraFramesMapRefresh",
+    "EnvironmentMapsPerFrameTests.AChainLongerThanEverBeforeGrowsTheMapsAndRefreshesEveryOne",
+    "EnvironmentMapsPerFrameTests.AfterAGrowthOfTheMapsAMatteSurfaceTakesTheDiffuseLightOfTheNewMaps"
+   ],
+   "seconds": 33.15681233399937,
+   "original": "if (refreshes)",
+   "replacement": "if (refreshes && everyFace)",
+   "classes": [
+    "EnvironmentMapsPerFrameTests"
+   ]
+  },
+  {
+   "id": "R06",
+   "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+   "line": 25,
+   "change": "size the records by a stride that the shaders do not use",
+   "result": "killed",
+   "killed_by": [
+    "IrradianceContributionLayoutTests.AShaderStepsThroughTheRecordsByTheStrideThatTheBufferSizeCounts(file: \"environment_irradiance_combine.comp\")",
+    "IrradianceContributionLayoutTests.AShaderStepsThroughTheRecordsByTheStrideThatTheBufferSizeCounts(file: \"environment_irradiance.comp\")"
+   ],
+   "seconds": 22.15673304200027,
+   "original": "public const int ContributionStride = 48;",
+   "replacement": "public const int ContributionStride = 64;",
+   "classes": [
+    "IrradianceContributionLayoutTests"
+   ]
+  },
+  {
+   "id": "R07",
+   "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+   "line": 22,
+   "change": "count a header shorter than the shaders' header",
+   "result": "killed",
+   "killed_by": [
+    "IrradianceContributionLayoutTests.AShaderFindsTheFirstRecordAfterTheHeaderThatTheBufferSizeCounts(file: \"environment_irradiance_combine.comp\")",
+    "IrradianceContributionLayoutTests.AShaderFindsTheFirstRecordAfterTheHeaderThatTheBufferSizeCounts(file: \"environment_irradiance.comp\")"
+   ],
+   "seconds": 19.710171249999803,
+   "original": "CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint);",
+   "replacement": "CubeFaces.Count * (EnvironmentChain.MaxMaps - 1) * sizeof(uint);",
+   "classes": [
+    "IrradianceContributionLayoutTests"
+   ]
   }
  ],
  "reruns": {

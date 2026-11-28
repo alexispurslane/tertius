@@ -178,5 +178,75 @@
   "project": "tests/Tertius.Rendering.Tests",
   "class": "EnvironmentMotionTests",
   "note": "keep only the last face's radiance"
+ },
+ {
+  "id": "R01",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 268,
+  "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+  "replacement": "blendDrawsOfMaps[map] = turn;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "blend through a camera cut"
+ },
+ {
+  "id": "R02",
+  "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+  "line": 31,
+  "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+  "replacement": "(CubeFaces.Count * Math.Min(maps, 1) + facesPerFrame - 1) / facesPerFrame;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "use one map's turn for every chain length"
+ },
+ {
+  "id": "R03",
+  "file": "src/Tertius.Rendering/Shading/EnvironmentFaces.cs",
+  "line": 31,
+  "original": "(CubeFaces.Count * maps + facesPerFrame - 1) / facesPerFrame;",
+  "replacement": "CubeFaces.Count * maps / facesPerFrame;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentFacesTests",
+  "note": "round the turn down"
+ },
+ {
+  "id": "R04",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 268,
+  "original": "blendDrawsOfMaps[map] = refreshes ? 1 : turn;",
+  "replacement": "blendDrawsOfMaps[map] = refreshes ? 1 : (turn + 1) / 2;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMotionTests",
+  "note": "blend over half a turn"
+ },
+ {
+  "id": "R05",
+  "file": "src/Tertius.Rendering/Frame/EnvironmentMap.cs",
+  "line": 266,
+  "original": "if (refreshes)",
+  "replacement": "if (refreshes && everyFace)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "EnvironmentMapsPerFrameTests",
+  "note": "capture a new map's faces in turn"
+ },
+ {
+  "id": "R06",
+  "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+  "line": 25,
+  "original": "public const int ContributionStride = 48;",
+  "replacement": "public const int ContributionStride = 64;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "IrradianceContributionLayoutTests",
+  "note": "size the records by a stride that the shaders do not use"
+ },
+ {
+  "id": "R07",
+  "file": "src/Tertius.Rendering/Shading/IrradianceCube.cs",
+  "line": 22,
+  "original": "CubeFaces.Count * EnvironmentChain.MaxMaps * sizeof(uint);",
+  "replacement": "CubeFaces.Count * (EnvironmentChain.MaxMaps - 1) * sizeof(uint);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": "IrradianceContributionLayoutTests",
+  "note": "count a header shorter than the shaders' header"
  }
 ]
