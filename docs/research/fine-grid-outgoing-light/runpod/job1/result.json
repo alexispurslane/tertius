@@ -1,0 +1,40 @@
+{
+  "id": "12ce119a-5ddc-4f69-a89b-9b265866ade0-u1",
+  "status": "ok",
+  "runpodStatus": "COMPLETED",
+  "executionTime": 237932,
+  "delayTime": 9553,
+  "error": null,
+  "files": [
+    "out/clocks.csv",
+    "out/fix/run-1.log",
+    "out/fix/run-1/gpu-timings.json",
+    "out/fix/run-2.log",
+    "out/fix/run-2/gpu-timings.json",
+    "out/fix/run-3.log",
+    "out/fix/run-3/gpu-timings.json",
+    "out/fix/run-4.log",
+    "out/fix/run-4/gpu-timings.json",
+    "out/fix/run-5.log",
+    "out/fix/run-5/gpu-timings.json",
+    "out/main/run-1.log",
+    "out/main/run-1/gpu-timings.json",
+    "out/main/run-2.log",
+    "out/main/run-2/gpu-timings.json",
+    "out/main/run-3.log",
+    "out/main/run-3/gpu-timings.json",
+    "out/main/run-4.log",
+    "out/main/run-4/gpu-timings.json",
+    "out/main/run-5.log",
+    "out/main/run-5/gpu-timings.json"
+  ],
+  "log": "$ DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --gpu-run deformation..outlines\" bash main/tools/runpod/ab_run.sh scripts/temporal-upscale-timing.json 5 main fix\nbuilding main\n    0 Error(s)\n\nTime Elapsed 00:01:04.66\nbuilding fix\n    0 Error(s)\n\nTime Elapsed 00:00:53.19\nwarming up with main\nmain run 1: GPU frame span: mean 10.182 ms, median 10.121 ms, p95 10.502 ms over 120 frames\nfix run 1: GPU frame span: mean 10.404 ms, median 10.412 ms, p95 10.651 ms over 120 frames\nfix run 2: GPU frame span: mean 10.412 ms, median 10.406 ms, p95 10.686 ms over 120 frames\nmain run 2: GPU frame span: mean 10.220 ms, median 10.162 ms, p95 10.440 ms over 120 frames\nmain run 3: GPU frame span: mean 10.228 ms, median 10.245 ms, p95 10.579 ms over 120 frames\nfix run 3: GPU frame span: mean 10.402 ms, median 10.351 ms, p95 10.636 ms over 120 frames\nfix run 4: GPU frame span: mean 10.431 ms, median 10.420 ms, p95 10.676 ms over 120 frames\nmain run 4: GPU frame span: mean 10.266 ms, median 10.266 ms, p95 10.495 ms over 120 frames\nmain run 5: GPU frame span: mean 10.221 ms, median 10.160 ms, p95 10.576 ms over 120 frames\nfix run 5: GPU frame span: mean 10.388 ms, median 10.331 ms, p95 10.639 ms over 120 frames\n",
+  "skipped": {},
+  "steps": [
+    {
+      "command": "DEMO_ARGS=\"--size 1920x1080 --video none --gray-box --gpu-run deformation..outlines\" bash main/tools/runpod/ab_run.sh scripts/temporal-upscale-timing.json 5 main fix",
+      "exitCode": 0,
+      "seconds": 229.7966058430029
+    }
+  ]
+}

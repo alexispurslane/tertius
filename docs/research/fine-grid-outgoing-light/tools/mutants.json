@@ -1,0 +1,249 @@
+[
+ {
+  "id": "C01",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 153,
+  "original": "        ShadeGroups(context);\n        for",
+  "replacement": "        for",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Skip direct shading"
+ },
+ {
+  "id": "S01",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 74,
+  "original": "emission + area * diffuse",
+  "replacement": "emission",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Drop local reflected light"
+ },
+ {
+  "id": "S02",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 74,
+  "original": "emission + area * diffuse",
+  "replacement": "area * diffuse",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Drop local emission"
+ },
+ {
+  "id": "S03",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 74,
+  "original": "emission + area * diffuse",
+  "replacement": "emission + diffuse",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Omit the diffuse source's area weight"
+ },
+ {
+  "id": "S04",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 62,
+  "original": "vec3 light = whiteLightAt(level, side, origin);",
+  "replacement": "vec3 light = whiteLightAt(min(level + 1, Levels - 1), side, origin);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Sample direct light in the wrong grid"
+ },
+ {
+  "id": "S05",
+  "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+  "line": 34,
+  "original": "source += uintBitsToFloat(sampleBucket.source.rgb);",
+  "replacement": "source += vec3(0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Drop inherited outgoing light"
+ },
+ {
+  "id": "S06",
+  "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+  "line": 40,
+  "original": " + source * 0.25);",
+  "replacement": " + source);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Keep inherited source in child face-area units"
+ },
+ {
+  "id": "S07",
+  "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+  "line": 40,
+  "original": "uintBitsToFloat(volume.surfaces[target].source.rgb) + source * 0.25",
+  "replacement": "source * 0.25",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Overwrite the parent shell's outgoing light"
+ },
+ {
+  "id": "S08",
+  "file": "src/Tertius.Rendering/Shaders/volume_source.comp",
+  "line": 37,
+  "original": "uintBitsToFloat(bucket.source.rgb) / float(an.w)",
+  "replacement": "uintBitsToFloat(bucket.source.rgb)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Treat area-weighted light as radiance"
+ },
+ {
+  "id": "S09",
+  "file": "src/Tertius.Rendering/Shaders/volume_source.comp",
+  "line": 39,
+  "original": "radiance += restrainNeutral(vec3(bucket.color.rgb) * volume.bounce[k].rgb / float(an.w));",
+  "replacement": "radiance += vec3(0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Remove the second bounce"
+ },
+ {
+  "id": "S10",
+  "file": "src/Tertius.Rendering/Shaders/volume_surface.frag",
+  "line": 58,
+  "original": "area * glow[i] / EmissionScale",
+  "replacement": "glow[i] / EmissionScale",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Omit emission's area weight"
+ },
+ {
+  "id": "S11",
+  "file": "src/Tertius.Rendering/Shaders/volume_restrict.comp",
+  "line": 38,
+  "original": "volume.surfaces[target].areaNormal += ivec4(round(areaNormal * 0.25));",
+  "replacement": "volume.surfaces[target].areaNormal += ivec4(0);",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Drop inherited occlusion"
+ },
+ {
+  "id": "S12",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 70,
+  "original": "if (area <= 0.0)\n            continue;",
+  "replacement": "if (area <= 0.0 || (level == Levels - 1 && c.z == sideOf(level) - 1))\n            continue;;",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeRenderTests"
+  ],
+  "note": "Skip sources on the outer guard's last Z face"
+ },
+ {
+  "id": "S13",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 70,
+  "original": "        if (area <= 0.0)\n            continue;\n",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests"
+  ],
+  "note": "Divide by the area of empty buckets"
+ },
+ {
+  "id": "S14",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 73,
+  "original": "restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / area)",
+  "replacement": "(vec3(volume.surfaces[k].color.rgb) * light / area)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests"
+  ],
+  "note": "No restraint on direct diffuse light"
+ },
+ {
+  "id": "S15",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 72,
+  "original": " * EmissionScale;",
+  "replacement": ";",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests"
+  ],
+  "note": "Leave emission in fixed-point units"
+ },
+ {
+  "id": "S16",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 66,
+  "original": "if (!withinGrid(level, c))\n            continue;",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests"
+  ],
+  "note": "Shade guard-shell cells outside the grid"
+ },
+ {
+  "id": "S17",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 16,
+  "original": "if (frame.counts.x == 0u)\n        return vec3(0);",
+  "replacement": "",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests"
+  ],
+  "note": "Evaluate lights when the list is empty"
+ },
+ {
+  "id": "S18",
+  "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
+  "line": 51,
+  "original": "min(directLight(",
+  "replacement": "max(directLight(",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests"
+  ],
+  "note": "Clamp direct light from below, not above"
+ },
+ {
+  "id": "C02",
+  "file": "src/Tertius.Rendering/Passes/LightVolumePass.cs",
+  "line": 23,
+  "original": "(Directions + 6 + 12)",
+  "replacement": "(Directions + 6 + 11)",
+  "project": "tests/Tertius.Rendering.Tests",
+  "class": [
+   "LightVolumeInheritanceTests",
+   "LightVolumeRenderTests",
+   "LightVolumeLayoutTests"
+  ],
+  "note": "Buffer 16 bytes per cell too small"
+ }
+]
