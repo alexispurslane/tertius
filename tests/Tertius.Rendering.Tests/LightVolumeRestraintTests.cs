@@ -138,7 +138,8 @@ public sealed class LightVolumeRestraintTests
     }
 
     /// <summary>The receiver's light from one reflector of <paramref name="paint"/> under one white star.</summary>
-    private static Vector3 UnderAWhiteStar(Vector3 paint) => ReceiverLight(panels: [Reflector(new(paint, 1))], stars: [White]);
+    private static Vector3 UnderAWhiteStar(Vector3 paint) =>
+        ReceiverLight(panels: [Reflector(new(paint, 1))], stars: [White]);
 
     /// <summary>The receiver's red from a saturated red reflector under a white star: one unit of kept light.</summary>
     private static float OneUnit()
@@ -155,7 +156,12 @@ public sealed class LightVolumeRestraintTests
 
         Vector3 gray = UnderAWhiteStar(White);
 
-        ShouldBeNear(light: gray, expected: new Vector3(0.02f * unit), tolerance: 0.003f * unit, because: "gray light on gray paint keeps 2%");
+        ShouldBeNear(
+            light: gray,
+            expected: new Vector3(0.02f * unit),
+            tolerance: 0.003f * unit,
+            because: "gray light on gray paint keeps 2%"
+        );
     }
 
     [Fact]
@@ -169,8 +175,12 @@ public sealed class LightVolumeRestraintTests
 
         float gray = beige.Z;
         gray.Should().BeApproximately(0.010f * unit, 0.0015f * unit, "the gray level keeps 2%");
-        (beige.X - gray).Should().BeApproximately(0.0136f * unit, 0.0014f * unit, "the red of the tint keeps its weight");
-        (beige.Y - gray).Should().BeApproximately(0.0068f * unit, 0.0010f * unit, "the green of the tint keeps its weight");
+        (beige.X - gray)
+            .Should()
+            .BeApproximately(0.0136f * unit, 0.0014f * unit, "the red of the tint keeps its weight");
+        (beige.Y - gray)
+            .Should()
+            .BeApproximately(0.0068f * unit, 0.0010f * unit, "the green of the tint keeps its weight");
     }
 
     [Fact]
@@ -194,7 +204,12 @@ public sealed class LightVolumeRestraintTests
 
         Vector3 orange = ReceiverLight(panels: [Reflector(GrayPaint(0.8f))], stars: [Orange]);
 
-        ShouldBeNear(light: orange, expected: new Vector3(0.8f, 0.32f, 0) * unit, tolerance: 0.04f * unit, because: "a saturated light keeps its full bounce");
+        ShouldBeNear(
+            light: orange,
+            expected: new Vector3(0.8f, 0.32f, 0) * unit,
+            tolerance: 0.04f * unit,
+            because: "a saturated light keeps its full bounce"
+        );
     }
 
     [Fact]
@@ -207,7 +222,12 @@ public sealed class LightVolumeRestraintTests
 
         Vector3 both = ReceiverLight(panels: [gray], stars: [Orange, White]);
 
-        ShouldBeNear(light: both, expected: new Vector3(0.816f, 0.336f, 0.016f) * unit, tolerance: 0.04f * unit, because: "each lamp is judged alone");
+        ShouldBeNear(
+            light: both,
+            expected: new Vector3(0.816f, 0.336f, 0.016f) * unit,
+            tolerance: 0.04f * unit,
+            because: "each lamp is judged alone"
+        );
     }
 
     [Fact]
@@ -241,13 +261,15 @@ public sealed class LightVolumeRestraintTests
     public void GlowEntersTheVolumeInFull()
     {
         // No star. A white glow and a red glow of the same red radiance light the receiver with the same red.
-        Panel Glow(Vector3 radiance) => Reflector(Vector4.UnitW) with { Emission = radiance };
+        static Panel Glow(Vector3 radiance) => Reflector(Vector4.UnitW) with { Emission = radiance };
 
         float red = ReceiverLight(panels: [Glow(new(8, 0, 0))], stars: []).X;
         float white = ReceiverLight(panels: [Glow(new(8, 8, 8))], stars: []).X;
 
         red.Should().BeGreaterThan(1e-3f, "the glow lights the receiver");
-        white.Should().BeApproximately(red, 0.05f * red, "glow is light the scene emits, which the volume keeps in full");
+        white
+            .Should()
+            .BeApproximately(red, 0.05f * red, "glow is light the scene emits, which the volume keeps in full");
     }
 
     [Fact]
@@ -255,15 +277,17 @@ public sealed class LightVolumeRestraintTests
     {
         // The glowing panel is the face of a lamp, which already sends the lamp's power. The lamp here shines with
         // intensity 0, so the receiver can get only the panel's own glow.
-        Panel glow = Reflector(Vector4.UnitW) with { Emission = new(8, 0, 0) };
+        Panel glow = Reflector(Vector4.UnitW) with
+        {
+            Emission = new(8, 0, 0),
+        };
 
         float free = ReceiverLight(panels: [glow], stars: []).X;
         float held = ReceiverLight(
-                panels: [glow with { Entity = Gpu.LampEntity }],
-                stars: [],
-                lamp: Gpu.Lamp(position: glow.Center, color: White, intensity: 0, chainDepth: TestChains.CamerasFrame)
-            )
-            .X;
+            panels: [glow with { Entity = Gpu.LampEntity }],
+            stars: [],
+            lamp: Gpu.Lamp(position: glow.Center, color: White, intensity: 0, chainDepth: TestChains.CamerasFrame)
+        ).X;
 
         free.Should().BeGreaterThan(1e-3f, "a glow that no light carries lights the receiver");
         held.Should().BeLessThan(0.01f * free, "the lamp's entity sends its power through the lamp alone");
