@@ -204,6 +204,9 @@ are on unless a caption says otherwise:
 The changes are against today. "Dark wall right of the strut" is the region `darkCanopy` of `tools/cases_table.py`.
 `captures/issue20/cases/cockpit-cases-table.md` holds the full table with the left wall and the console.
 
+These gain 4 and gain 8 frames use the first, uncorrected gain, which multiplied every colored part of the first
+bounce. They stay as a record of it. The next section has the corrected gain.
+
 What the cases show:
 
 - The helmet's orange does not become visible on the panel in any case. At gain 4 its light grows 3.5 times in linear
@@ -221,3 +224,32 @@ What the cases show:
   either.
 
 ![The panel with the normal and the black helmet](cockpit-ramp-panel-crops.jpg)
+
+## Ramp B with the gain that follows the ramp (2026-11-28)
+
+On #42 commit 9e4e9d8de the gain follows the ramp: weight(s) = mix(0.02, 1, ramp(s)) × mix(1, gain, ramp(s)), for the
+paint's part and for the lamp's part, where s is the saturation. At gain 4 a warm-white lamp keeps 1.10 times its gain-1
+weight, and the orange helmet light gets 4 times. The two takes use the fixed shuttle in place of `NOSE_GLOW`, the
+ceiling glow off (`CEILING_GLOW 0`) and `tools/cockpit-cases-gain.patch`. The user chose ramp B at gain 1.
+
+![Ramp B with the corrected gain](cockpit-gain-cases.jpg)
+
+| Case | Panel (8-bit) | Helmet's light on the panel (8-bit) | Helmet's light, linear | Hue, saturation | Other light / helmet red | Dark wall right of the strut, change | Floor, change |
+|---|---|---|---|---|---|---|---|
+| today | (39.0, 35.9, 29.3) | (+0.90, +0.40, +0.13) | (+0.000026, +0.000010, +0.000002) | 21°, 0.92 | 34.8 | 0 | 0 |
+| ramp B, gain 1 | (46.4, 40.0, 28.0) | (+0.73, +0.29, +0.04) | (+0.000023, +0.000008, −0.000000) | 20°, 1.00 | 49.7 | (+3.0, +1.8, −0.4) | (+2.4, +2.5, +2.0) |
+| ramp B, gain 4, follows the ramp | (82.1, 63.9, 30.9) | (+2.17, +0.95, +0.14) | (+0.000091, +0.000030, +0.000000) | 20°, 1.00 | 26.2 | (+16.2, +10.2, +0.4) | (+0.7, +0.7, +0.5) |
+| ramp B, gain 8, follows the ramp | (117.9, 90.6, 35.2) | (+3.17, +1.50, +0.25) | (+0.000183, +0.000061, +0.000000) | 20°, 1.00 | 22.2 | (+31.3, +20.8, +1.7) | (+0.8, +0.8, +0.6) |
+
+The changes are against today. `captures/issue20/cases/gain-cases-table.md` holds the full table.
+
+- The helmet's orange is not visible on the panel at gain 4 or gain 8. In `cockpit-gain-panel-crops.jpg` the normal and
+  the black helmet look the same.
+- The cabin is still gold: the panel, the overhead struts and the dark wall right of the strut. The dark wall does not
+  stay dark (+16 red at gain 4, +31 at gain 8). The floor stays neutral.
+- The corrected gain changes the picture little against the uncorrected one: the panel is 82 against 86 in red at
+  gain 4, and 118 against 124 at gain 8. So the gold does not come from the warm-white lamps' faint tint. It comes from
+  colored light that passes the ramp in full, which the gain lifts as it lifts the helmet's light. The study did not
+  trace which paint carries it.
+
+![The panel with the normal and the black helmet, corrected gain](cockpit-gain-panel-crops.jpg)
