@@ -3,11 +3,11 @@
 #include "frame.glsl"
 #include "vectors.glsl"
 #include "gbuffer_inputs.glsl"
-#define VOLUME_ACCESS
-#include "volume.glsl"
 // shapeLight also sums what gray paint keeps of each lamp alone, into volumeGrayPaintKeeps (volume.glsl, the restraint).
 #define VOLUME_JUDGES_LAMPS
 #include "lighting.glsl"
+#define VOLUME_ACCESS
+#include "volume.glsl"
 
 // The direct light of one lighting group: `total` falls on a unit white diffuse surface, and gray paint keeps
 // `grayKept` of it, judged lamp by lamp (grayPaintKeeps).

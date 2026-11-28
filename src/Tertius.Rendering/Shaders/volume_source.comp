@@ -37,9 +37,9 @@ void main()
         vec3 radiance = uintBitsToFloat(bucket.source.rgb) / float(an.w);
         if (pass.bounceNumber != 0u)
         {
-            // The incoming bounce light is judged as one light, with no color gain (the restraint, volume.glsl).
+            // The incoming bounce light is judged as one light (the restraint, volume.glsl).
             vec3 incoming = volume.bounce[k].rgb;
-            radiance += reflectedLight(bucket.color, incoming, grayPaintKeeps(incoming, 1.0)) / float(an.w);
+            radiance += reflectedLight(bucket.color, incoming, grayPaintKeeps(incoming)) / float(an.w);
         }
         source += area * radiance;
     }

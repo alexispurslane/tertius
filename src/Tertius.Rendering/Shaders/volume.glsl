@@ -3,11 +3,6 @@
 #include "volume_layout.glsl"
 const float EmissionScale = 4.0;
 const float NeutralSourceShare = 0.02;
-// The color gain of the restraint: a saturated color's kept light times ColorGain, through the ramp, so a faint tint
-// keeps nearly its plain weight (restraintWeight, gain). 1 in the shipped rule. The paint's part acts in the capture,
-// so its sums carry the gain into the second bounce too. A value other than 1 needs a plain paint sum for the second
-// bounce first.
-const float ColorGain = 1.0;
 // The color words of a cell face sum products as small as area x 0.02 x reflectance in integers, and one fragment adds
 // up to about 256 area units. One step per unit biased a gray fragment by up to 15%. 64 steps per unit keep about 200
 // steps for one fragment of 0.65 gray paint at the neutral share.
@@ -98,24 +93,23 @@ vec4 colorSplit(vec3 c)
     return vec4(c - gray, gray);
 }
 
-// The part of its colored part that a color keeps, from its saturation (max - min) / max: the ramp
-// min(1, (saturation / 0.78)^3) takes the weight from NeutralSourceShare for a gray color to 1 at saturation 0.78 and
-// above, and the gain from 1 to `gain` alike: mix(share, 1, ramp) x mix(1, gain, ramp). `split` is the color as
-// colorSplit splits it.
-float restraintWeight(vec4 split, float gain)
+// The part of its colored part that a color keeps, from its saturation (max - min) / max: mix(share, 1, ramp) with the
+// ramp min(1, (saturation / 0.78)^3), from NeutralSourceShare for a gray color to 1 at saturation 0.78 and above.
+// `split` is the color as colorSplit splits it.
+float restraintWeight(vec4 split)
 {
     float colored = max(split.r, max(split.g, split.b));
     float peak = colored + split.w;
     float ramp = min(1.0, pow((peak > 0.0 ? colored / peak : 0.0) / 0.78, 3.0));
-    return mix(NeutralSourceShare, 1.0, ramp) * mix(1.0, gain, ramp);
+    return mix(NeutralSourceShare, 1.0, ramp);
 }
 
 // The light that gray paint of reflectance 1 keeps of the radiance `light` that falls on it: the light's colored part
-// at its weight, plus its gray level at NeutralSourceShare. The first bounce passes ColorGain, the second 1.
-vec3 grayPaintKeeps(vec3 light, float gain)
+// at its weight, plus its gray level at NeutralSourceShare.
+vec3 grayPaintKeeps(vec3 light)
 {
     vec4 split = colorSplit(light);
-    return restraintWeight(split, gain) * split.rgb + NeutralSourceShare * split.w;
+    return restraintWeight(split) * split.rgb + NeutralSourceShare * split.w;
 }
 
 // The color words that a surface of diffuse reflectance `paint` adds per unit of area: its colored part at its weight
@@ -123,7 +117,7 @@ vec3 grayPaintKeeps(vec3 light, float gain)
 vec4 capturedPaint(vec3 paint)
 {
     vec4 split = colorSplit(paint);
-    return ReflectanceScale * vec4(restraintWeight(split, ColorGain) * split.rgb, split.w);
+    return ReflectanceScale * vec4(restraintWeight(split) * split.rgb, split.w);
 }
 
 // Area times the diffuse radiance that a cell face reflects. `color` is the face's color words, `light` the radiance
