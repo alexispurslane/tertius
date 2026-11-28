@@ -1,0 +1,19 @@
+building before
+    0 Error(s)
+
+Time Elapsed 00:00:02.01
+building after
+    0 Error(s)
+
+Time Elapsed 00:00:01.97
+warming up with before
+before run 1: GPU frame span: mean 12.670 ms, median 12.700 ms, p95 13.055 ms over 120 frames
+after run 1: GPU frame span: mean 13.425 ms, median 13.399 ms, p95 13.790 ms over 120 frames
+after run 2: GPU frame span: mean 13.441 ms, median 13.474 ms, p95 13.801 ms over 120 frames
+before run 2: GPU frame span: mean 12.675 ms, median 12.711 ms, p95 13.027 ms over 120 frames
+before run 3: GPU frame span: mean 12.670 ms, median 12.716 ms, p95 13.040 ms over 120 frames
+after run 3: GPU frame span: mean 13.427 ms, median 13.443 ms, p95 13.801 ms over 120 frames
+after run 4: GPU frame span: mean 14.401 ms, median 14.431 ms, p95 14.791 ms over 120 frames
+before run 4: GPU frame span: mean 12.713 ms, median 12.739 ms, p95 13.022 ms over 120 frames
+before run 5: GPU frame span: mean 13.301 ms, median 13.277 ms, p95 13.725 ms over 120 frames
+after run 5: GPU frame span: mean 13.389 ms, median 13.392 ms, p95 13.686 ms over 120 frames

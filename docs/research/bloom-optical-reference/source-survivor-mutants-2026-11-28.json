@@ -1,0 +1,38 @@
+[
+  {
+    "id": "A03",
+    "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+    "line": 467,
+    "original": "indirectDiffuse = preExposed(indirectDiffuse);",
+    "replacement": "indirectDiffuse = preExposed(2.0 * indirectDiffuse);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "AmbientReflectionSourceTests"
+    ],
+    "note": "Double the scene ambient entering the hit estimator"
+  },
+  {
+    "id": "A05",
+    "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+    "line": 108,
+    "original": "factors.specular * max(g.rgb, vec3(0))",
+    "replacement": "2.0 * factors.specular * max(g.rgb, vec3(0))",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "VolumeSourceRadianceTests"
+    ],
+    "note": "Double broad reflected volume radiance"
+  },
+  {
+    "id": "F06",
+    "file": "src/Tertius.Rendering/Frame/ImpostorAtlas.cs",
+    "line": 28,
+    "original": "public const Format ColorFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format ColorFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "ImpostorSourceRadianceTests"
+    ],
+    "note": "Restore half-float storage for ColorFormat"
+  }
+]

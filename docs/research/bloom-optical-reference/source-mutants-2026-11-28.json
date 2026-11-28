@@ -1,0 +1,267 @@
+[
+  {
+    "id": "A01",
+    "file": "src/Tertius.Rendering/Shaders/temporal.glsl",
+    "line": 112,
+    "original": "    if (s.model == ShadingHair)\n        light.specular *= specularWeight(lobesOf(s, V));\n    return light;",
+    "replacement": "    if (s.model == ShadingHair)\n        light.specular *= specularWeight(lobesOf(s, V));\n    light.diffuse = preExposed(light.diffuse) / exposureScale();\n    light.specular = preExposed(light.specular) / exposureScale();\n    return light;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "AmbientCutSourceTests"
+    ],
+    "note": "Lose scene ambient in a capped expose/unexpose round trip"
+  },
+  {
+    "id": "A02",
+    "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+    "line": 90,
+    "original": "IndirectLight indirect = closedFormScene(withAmbientFootprint(s, pixel), V);",
+    "replacement": "IndirectLight indirect = closedForm(withAmbientFootprint(s, pixel), V);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "AmbientCutSourceTests"
+    ],
+    "note": "Read estimator units as scene units in the composite fallback"
+  },
+  {
+    "id": "A03",
+    "file": "src/Tertius.Rendering/Shaders/screen_trace.glsl",
+    "line": 467,
+    "original": "indirectDiffuse = preExposed(indirectDiffuse);",
+    "replacement": "indirectDiffuse = preExposed(2.0 * indirectDiffuse);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "ScreenTraceRenderTests"
+    ],
+    "note": "Double the scene ambient entering the hit estimator"
+  },
+  {
+    "id": "A04",
+    "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+    "line": 104,
+    "original": "factors.diffuse * max(d.rgb, vec3(0))",
+    "replacement": "factors.diffuse * preExposed(max(d.rgb, vec3(0)))",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "LightVolumeRenderTests"
+    ],
+    "note": "Expose volume diffuse before storing scene radiance"
+  },
+  {
+    "id": "A05",
+    "file": "src/Tertius.Rendering/Shaders/volume_receive.glsl",
+    "line": 108,
+    "original": "factors.specular * max(g.rgb, vec3(0))",
+    "replacement": "2.0 * factors.specular * max(g.rgb, vec3(0))",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "LightVolumeRenderTests"
+    ],
+    "note": "Double broad reflected volume radiance"
+  },
+  {
+    "id": "W01",
+    "file": "src/Tertius.Rendering/Shaders/direct.frag",
+    "line": 32,
+    "original": "outDiffuse = vec4(direct.diffuse, 1.0);\n    outSpecular = vec4(direct.specular, 1.0);",
+    "replacement": "outDiffuse = vec4(preExposed(direct.diffuse), 1.0);\n    outSpecular = vec4(preExposed(direct.specular), 1.0);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "BloomSourceLightTests"
+    ],
+    "note": "Reintroduce pre-exposure at the exact direct writer"
+  },
+  {
+    "id": "W02",
+    "file": "src/Tertius.Rendering/Shaders/direct_key_fill.frag",
+    "line": 29,
+    "original": "outDiffuse = vec4(direct.diffuse, 1.0);\n    outSpecular = vec4(direct.specular, 1.0);",
+    "replacement": "outDiffuse = vec4(preExposed(direct.diffuse), 1.0);\n    outSpecular = vec4(preExposed(direct.specular), 1.0);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "BloomSourceLightTests"
+    ],
+    "note": "Reintroduce pre-exposure at the default key/fill writer"
+  },
+  {
+    "id": "W03",
+    "file": "src/Tertius.Rendering/Shaders/gbuffer.frag",
+    "line": 61,
+    "original": "outEmissive = vec4(s.emissive, normalSky);",
+    "replacement": "outEmissive = vec4(preExposed(s.emissive), normalSky);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests"
+    ],
+    "note": "Reintroduce pre-exposure before emission storage"
+  },
+  {
+    "id": "W04",
+    "file": "src/Tertius.Rendering/Shaders/composite_pass.glsl",
+    "line": 103,
+    "original": "outColor = vec4(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, 1.0);",
+    "replacement": "outColor = vec4(min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests"
+    ],
+    "note": "Clip the composite scene source to the old display budget"
+  },
+  {
+    "id": "W05",
+    "file": "src/Tertius.Rendering/Shaders/transparent.frag",
+    "line": 45,
+    "original": "SceneRadianceLimit * (1.0 - transmittance)",
+    "replacement": "MaxRadiance * (1.0 - transmittance)",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests",
+      "GlassRenderTests"
+    ],
+    "note": "Clip glass to the old surface display budget"
+  },
+  {
+    "id": "W06",
+    "file": "src/Tertius.Rendering/Shaders/fringe.frag",
+    "line": 41,
+    "original": "vec3 radiance = surfaceRadiance(shading, s.emissive, V, ShadowMapsMainView);",
+    "replacement": "vec3 radiance = min(surfaceRadiance(shading, s.emissive, V, ShadowMapsMainView), vec3(MaxRadiance));",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "FringeRenderTests"
+    ],
+    "note": "Clip fringe scene radiance before coverage blending"
+  },
+  {
+    "id": "W07",
+    "file": "src/Tertius.Rendering/Shaders/haze.frag",
+    "line": 32,
+    "original": "vec3 airLight = frame.atmosphere.haze.rgb;",
+    "replacement": "vec3 airLight = 2.0 * frame.atmosphere.haze.rgb;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "AtmosphereRenderTests"
+    ],
+    "note": "Double the scene haze share while forward surfaces retain the original"
+  },
+  {
+    "id": "W08",
+    "file": "src/Tertius.Rendering/Shaders/impostor.frag",
+    "line": 63,
+    "original": "outEmissive = vec4(color.rgb / coverage, 1.0);",
+    "replacement": "outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PreExposureTests"
+    ],
+    "note": "Pre-expose the billboard before downstream exposure"
+  },
+  {
+    "id": "W09",
+    "file": "src/Tertius.Rendering/Shaders/impostor_capture.frag",
+    "line": 35,
+    "original": "vec3 color = surfaceRadiance(shading, s.emissive, V, ShadowMapsNone);",
+    "replacement": "vec3 color = preExposed(surfaceRadiance(shading, s.emissive, V, ShadowMapsNone));",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PreExposureTests"
+    ],
+    "note": "Bake the current exposure into the persistent impostor atlas"
+  },
+  {
+    "id": "W10",
+    "file": "src/Tertius.Rendering/Shaders/puff.vert",
+    "line": 50,
+    "original": "outRadiance = exposed(radiance, 1.0, frame.params.x);",
+    "replacement": "outRadiance = exposed(radiance, exposureScale(), frame.params.x);",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PreExposureTests"
+    ],
+    "note": "Pre-expose a puff before downstream exposure"
+  },
+  {
+    "id": "W11",
+    "file": "src/Tertius.Rendering/Shaders/skin_scatter_columns.comp",
+    "line": 22,
+    "original": "max(lit.rgb + scattered - diffuse.rgb, vec3(0.0))",
+    "replacement": "max(lit.rgb + scattered, vec3(0.0))",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "SkinScatterRenderTests"
+    ],
+    "note": "Add scattered light without removing its original diffuse source"
+  },
+  {
+    "id": "F01",
+    "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+    "line": 55,
+    "original": "public const Format EmissiveFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests"
+    ],
+    "note": "Restore half-float storage for EmissiveFormat"
+  },
+  {
+    "id": "F02",
+    "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+    "line": 60,
+    "original": "public const Format HdrFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format HdrFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests"
+    ],
+    "note": "Restore half-float storage for HdrFormat"
+  },
+  {
+    "id": "F03",
+    "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+    "line": 69,
+    "original": "public const Format DirectFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format DirectFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PortableFloatTests"
+    ],
+    "note": "Restore half-float storage for DirectFormat"
+  },
+  {
+    "id": "F04",
+    "file": "src/Tertius.Rendering/Frame/RenderTargets.cs",
+    "line": 62,
+    "original": "public const Format DiffuseFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "SkinScatterRenderTests"
+    ],
+    "note": "Restore half-float storage for DiffuseFormat"
+  },
+  {
+    "id": "F05",
+    "file": "src/Tertius.Rendering/Frame/ScatterImages.cs",
+    "line": 15,
+    "original": "public const Format RowFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format RowFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "SkinScatterRenderTests"
+    ],
+    "note": "Restore half-float storage for RowFormat"
+  },
+  {
+    "id": "F06",
+    "file": "src/Tertius.Rendering/Frame/ImpostorAtlas.cs",
+    "line": 28,
+    "original": "public const Format ColorFormat = Format.R32G32B32A32Sfloat;",
+    "replacement": "public const Format ColorFormat = Format.R16G16B16A16Sfloat;",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": [
+      "PreExposureTests"
+    ],
+    "note": "Restore half-float storage for ColorFormat"
+  }
+]

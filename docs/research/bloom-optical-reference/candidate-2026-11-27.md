@@ -1,6 +1,6 @@
 # Measured bloom candidate
 
-The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. The verified common source-unit commit is adopted. Final integration checks, independent review and Linux cost measurements remain pending.
+The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. The verified common source-unit commit is adopted. Source hardening and matched Linux cost measurements are complete. The independent review found a missing meter compute-read dependency and stale architecture descriptions. Both are resolved with the evidence below. Required CI remains pending.
 
 ## Source and halo measurements
 
@@ -76,3 +76,48 @@ The [mutation record](hardening-2026-11-27.json) gives one final outcome per mut
 The new B09 test computes the center of the halo's linear light from output pixel positions. One active source pixel spans 1/scale output pixels. The expected source position comes from the scene fixture, independently of the tested coordinate conversion. The baseline passed all five motion and light-center cases before the B09 mutant failed. The original energy tests remain unchanged.
 
 The final outcome is nine killed and one survived with a recorded judgment call. There were no timeouts, failed builds, empty test selections or equivalent-mutant classifications. No whole-feature mutation score is claimed for source writers or common exposure consumers; this run covers the bloom shader and pass.
+
+## Source and storage hardening
+
+The [source hardening record](source-hardening-2026-11-28.json) covers 22 selected faults in source writers, fresh ambient conversion and image formats. The first run caught 19 faults. Three survived because the selected fixtures did not check ambient light at a traced hit, the absolute brightness of broad reflected volume light, or atlas emission above the half-float range.
+
+Four new cases pass on the unmodified renderer. A scoped scripted rerun catches all three surviving faults:
+
+| Fault | Rendered failure |
+|---|---|
+| Double ambient light at a traced hit | A mirror sample reads 0.99853516 instead of 0.50001717 at zero exposure stops. The four-stop case fails too. |
+| Double broad reflected volume light | A white metal returns 9.34669 instead of the 4.671875 arriving at its surface. Its unit albedo requires one copy. |
+| Restore half-float atlas color | Captured emission stops at 65,504 instead of retaining 262,144 before display exposure. |
+
+The final result is 22 caught faults, with no surviving faults, timeouts, build failures or empty test selections. The [initial list](source-mutants-2026-11-28.json) and [scoped list](source-survivor-mutants-2026-11-28.json) reproduce the runs through `tools/mutate.py`. Both runs verify source bytes, file modes, the Git index and HEAD, then rebuild the unmodified assembly. This stage changes tests and evidence only.
+
+## Linux measurements
+
+The [Linux record](linux-cost-2026-11-28.json) preserves two failed attempts and the successful staged-mirror attempt. The first stopped before rendering because the canonical models were absent. The second provisioned the assets shell, then the primary NOAA terrain download timed out during its TLS handshake. Neither failed attempt produced frame-time measurements or observed render dimensions. Their total accounted cost is $0.0525.
+
+The successful attempt fetched the sidecar's approved NOAA mirror on the worker, verified all 9,370,338 bytes against the pinned SHA-256, then used the existing asset setup command with its staging folder. Asset setup took 153.229 seconds. The complete job took 776.440 seconds within its 840-second command limit and cost $0.1354. All three attempts cost $0.1879 in total.
+
+The NVIDIA RTX 2000 Ada ran immutable baseline `d15fdf702e29a891fd298c30e8c9f0deac518a15` and candidate `f97afc5663c5406f92307f4ff93a37e5fd532a93` on the same eleven cooked assets. Eight models and the Earth material match the Mac hashes. The Linux-cooked lunar shuttle and orbital station hashes differ. This is a matched comparison of the two commits on those shared Linux files.
+
+Untimed diagnostics observed 152 submitted frames for each commit and rendering mode. Native rendering submitted 1920×1080 pixels. FSR submitted 1280×720 pixels and produced 1920×1080 pixels. Resolved settings match between commits, including fixed exposure 6.0043726 stops, the normal bloom defaults and all lighting options. Both diagnostic source edits were restored exactly and rebuilt before timing.
+
+The canonical report subtracts each run's median headless capture pass from its median GPU frame span. The values below are medians across five rounds, with commit order reversed each round after a discarded warm-up run. Each timed run holds 120 frames.
+
+| Rendering mode | Baseline, ms | Candidate, ms | Change, ms | Change |
+|---|---:|---:|---:|---:|
+| Native 1920×1080 | 14.021120 | 14.963872 | +0.942752 | +6.724% |
+| FSR 1280×720 to 1920×1080 | 10.416656 | 11.189072 | +0.772416 | +7.415% |
+
+All five paired round differences are positive in both modes. Individual-run ranges overlap, and GPU clocks were logged without locking them. This measures the complete source, format, consumer and bloom change. It does not isolate the artistic response. The bloom pass itself rises from 0.198688 to 0.311728 ms at native resolution, and from 0.199328 to 0.294768 ms with FSR. No performance tuning follows from this one scene alone.
+
+The [raw artifacts](linux-cost-2026-11-28/) retain all twenty timing files, clock logs, diagnostic settings, source restoration evidence, cooked hashes and the worker script. The summary records their SHA-256 hashes. No further paid run was submitted.
+
+## Final independent review
+
+A fresh read-only SOL high reviewer inspected the complete `d15fdf7` to `e41f7c2` change. Correctness and fulfillment each required one correction. Software design passed with source ownership evidence. The [review and resolution record](final-review-2026-11-28.json) preserves all three assessments, their limits and the original reviewed SHA.
+
+The meter now declares its exposure-buffer compute read before dispatch, including when screen tracing is disabled. The regression first failed because the buffer visibility lacked the compute stage. After the fix, 15 focused exposure cases passed. Three consecutive changing-luminance frames also matched the CPU histogram reference with clean validation. Coverage reaches the sole added executable production line. A scripted deletion fault was killed, then the runner verified restoration and rebuilt the unmodified assembly.
+
+The binding architecture now describes the actual glossy-history conversion, native and FSR exposure, the 128/256 bloom response, source formats, skin scatter, atlas and finite source bounds. The composite snippet matches the production shader exactly. Repeated numerical explanations refer to their owning section.
+
+The Linux measurements remain pinned to `f97afc5663c5406f92307f4ff93a37e5fd532a93`. The correction adds one dependency in the automatic-exposure meter and changes no shader, format or response. Both measured scenarios use fixed exposure 6.0043726 stops. The renderer registers the meter only for automatic exposure, so that dependency adds no command in the measured scenarios. This is a source comparison, not a post-correction timing run. No further paid measurement or review round ran.

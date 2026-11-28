@@ -1,0 +1,212 @@
+{
+  "device": "NVIDIA RTX 2000 Ada Generation",
+  "width": 1920,
+  "height": 1080,
+  "frame": {
+    "frames": 120,
+    "meanMs": 13.389125333333332,
+    "medianMs": 13.392223999999999,
+    "p95Ms": 13.686048
+  },
+  "passes": [
+    {
+      "pass": "deformation",
+      "frames": 120,
+      "meanMs": 0.010173333333333336,
+      "medianMs": 0.010112,
+      "p95Ms": 0.010784
+    },
+    {
+      "pass": "shadow maps",
+      "frames": 120,
+      "meanMs": 0.7667589333333337,
+      "medianMs": 0.7665919999999999,
+      "p95Ms": 0.7688
+    },
+    {
+      "pass": "local shadows",
+      "frames": 120,
+      "meanMs": 1.6811997333333333,
+      "medianMs": 1.750912,
+      "p95Ms": 1.753856
+    },
+    {
+      "pass": "environment faces",
+      "frames": 120,
+      "meanMs": 0.23018880000000008,
+      "medianMs": 0.21428799999999998,
+      "p95Ms": 0.42432
+    },
+    {
+      "pass": "environment prefilter",
+      "frames": 120,
+      "meanMs": 0.08498373333333321,
+      "medianMs": 0.08496,
+      "p95Ms": 0.08576
+    },
+    {
+      "pass": "G-buffer",
+      "frames": 120,
+      "meanMs": 0.6430234666666668,
+      "medianMs": 0.6428320000000001,
+      "p95Ms": 0.65088
+    },
+    {
+      "pass": "back faces",
+      "frames": 120,
+      "meanMs": 0.2648533333333332,
+      "medianMs": 0.264784,
+      "p95Ms": 0.265632
+    },
+    {
+      "pass": "surface test",
+      "frames": 120,
+      "meanMs": 0.13653360000000006,
+      "medianMs": 0.13648,
+      "p95Ms": 0.13744
+    },
+    {
+      "pass": "depth pyramid",
+      "frames": 120,
+      "meanMs": 0.22456079999999998,
+      "medianMs": 0.224416,
+      "p95Ms": 0.225376
+    },
+    {
+      "pass": "key and fill",
+      "frames": 120,
+      "meanMs": 0.15617493333333327,
+      "medianMs": 0.156672,
+      "p95Ms": 0.160352
+    },
+    {
+      "pass": "direct light",
+      "frames": 120,
+      "meanMs": 1.9598176000000007,
+      "medianMs": 1.94488,
+      "p95Ms": 2.085664
+    },
+    {
+      "pass": "directional light volume",
+      "frames": 120,
+      "meanMs": 1.6603221333333336,
+      "medianMs": 1.658336,
+      "p95Ms": 1.66272
+    },
+    {
+      "pass": "light pyramid",
+      "frames": 120,
+      "meanMs": 0.19065920000000006,
+      "medianMs": 0.19062400000000002,
+      "p95Ms": 0.191392
+    },
+    {
+      "pass": "ray plan",
+      "frames": 120,
+      "meanMs": 0.4337895999999999,
+      "medianMs": 0.433776,
+      "p95Ms": 0.43584
+    },
+    {
+      "pass": "reflection rays",
+      "frames": 120,
+      "meanMs": 0.16042026666666676,
+      "medianMs": 0.16024,
+      "p95Ms": 0.167072
+    },
+    {
+      "pass": "screen trace resolve",
+      "frames": 120,
+      "meanMs": 0.07523333333333328,
+      "medianMs": 0.07616,
+      "p95Ms": 0.077408
+    },
+    {
+      "pass": "reflection share",
+      "frames": 120,
+      "meanMs": 0.011881599999999992,
+      "medianMs": 0.011872,
+      "p95Ms": 0.011968
+    },
+    {
+      "pass": "accumulate indirect specular",
+      "frames": 120,
+      "meanMs": 0.2773349333333332,
+      "medianMs": 0.277184,
+      "p95Ms": 0.27792
+    },
+    {
+      "pass": "composite",
+      "frames": 120,
+      "meanMs": 0.3059650666666667,
+      "medianMs": 0.30592,
+      "p95Ms": 0.30704
+    },
+    {
+      "pass": "scatter rows",
+      "frames": 120,
+      "meanMs": 0.02678640000000002,
+      "medianMs": 0.026752,
+      "p95Ms": 0.026944
+    },
+    {
+      "pass": "scatter columns",
+      "frames": 120,
+      "meanMs": 0.017766666666666674,
+      "medianMs": 0.01776,
+      "p95Ms": 0.017856
+    },
+    {
+      "pass": "haze",
+      "frames": 120,
+      "meanMs": 0.00011866666666666644,
+      "medianMs": 0.000128,
+      "p95Ms": 0.000128
+    },
+    {
+      "pass": "transparent",
+      "frames": 120,
+      "meanMs": 0.2719829333333333,
+      "medianMs": 0.27056,
+      "p95Ms": 0.283424
+    },
+    {
+      "pass": "FSR 3.1",
+      "frames": 120,
+      "meanMs": 1.177375466666667,
+      "medianMs": 1.176688,
+      "p95Ms": 1.181024
+    },
+    {
+      "pass": "bloom",
+      "frames": 120,
+      "meanMs": 0.29492560000000007,
+      "medianMs": 0.294816,
+      "p95Ms": 0.29584
+    },
+    {
+      "pass": "tone map",
+      "frames": 120,
+      "meanMs": 0.12952239999999993,
+      "medianMs": 0.128704,
+      "p95Ms": 0.12928
+    },
+    {
+      "pass": "outlines",
+      "frames": 120,
+      "meanMs": 2.9333333333333338E-06,
+      "medianMs": 0,
+      "p95Ms": 3.2E-05
+    },
+    {
+      "pass": "capture",
+      "frames": 120,
+      "meanMs": 2.1967698666666666,
+      "medianMs": 2.117328,
+      "p95Ms": 2.40944
+    }
+  ],
+  "stampsLatchLate": false,
+  "runs": [],
+  "warning": null
+}
