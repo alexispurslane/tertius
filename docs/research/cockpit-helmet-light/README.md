@@ -77,6 +77,43 @@ measure the region on different images (the full frames, and the 120-frame mean 
 Remaining uncertainty: the check removes the specular light at the hit points only. It does not test legacy's
 temporal accumulation or its screen-space ray footprint, which also shape where the light lands.
 
+## Current code after #22 (2026-11-28)
+
+The same film on the tested #22 candidate `3b9e7c8ff`, with the same black-helmet control. `tools/helmet_map.py` takes
+the difference of the two 120-frame means.
+
+| Renderer | Panel, normal helmet (8-bit) | Helmet light on the panel (8-bit) | Pixels with helmet red > 1 / > 4 levels | Summed helmet red outside the helmet (level × pixels) |
+|---|---|---|---|---|
+| Previous production `860685c71` | (50.1, 49.1, 44.6) | (+1.95, +0.91, +0.31) | 90,559 / 12,893 | 358,400 |
+| Merged grid `90a6be90d` | (41.4, 38.2, 31.7) | (+0.74, +0.32, +0.09) | 60,759 / 10,691 | 303,032 |
+| Current `3b9e7c8ff` | (39.0, 35.9, 29.3) | (+0.90, +0.40, +0.13) | 85,670 / 28,533 | 456,812 |
+| Current, restraint off (`NeutralSourceShare` = 1) | (154.1, 147.6, 130.6) | (+0.28, +0.13, +0.05) | 38,205 / 9,449 | 239,887 |
+
+`current-three-renderers.jpg` shows the means and the helmet light × 16 of the first three rows. The current code
+spreads more of the helmet's light than legacy in total. Most of it lands on the beam above the helmet and in the strip
+of canopy along the strut's lower edge.
+
+`tools/hdr_panel.py` reads the scene-linear HDR target of frame 60, before the tone map and bloom:
+
+| Region | Light with the black helmet | Helmet light | Hue and saturation of the helmet light | Other light ÷ helmet light (red) |
+|---|---|---|---|---|
+| `panelOrange` | (0.00091, 0.00083, 0.00066) | (+0.000026, +0.000010, +0.000002) | 21°, 0.92 | 35 |
+| `panelMid` | (0.00094, 0.00084, 0.00066) | (+0.000015, +0.000006, +0.000001) | 21°, 0.91 | 65 |
+
+The helmet's light reaches the panel with its hue. It is about 3% of the panel's light, and the rest is mostly the
+cabin lamp's direct light.
+
+### The restraint
+
+`tools/helmet_buckets.py` reads the volume's cell faces that hold the helmet. In the 0.25 m grid, the two upward faces
+that carry most of the helmet's light hold 74% and 76% helmet reflectance. Their summed reflectance has saturation 0.88,
+so `restrainNeutral` keeps all of it. The restraint removes 6% of the helmet's red light in that grid (0.0733 against
+0.0781 with the restraint off). In the 0.5 m and 1 m grids the helmet shares its faces with neutral surfaces, and the
+restraint keeps 2% (#42). The panel reads only the 0.25 m grid, so #42 does not explain the panel.
+
+With the restraint off, the helmet's light on the panel rises by 12% and the panel's other light by 7.4 times
+(`restraint-off-control.jpg`). The dark canopy turns beige, and the teal edge of the strut disappears.
+
 ## Related work
 
 - #22 records a separate defect of the volume: the coarse grids shade the finer surfaces that they inherit at one
