@@ -10,7 +10,7 @@ shift 2
 scope="$PWD/captures/issue22/$name"
 tools="$(cd "$(dirname "$0")" && pwd)"
 base=d3123fe715dea1fd141649271c315096712d72a2
-content=${TERTIUS_CONTENT_ROOT:-/Users/alexispurslane/Development/tertius/content}
+content=${TERTIUS_CONTENT_ROOT:?set TERTIUS_CONTENT_ROOT to the content folder of the art}
 if [[ -n $(git status --short --untracked-files=no -- src) ]]; then
     echo "The art pair needs no change under src/."
     exit 1

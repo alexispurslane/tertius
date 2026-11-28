@@ -5,7 +5,7 @@ tools="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$scope"
 base=d3123fe715dea1fd141649271c315096712d72a2
 candidate=$(git rev-parse HEAD)
-content=/Users/alexispurslane/Development/tertius/content
+content=${TERTIUS_CONTENT_ROOT:?set TERTIUS_CONTENT_ROOT to the content folder of the full-art deck}
 if [[ -n $(git status --short --untracked-files=no -- src) ]]; then
     echo "The evidence run needs a clean worktree."
     exit 1
@@ -20,6 +20,7 @@ restore() {
 }
 trap restore EXIT
 python3 -I "$tools/prepare-render.py"
+git rev-parse --short=9 HEAD > "$scope/commit.txt"
 git diff -- src/Tertius.Demo/DemoScenes.cs src/Tertius.Rendering/VulkanRenderer.cs > "$scope/probe.patch"
 git diff --no-index /dev/null src/Tertius.Demo/DemoScenes.Issue22Probe.cs >> "$scope/probe.patch" || test $? -eq 1
 
