@@ -8,7 +8,9 @@ struct SurfaceBucket
     ivec4 areaNormal; // xyz oriented area vector, w area
     uvec4 color;      // rgb area times diffuse reflectance
     // Rasterization accumulates area times emission as fixed-point integers.
-    // Shading replaces these words with area times total outgoing radiance in float bits.
+    // Shading replaces these words with area times total outgoing radiance in float bits, in every bucket with area.
+    // A raster write adds at least the 256 units of one sample's projected area, so a bucket with nonzero emission
+    // words has area, and the restriction and the source pass read only float bits.
     uvec4 source;
 };
 #ifndef VOLUME_SET

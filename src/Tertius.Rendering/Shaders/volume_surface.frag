@@ -49,7 +49,7 @@ void main()
     vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
     vec3 glow = restrainNeutral(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
     float area = length(crossArea) / (g.w * g.w) * 4096.0;
-    int k = (firstCellOf(finest) + cellIndex(finest, c)) * 6 + side;
+    int k = bucketIndex(finest, c, side);
     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
     for (int i = 0; i < 3; ++i)
     {

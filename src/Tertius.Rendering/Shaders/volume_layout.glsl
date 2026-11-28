@@ -44,6 +44,11 @@ int cellIndex(int level, ivec3 c)
     int side = sideOf(level);
     return c.x + side * (c.y + side * c.z);
 }
+// The surface bucket of a cell face: each cell holds six, one for each signed axis.
+int bucketIndex(int level, ivec3 c, int side)
+{
+    return (firstCellOf(level) + cellIndex(level, c)) * 6 + side;
+}
 ivec3 coordinates(int level, int i)
 {
     int side = sideOf(level);

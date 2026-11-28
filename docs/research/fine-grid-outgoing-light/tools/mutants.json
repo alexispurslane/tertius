@@ -14,7 +14,7 @@
  {
   "id": "S01",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 74,
+  "line": 70,
   "original": "emission + area * diffuse",
   "replacement": "emission",
   "project": "tests/Tertius.Rendering.Tests",
@@ -26,7 +26,7 @@
  {
   "id": "S02",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 74,
+  "line": 70,
   "original": "emission + area * diffuse",
   "replacement": "area * diffuse",
   "project": "tests/Tertius.Rendering.Tests",
@@ -38,7 +38,7 @@
  {
   "id": "S03",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 74,
+  "line": 70,
   "original": "emission + area * diffuse",
   "replacement": "emission + diffuse",
   "project": "tests/Tertius.Rendering.Tests",
@@ -50,7 +50,7 @@
  {
   "id": "S04",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 62,
+  "line": 58,
   "original": "vec3 light = whiteLightAt(level, side, origin);",
   "replacement": "vec3 light = whiteLightAt(min(level + 1, Levels - 1), side, origin);",
   "project": "tests/Tertius.Rendering.Tests",
@@ -146,7 +146,7 @@
  {
   "id": "S12",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 70,
+  "line": 66,
   "original": "if (area <= 0.0)\n            continue;",
   "replacement": "if (area <= 0.0 || (level == Levels - 1 && c.z == sideOf(level) - 1))\n            continue;;",
   "project": "tests/Tertius.Rendering.Tests",
@@ -158,7 +158,7 @@
  {
   "id": "S13",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 70,
+  "line": 66,
   "original": "        if (area <= 0.0)\n            continue;\n",
   "replacement": "",
   "project": "tests/Tertius.Rendering.Tests",
@@ -170,7 +170,7 @@
  {
   "id": "S14",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 73,
+  "line": 69,
   "original": "restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / area)",
   "replacement": "(vec3(volume.surfaces[k].color.rgb) * light / area)",
   "project": "tests/Tertius.Rendering.Tests",
@@ -183,7 +183,7 @@
  {
   "id": "S15",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 72,
+  "line": 68,
   "original": " * EmissionScale;",
   "replacement": ";",
   "project": "tests/Tertius.Rendering.Tests",
@@ -196,7 +196,7 @@
  {
   "id": "S16",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 66,
+  "line": 62,
   "original": "if (!withinGrid(level, c))\n            continue;",
   "replacement": "",
   "project": "tests/Tertius.Rendering.Tests",
@@ -209,7 +209,7 @@
  {
   "id": "S17",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 16,
+  "line": 12,
   "original": "if (frame.counts.x == 0u)\n        return vec3(0);",
   "replacement": "",
   "project": "tests/Tertius.Rendering.Tests",
@@ -222,7 +222,7 @@
  {
   "id": "S18",
   "file": "src/Tertius.Rendering/Shaders/volume_shade.frag",
-  "line": 51,
+  "line": 47,
   "original": "min(directLight(",
   "replacement": "max(directLight(",
   "project": "tests/Tertius.Rendering.Tests",

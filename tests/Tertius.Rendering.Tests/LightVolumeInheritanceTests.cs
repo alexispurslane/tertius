@@ -181,6 +181,27 @@ public sealed class LightVolumeInheritanceTests
     }
 
     [Fact]
+    public void AnInheritedEmitterLightsACoarseReceiverWithTheRadianceThatItsSizeAndDistanceGive()
+    {
+        // The emitter's face toward the receiver is a 0.48 × 0.98 m rectangle of red radiance 8 at z = -1.11. The receiver's
+        // center, at z = -2.96 and the white panel's albedo 1, takes irradiance L A cos θ cos θ' / d² from it and reflects
+        // E / π. The capture, the shading, the transfer and the transport keep that radiance within a factor of two.
+        Panel emitter = new(new(0.75f, -1, -1.1f), new(0.48f, 0.98f, 0.02f), Vector4.UnitW) { Emission = new(8, 0, 0) };
+        Vector3 toEmitter = new Vector3(0.75f, -1, -1.11f) - new Vector3(0, 0, -2.96f);
+        float cosine = toEmitter.Z / toEmitter.Length();
+        float expected = 8 * 0.48f * 0.98f * cosine * cosine / toEmitter.LengthSquared() / MathF.PI;
+
+        float tint = CenterRedTint([emitter], star: false);
+
+        tint.Should()
+            .BeInRange(
+                expected * 0.5f,
+                expected * 2,
+                "emission keeps its physical scale through the raster, the shading and the transfer to the 0.5 m grid"
+            );
+    }
+
+    [Fact]
     public void AReflectorLitOnlyByBouncedLightStillTintsACoarseReceiver()
     {
         // No star: a yellow emitter lies flat below and ahead of the red strips. Red light reaches the receiver only when

@@ -6,10 +6,6 @@
 #include "lighting.glsl"
 #define VOLUME_ACCESS
 #include "volume.glsl"
-int bucketIndex(int level, ivec3 cell, int side)
-{
-    return (firstCellOf(level) + cellIndex(level, cell)) * 6 + side;
-}
 
 vec3 whiteLightAt(int level, int side, ivec3 origin)
 {
