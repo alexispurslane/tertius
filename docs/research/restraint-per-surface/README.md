@@ -219,6 +219,28 @@ On the faint beige the product rule's renders fall within 3% of the arithmetic (
 - The product rule with ramp C gives a strong yellow wash: 13 times today's red on beige.
 - No column turns the tint gray. The blue channel, the gray level, is the same in every rule.
 
+## The two-lamp probe: a white lamp beside a colored one
+
+The scene restraint-two-lamps: a white star (1, 1, 1) and the orange star (1, 0.4, 0) at the same place, of equal strength, light the gray wall (0.8, 0.8, 0.8). restraint-orange-lamp is the orange star alone. The receiver gets only the wall's bounce light. Gain 1, EV 0, the "outside" pose. Labels give the receiver's mean scene-linear RGB in W/(m² sr).
+
+![orange alone today; both lamps: today, the weighted split summed with ramps B and C, the weighted split per lamp](evidence/two-lamps.png)
+
+| Rule | Receiver RGB | Saturation | Red against the orange lamp alone |
+|---|---|---:|---:|
+| orange lamp alone, any rule | (1.1063, 0.4426, 0) | 1.00 | 1 |
+| both lamps, today | (0.0443, 0.0310, 0.0221) | 0.50 | 0.040 |
+| both lamps, weighted split on the summed light, ramp B | (0.3292, 0.1449, 0.0221) | 0.93 | 0.298 |
+| both lamps, weighted split on the summed light, ramp C | (0.8080, 0.3365, 0.0221) | 0.97 | 0.730 |
+| both lamps, weighted split per lamp, ramp B or C | (1.1264, 0.4638, 0.0221) | 0.98 | 1.018 |
+
+The renders match the arithmetic within 0.3%. The summed light (2, 1.4, 1) has saturation 0.5:
+
+- Today restrains it to 2% as a whole, so adding the white lamp cuts the orange wash to 4% of the orange lamp alone.
+- The weighted split on the summed light keeps the weight of saturation 0.5 for its colored part (1, 0.4, 0): 0.278 with ramp B and 0.712 with ramp C, plus 2% of the gray level 1.
+- The weighted split per lamp keeps the orange lamp in full (saturation 1) and 2% of the white lamp: (1, 0.4, 0) + 0.02 × (1, 1, 1). This is the orange lamp alone plus a 2% gray wash. The pictures of ramps B and C per lamp are the same pixel for pixel, because each lamp alone has saturation 0 or 1.
+
+At the "across" pose every value is 0.944 times its "outside" value in every rule, so the pose changes only the framing of the receiver, not the rule.
+
 ## Set 2 (record): Design 2 and the rejected hybrid
 
 The user rejected the hybrid of this set on 2026-11-28, because it turned faint tints gray ([#42](https://github.com/alexispurslane/tertius/issues/42#issuecomment-7243692495)). Its pictures stay here as a record only. They came from commit `7f7a3979e`, whose variant 3 was the hybrid, and its renders are in `captures/issue42/rejected-hybrid-g1.0/`.
