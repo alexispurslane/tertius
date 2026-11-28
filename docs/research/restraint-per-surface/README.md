@@ -93,6 +93,36 @@ The volume holds much more light (`tools/volume-totals.py`). The 0.5 m grid's su
 
 So at this pose the gray self-lit panels do not lift the deck visibly. A pose that faces the floor's glow strips can show more. This set does not measure that.
 
+## Set 1b: the worst deck pose for glow in full
+
+Set 1 found the floor's warm gray glow (`glow0` of the station art, (6.54, 6.71, 4.71) W/(m² sr), saturation 0.30, today kept 2%) in a band of the deck floor from about 5 m behind the deck camera, and in a band on top of the upper ring, facing up. Three views stand beside the floor band (`tools/prepare-render.py`, offsets from the deck camera's eye in the station frame, +X up):
+
+| View | Eye offset (m) | Looks at | Exposure today | Exposure, glow in full | Frame mean change | Largest tile change |
+|---|---|---|---:|---:|---:|---:|
+| glow-back | (−1.0, 0, 3.0) | back over the floor band | −5.2960 | −5.3066 | +0.82% | +1.5% |
+| glow-up | (−1.6, 0, 5.5) | up at the ring above the band | −2.8914 | −2.8914 (also fixed) | +2.4% | +419% |
+| glow-along | (−1.0, 0, 5.5) | along the band | −3.7357 | −3.7514 | +0.64% | +12% |
+
+Each run took three captures a, b and c of a frozen world, and the exposure did not move between them. The pictures are c. glow-up is the worst pose. Its glow-in-full render ran again at the fixed exposure −2.8914 stops, today's settled value (`evidence/exposure/`), so the pair below is comparable. The automatic exposure gave the same value.
+
+![glow-up: today left, glow in full right, fixed at −2.8914 stops](evidence/glow-up-pair.png)
+
+[`evidence/glow-up-pair-x8.png`](evidence/glow-up-pair-x8.png) is the same pair times 8, and [`evidence/glow-up-difference-x16.png`](evidence/glow-up-difference-x16.png) the absolute difference times 16.
+
+What it shows:
+
+- The upper 60% of the frame is the underside of the upper ring, a neutral surface 5.6 to 6.4 m above the deck. Today it is near black: a mean of (1.2, 1.2, 0.6) in 8-bit display levels. With glow in full it is a very dark warm gray: (6.3, 6.6, 4.0). In scene-linear light it rises 2.7 times, from (0.039, 0.040, 0.028) to (0.105, 0.108, 0.076) W/(m² sr), saturation 0.30, the hue of the floor glow. This is visible beside today, and it lifts a neutral surface.
+- The lower part (the ring's lit balcony) does not change.
+- At the lower edge of the lifted area the difference image shows wavy bands. They have the look of the volume's discrete transport directions over a long distance.
+
+Where the added light comes from, as far as this pose can tell (the question of #47):
+
+- The depth readback places the lifted pixels 4.6 to 5.4 m above the camera, from 0.2 m in front to 3.8 m behind it along the deck. The floor band lies 0.9 m below the camera, from 0.8 m behind to 3.2 m in front of it, and faces up. The ring's own glow band lies on top of the same slab, about 4.9 to 5.4 m above the camera, from 1.5 to 4.0 m behind it, and faces up, away from the underside.
+- The added light is largest where the underside lies above the floor band (+0.105 at 0.2 m in front) and falls to +0.015 at 3.8 m behind, under the ring's own glow. A leak through the slab from the ring's top glow would peak under that glow. So most of the added light follows the floor band, which faces the underside. I do not know of a wall between them, but this pose does not prove that the path is clear.
+- A take that answers it: the same pose with the ring's top glow removed (or the floor band removed), or the #47 diagnosis of the #20 lead (light that crosses solid geometry in the 1 m grid) run on this pose.
+
+The research counters (`tools/counters.py`, today's rule, one frame each): 37,632 to 45,043 capture fragments before the axis test and 20,186 to 23,642 at the cell-face write; 170 to 181 lighting points with 3.8 to 4.2 visible lamps each, and at most 8 or 9 at one point.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
