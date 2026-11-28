@@ -22,7 +22,7 @@ void main()
     if (any(lessThan(first, ivec3(-1))) || any(greaterThanEqual(first, ivec3(sideOf(level - 1)))))
         return;
     vec4 areaNormal = vec4(0);
-    vec3 color = vec3(0), emission = vec3(0);
+    vec3 color = vec3(0), source = vec3(0);
     for (int i = 0; i < 8; ++i)
     {
         ivec3 c = first + ivec3(i & 1, (i >> 1) & 1, i >> 2);
@@ -31,11 +31,11 @@ void main()
         SurfaceBucket sampleBucket = volume.surfaces[(firstCellOf(level - 1) + cellIndex(level - 1, c)) * 6 + side];
         areaNormal += vec4(sampleBucket.areaNormal);
         color += vec3(sampleBucket.color.rgb);
-        emission += vec3(sampleBucket.emission.rgb);
+        source += uintBitsToFloat(sampleBucket.source.rgb);
     }
     // One parent face covers four child faces. Preserve shell geometry already in this cell.
     int target = (firstCellOf(level) + cell) * 6 + side;
     volume.surfaces[target].areaNormal += ivec4(round(areaNormal * 0.25));
     volume.surfaces[target].color.rgb += uvec3(round(color * 0.25));
-    volume.surfaces[target].emission.rgb += uvec3(round(emission * 0.25));
+    volume.surfaces[target].source.rgb = floatBitsToUint(uintBitsToFloat(volume.surfaces[target].source.rgb) + source * 0.25);
 }

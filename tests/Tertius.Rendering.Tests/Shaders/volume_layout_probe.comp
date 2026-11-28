@@ -19,16 +19,18 @@ bool cellKeepsItsStorageAndGroup(int level, int local)
         if (index / cellsOf(level) != direction || index % cellsOf(level) != local)
             return false;
     }
-    int tile = tileIndex(level, c) - firstTileOf(level);
-    if (tile < 0 || tile >= tilesOf(level))
-        return false;
-    ivec3 low = tileOrigin(level, tile);
-    if (any(lessThan(c, low)) || any(greaterThanEqual(c, low + 4)))
-        return false;
-    // A lighting group's lower faces lie on the same four-cell lattice about every grid's center.
-    if (any(notEqual((low - side / 2) % 4, ivec3(0))))
-        return false;
-    return true;
+    int groups = 0;
+    for (int tile = 0; tile < tilesOf(level); ++tile)
+    {
+        ivec3 low = tileOrigin(level, tile);
+        if (any(lessThan(c, low)) || any(greaterThanEqual(c, low + 4)))
+            continue;
+        // The group covering this cell must lie on the four-cell lattice about the grid's center.
+        if (any(notEqual((low - side / 2) % 4, ivec3(0))))
+            return false;
+        ++groups;
+    }
+    return groups == 1;
 }
 
 bool openSkyReachesCell(int level, int local)

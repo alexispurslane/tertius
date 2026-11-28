@@ -7,7 +7,9 @@ struct SurfaceBucket
 {
     ivec4 areaNormal; // xyz oriented area vector, w area
     uvec4 color;      // rgb area times diffuse reflectance
-    uvec4 emission;   // rgb area times emitted radiance
+    // Rasterization accumulates area times emission as fixed-point integers.
+    // Shading replaces these words with area times total outgoing radiance in float bits.
+    uvec4 source;
 };
 #ifndef VOLUME_SET
 #define VOLUME_SET 3
@@ -20,7 +22,6 @@ layout(set = VOLUME_SET, binding = VOLUME_BINDING, std430) VOLUME_ACCESS buffer 
     vec4 grids[Levels]; // lowest corner relative to the camera (m), cell width (m)
     uvec4 stats;        // x lighting evaluations
     SurfaceBucket surfaces[CellCount * 6];
-    vec4 whiteLight[TileCount * 6]; // outgoing radiance of a unit white diffuse surface
     uvec4 field[CellCount * Directions]; // outgoing radiance and remaining environment transmission
     vec4 bounce[CellCount * 6];
     vec4 filtered[CellCount * 12]; // directional diffuse and broad specular integrals

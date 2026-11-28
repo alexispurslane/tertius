@@ -55,6 +55,6 @@ void main()
     {
         atomicAdd(volume.surfaces[k].areaNormal[i], int(round(area * n[i])));
         atomicAdd(volume.surfaces[k].color[i], uint(round(area * diffuse[i])));
-        atomicAdd(volume.surfaces[k].emission[i], uint(round(area * glow[i] / EmissionScale)));
+        atomicAdd(volume.surfaces[k].source[i], uint(round(area * glow[i] / EmissionScale)));
     }
 }

@@ -15,14 +15,12 @@ internal sealed unsafe class LightVolumePass : RenderPass
     private const int Directions = 32;
     private const int CellCount = (Levels - 1) * Reach * Reach * Reach + OuterSide * OuterSide * OuterSide;
     private const int OuterTilesPerAxis = 6;
-    private const int TileCount = (Levels - 1) * 64 + OuterTilesPerAxis * OuterTilesPerAxis * OuterTilesPerAxis;
     internal const uint CounterOffset = Levels * 16;
     private const uint HeaderBytes = Levels * 16 + 16;
     private const uint SurfaceBytes = CellCount * 6 * 48;
 
-    /// <summary>The size of the volume's buffer in bytes: 15,291,200 (14.58 MiB).</summary>
-    internal const uint BufferBytes =
-        HeaderBytes + SurfaceBytes + 16 * (TileCount * 6 + CellCount * (Directions + 6 + 12));
+    /// <summary>The size of the volume's buffer in bytes: 15,258,176 (14.55 MiB).</summary>
+    internal const uint BufferBytes = HeaderBytes + SurfaceBytes + 16 * CellCount * (Directions + 6 + 12);
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly DescriptorSet set;
@@ -151,6 +149,8 @@ internal sealed unsafe class LightVolumePass : RenderPass
         context.Barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         context.Barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         Rasterize(context, grids);
+        // Before restriction, each lighting group sees only geometry captured at its own resolution.
+        ShadeGroups(context);
         for (uint parent = 1; parent < Levels; parent++)
         {
             int side = SideOf((int)parent);
@@ -162,7 +162,6 @@ internal sealed unsafe class LightVolumePass : RenderPass
                 y: 6
             );
         }
-        ShadeGroups(context);
 
         for (uint bounce = 0; bounce <= 1; bounce++)
         {
