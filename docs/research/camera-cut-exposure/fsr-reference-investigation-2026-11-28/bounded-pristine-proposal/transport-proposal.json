@@ -1,0 +1,88 @@
+{
+  "submitted": false,
+  "proposal_only": true,
+  "approval": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "reason": "Inert proposal. No new spending authorized."
+  },
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "command_timeout_seconds": 1920,
+  "conditional_execution_seconds": 1980,
+  "conditional_canonical_reservation_usd": 0.328,
+  "launchable_under_checked_in_policy": false,
+  "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+  "prepare_sha256": "b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21",
+  "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+  "payload_sha256": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "linux-scripts/issue4-cut-first-present.json": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480",
+    "linux-scripts/issue4-cut-outside-control.json": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929",
+    "linux-scripts/issue4-cut-return-control.json": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "command_bounds": {
+    "command_bytes_including_nul": [
+      419
+    ],
+    "argument_limit_bytes": 32768,
+    "environment_bytes_observed": 3315,
+    "environment_reserve_bytes": 65536,
+    "aggregate_bytes_with_reserve": [
+      98877
+    ],
+    "aggregate_limit_bytes": 131072,
+    "environment_entry_reserve": 4096,
+    "pointer_bytes": 8,
+    "runtime_environment_verified": false
+  },
+  "request_body_bytes": 1127,
+  "request_body_budget_bytes": 65536,
+  "conditional_request_body": {
+    "input": {
+      "protocol": 3,
+      "repository": "https://github.com/alexispurslane/tertius.git",
+      "trees": {
+        "before": {
+          "sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/b002351eb48d33f008f8333e53e61345de3260cd"
+        },
+        "after": {
+          "sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/588b6d2747560c73aac542fb25ce80eec1ba8db7"
+        },
+        "harness": {
+          "sha": "6f14335c629b25e36899699006c268026d33ce7e",
+          "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/6f14335c629b25e36899699006c268026d33ce7e"
+        }
+      },
+      "commands": [
+        "python3 -I -c 'import hashlib,pathlib,runpy\np=pathlib.Path('\"'\"'harness/tools/camera-cut-pristine/prepare.py'\"'\"')\nif hashlib.sha256(p.read_bytes()).hexdigest()!='\"'\"'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'\"'\"':\n raise ValueError(\"Preparation script hash differs\")\nrunpy.run_path(str(p),run_name=\"__main__\")\n' --manifest-sha256 445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57"
+      ],
+      "outputs": [
+        "linux-out/return/*"
+      ],
+      "seconds": 1920
+    },
+    "policy": {
+      "executionTimeout": 1980000,
+      "ttl": 7200000
+    }
+  },
+  "future_authorization": "Immutable config is inert. A future paid run requires a separately reviewed external authorization command as well as the duration-policy decision. No such command is provided here.",
+  "submit_command_sha256": "7c0610a29f7eb9936ef231fc012e0a47dd8e8b0125dee5c53d4a5193f05d4500"
+}

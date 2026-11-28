@@ -2,6 +2,8 @@
 
 The later [single authorized pristine attempt](../bounded-pristine-linux-2026-11-28/README.md) failed before its worker started because the encoded command exceeded Linux argument limits. Its policy was restored, and no retry is authorized. The proposal and approval discussion below records the earlier inert preparation stage.
 
+The subsequent [local named-tree transport correction](bounded-pristine-proposal/transport-README.md) emits a short command from an immutable third harness tree. Its tests pass on Darwin, and its checked-in approval remains inert. The exact Linux limit and extra-checkout runtime fit remain unverified.
+
 The local investigation explains the synthetic FSR reference difference without establishing a new candidate defect. Both source pins produce byte-identical scene HDR images. The baseline loses dark samples at its histogram's lower limit. The candidate retains those samples and agrees with an independent CPU reading. The shared tolerance stays at 1/16 stop.
 
 Linux acceptance remains **HOLD**. The saved Linux job remains failed, with no matched timing rounds. These local results explain the reference difference. They supply no Linux performance result and authorize no spending.

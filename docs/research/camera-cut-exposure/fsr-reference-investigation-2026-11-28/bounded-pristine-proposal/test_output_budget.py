@@ -244,7 +244,7 @@ class OutputBudgetTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'missing'):
                     ANALYZER['analyze_returned'](returned, require_sizes=False)
 
-    def test_inert_emitter_embeds_every_input_and_the_exact_return_glob(self):
+    def test_inert_emitter_names_every_input_and_the_exact_return_glob(self):
         emitter = runpy.run_path(str(PROPOSAL / 'emit_proposal.py'))
         command = self.root / 'proposal.ps1'
         metadata = emitter['emit'](PROPOSAL, command)

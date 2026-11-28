@@ -1,0 +1,9 @@
+{
+  "url": "https://docs.runpod.io/serverless/workers/handlers/overview.md",
+  "fetched_utc_day": "2026-11-28",
+  "source_sha256": "8d7124f0f82027e89799ffe2737b243a65e7ee46c96227c9429ee864e017eb6f",
+  "excerpt": "## Payload limits\n\nBe aware of payload size limits when designing your handler:\n\n* `/run` operation: 10 MB\n* `/runsync` operation: 20 MB\n",
+  "run_limit_documented": "10 MB",
+  "conservative_request_budget_bytes": 65536,
+  "live_service_payload_limit_tested": false
+}

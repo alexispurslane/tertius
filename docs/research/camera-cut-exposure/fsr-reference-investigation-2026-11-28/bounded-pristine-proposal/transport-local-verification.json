@@ -1,0 +1,103 @@
+{
+  "status": "PASS: local named-tree transport and inert gates only",
+  "platform": "Darwin",
+  "new_paid_submissions": 0,
+  "canonical_submit_called": false,
+  "local_live_endpoint_calls": 0,
+  "test_counts": {
+    "transport": 8,
+    "preparation": 4,
+    "affected_emitter_output_test": 1
+  },
+  "red": {
+    "original_emitter_command_bytes_including_nul": 408686,
+    "asserted_max_bytes": 32768,
+    "failure": "408686 not less than or equal to 32768"
+  },
+  "exact_old_launch": {
+    "utf8_bytes": 409197,
+    "sha256": "18707842aed762dec041dae6b08802025bae8a975ce53ce34cabecdc4fe1a340",
+    "conservative_rejection": "A command argument exceeds the conservative 32768-byte budget",
+    "local_actual_handler_replay": {
+      "platform": "Darwin",
+      "exact_old_command_utf8_bytes": 409197,
+      "actual_handler_and_Popen": true,
+      "measurement_or_service_started": false,
+      "observed": {
+        "status": "failed",
+        "note": "Host accepted argument; harmless shell refused without evaluating the payload."
+      },
+      "linux_local_reproduction": "Unavailable: Docker daemon absent and existing Colima VM stopped. Exact Linux platform limit unverified locally.",
+      "remote_linux_evidence": "Original failed Runpod SDK traceback only."
+    }
+  },
+  "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+  "all_15_payloads_match_git_objects": true,
+  "all_payload_sha256": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "linux-scripts/issue4-cut-first-present.json": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480",
+    "linux-scripts/issue4-cut-outside-control.json": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929",
+    "linux-scripts/issue4-cut-return-control.json": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "prepare_sha256": "b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21",
+  "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+  "candidate_fixture_csharp_sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+  "all_three_shells_match": true,
+  "protocol": 3,
+  "unchanged_baseline": "b002351eb48d33f008f8333e53e61345de3260cd",
+  "unchanged_candidate": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "canonical_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "command_bounds": {
+    "command_bytes_including_nul": [
+      419
+    ],
+    "argument_limit_bytes": 32768,
+    "environment_bytes_observed": 3315,
+    "environment_reserve_bytes": 65536,
+    "aggregate_bytes_with_reserve": [
+      98877
+    ],
+    "aggregate_limit_bytes": 131072,
+    "environment_entry_reserve": 4096,
+    "pointer_bytes": 8,
+    "runtime_environment_verified": false
+  },
+  "conditional_request_body_bytes": 1127,
+  "conditional_request_budget_bytes": 65536,
+  "request_limit_source": "request-limit-source.json",
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "complete_output_transport": "Targeted replay passed using reconstructed worker/analyzer modules: complete sealed archive, exact globs, all raw rows and diagnostics, zero skipped files. Prior 13-test output proof remains separately labeled.",
+  "linux_exact_limit_locally_verified": false,
+  "worker_runtime_environment_verified": false,
+  "extra_harness_checkout_fits_60_second_margin": null,
+  "measured_linux_runtime_or_fps_claim": false,
+  "approval": {
+    "coordinator_reviewed": false,
+    "issue4_explicit_paid_approval": false,
+    "authorized_submissions": 0,
+    "automatic_retry": false,
+    "reason": "Inert proposal. No new spending authorized."
+  },
+  "automatic_retry": false,
+  "remaining": [
+    "No local Linux execution-limit reproduction; existing Docker daemon is absent and Colima stopped.",
+    "Exact remote environment size remains unknown; static check reserves 65536 environment bytes and 4096 entries.",
+    "Extra immutable harness fetch occurs before command timing inside the existing 60-second handler margin; its Linux duration and output headroom are unmeasured.",
+    "The immutable harness config is inert. A future paid run needs a separately reviewed external authorization step and separate duration-policy approval.",
+    "No Linux cut, ordinary, reversed-round or output-completeness benchmark results exist.",
+    "Issue #37 stays open because its offline Linux regression requirement is unverified."
+  ]
+}
