@@ -16,21 +16,37 @@ public sealed class AmbientCutSourceTests
     [InlineData(64f, false, true)]
     [InlineData(-64f, true, true)]
     [InlineData(64f, true, true)]
-    public void ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(float incoming, bool trace, bool volume)
+    public void ACutKeepsTheSameAmbientSceneRadianceAtBothProducingExposureEndpoints(
+        float incoming,
+        bool trace,
+        bool volume
+    )
     {
         float expected = CutRadiance(0, trace, volume);
 
         float actual = CutRadiance(incoming, trace, volume);
 
-        actual.Should().BeApproximately(expected, expected * 0.005f,
-            "the raw ambient fallback must survive before the destination exposure is chosen");
+        actual
+            .Should()
+            .BeApproximately(
+                expected,
+                expected * 0.005f,
+                "the raw ambient fallback must survive before the destination exposure is chosen"
+            );
     }
 
     private static float CutRadiance(float stops, bool trace, bool volume)
     {
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, framesInFlight: 1,
-            exposure: new FixedExposure(stops), screenTrace: trace ? ScreenTrace.Default : new NoScreenTrace(),
-            warmUpFrames: 0, outputDither: false, lightVolume: volume);
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            framesInFlight: 1,
+            exposure: new FixedExposure(stops),
+            screenTrace: trace ? ScreenTrace.Default : new NoScreenTrace(),
+            warmUpFrames: 0,
+            outputDither: false,
+            lightVolume: volume
+        );
         try
         {
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
