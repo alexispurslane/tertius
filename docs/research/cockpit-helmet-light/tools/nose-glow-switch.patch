@@ -1,0 +1,45 @@
+# Diagnostic research switch (#20), never committed to the engine: NOSE_GLOW in volume.glsl (0 = scene as is, 1 = the
+# shuttle art nose lamps send no glow into the volume, 2 = front side only). Apply after diagnostics.patch.
+diff --git a/src/Tertius.Rendering/Shaders/volume.glsl b/src/Tertius.Rendering/Shaders/volume.glsl
+index d6e9e5c..53547a7 100644
+--- a/src/Tertius.Rendering/Shaders/volume.glsl
++++ b/src/Tertius.Rendering/Shaders/volume.glsl
+@@ -105,6 +105,11 @@ vec3 restrainNeutral(vec3 radiance)
+ #ifndef COLOR_GAIN
+ #define COLOR_GAIN 1.0
+ #endif
++// Research switch (#20, never committed): 0 = the scene as it is, 1 = the shuttle art's nose lamps send no glow,
++// 2 = they send glow from their front side only.
++#ifndef NOSE_GLOW
++#define NOSE_GLOW 0
++#endif
+ const vec3 RestraintLuminance = vec3(0.2126, 0.7152, 0.0722);
+ // Variants 2 and 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
+ // adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
+diff --git a/src/Tertius.Rendering/Shaders/volume_surface.frag b/src/Tertius.Rendering/Shaders/volume_surface.frag
+index 0347a22ad..e043e6bf5 100644
+--- a/src/Tertius.Rendering/Shaders/volume_surface.frag
++++ b/src/Tertius.Rendering/Shaders/volume_surface.frag
+@@ -49,6 +49,22 @@ void main()
+     vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
+     vec4 reflectance = capturedReflectance(diffuse);
+     vec3 glow = capturedEmission(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
++#if NOSE_GLOW != 0
++    // The nose lamps: ahead of and below the camera, with emission above 4 (glow0 4.45, glow1 11.28, glow2 17.8,
++    // glow3 51.65). n is the drawn triangle's outward normal, and a double-sided patch draws both sides.
++    float e = max(m.emissive.r, max(m.emissive.g, m.emissive.b));
++    if (world.z < -4.0 && world.y < -1.5 && e > 4.0)
++    {
++#if NOSE_GLOW == 1
++        glow = vec3(0);
++#else
++        // The art's own facing: glow3 faces forward (-z), glow1 faces down, glow0 and glow2 face up.
++        bool front = e > 40.0 ? n.z < 0.0 : (abs(e - 11.28) < 1.0 ? n.y < 0.0 : n.y > 0.0);
++        if (!front)
++            glow = vec3(0);
++#endif
++    }
++#endif
+     float area = length(crossArea) / (g.w * g.w) * 4096.0;
+     int k = bucketIndex(finest, c, side);
+     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
