@@ -1,0 +1,94 @@
+diff --git a/src/Tertius.Assets/GlbReader.cs b/src/Tertius.Assets/GlbReader.cs
+index 0a97f530e..b2fc0c4a0 100644
+--- a/src/Tertius.Assets/GlbReader.cs
++++ b/src/Tertius.Assets/GlbReader.cs
+@@ -434,6 +434,17 @@ internal static class GlbReader
+                 throw new GlbException($"image {index} does not decode: {ex.Message}");
+             }
+ 
++            if (System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_RECOLOR_BYTES") == bytes.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
++            {
++                string mode = System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_RECOLOR_MODE") ?? "blue";
++                for (int i = 0; i + 3 < result.Data.Length; i += 4)
++                {
++                    byte r = result.Data[i], g = result.Data[i + 1], b = result.Data[i + 2];
++                    if (mode == "black") { result.Data[i] = 0; result.Data[i + 1] = 0; result.Data[i + 2] = 0; }
++                    else if (mode == "gray") { byte y = (byte)((r * 54 + g * 183 + b * 19) >> 8); result.Data[i] = y; result.Data[i + 1] = y; result.Data[i + 2] = y; }
++                    else { result.Data[i] = b; result.Data[i + 2] = r; }
++                }
++            }
+             return new(Width: result.Width, Height: result.Height, Rgba: result.Data, Srgb: srgb);
+         }
+ 
+diff --git a/src/Tertius.Host/ScriptCommand.cs b/src/Tertius.Host/ScriptCommand.cs
+index 0adf92ba5..e9ee3af4a 100644
+--- a/src/Tertius.Host/ScriptCommand.cs
++++ b/src/Tertius.Host/ScriptCommand.cs
+@@ -537,6 +537,8 @@ public static partial class ScriptCommand
+                 handedOver: () =>
+                 {
+                     readings.Add(renderer.LastFrameStats);
++                    if (System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_VOLUME_FRAME") == readings.Exposures.Count.ToString(System.Globalization.CultureInfo.InvariantCulture))
++                        renderer.DebugDumpVolume(System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_VOLUME_DUMP") ?? "volume.bin");
+                     // The timed span starts after the first shown frame, which holds the creation of the pipelines and
+                     // the warm-up draws of a still at the GPU's low clock.
+                     if (readings.Exposures.Count == 1)
+diff --git a/src/Tertius.Rendering/Scene/SceneBatcher.cs b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+index 5db68a5b9..d98587018 100644
+--- a/src/Tertius.Rendering/Scene/SceneBatcher.cs
++++ b/src/Tertius.Rendering/Scene/SceneBatcher.cs
+@@ -1666,7 +1666,7 @@ internal sealed class SceneBatcher(
+             ),
+             // The normal offset holds for the cascades and the tiles alike, so it is set in every frame, also in one
+             // without cascades. The shadow pass fills in the rest when it draws the cascades.
+-            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: 0f),
++            ShadowParams = new(x: 0f, y: ShadowBias.NormalOffsetTexels, z: 0f, w: float.Parse(System.Environment.GetEnvironmentVariable("TERTIUS_DEBUG_COMPOSITE") ?? "0", System.Globalization.CultureInfo.InvariantCulture)),
+             // The shadow pass fills in the cascades when it draws them.
+             Counts = new(
+                 X: (uint)scene.LightCount,
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index c5d937a9a..b019bf66d 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -94,6 +94,20 @@ void main()
+ #ifdef LIGHT_VOLUME
+     applyLightVolume(s, V, factors, screenTraceOn, indirectDiffuse, indirectSpecular);
+ #endif
++    int debugMode = int(frame.shadowParams.w + 0.5);
++    if (debugMode != 0)
++    {
++        vec3 vd = vec3(0), vs = vec3(0);
++#ifdef LIGHT_VOLUME
++        applyLightVolume(s, V, factors, screenTraceOn, vd, vs);
++#endif
++        vec3 value = debugMode == 1 ? s.position : debugMode == 2 ? s.normal : debugMode == 3 ? s.geometricNormal
++                   : debugMode == 4 ? vd : debugMode == 5 ? vs : debugMode == 6 ? vec3(s.roughness, factors.diffuse.r, factors.specular.r)
++                   : directDiffuse + directSpecular;
++        outColor = vec4(value, 1.0);
++        writeDiffuse(vec4(0.0));
++        return;
++    }
+     float share = glossyShare(s.roughness);
+     if (screenTraceOn && share > 0.0)
+     {
+diff --git a/src/Tertius.Rendering/VulkanRenderer.cs b/src/Tertius.Rendering/VulkanRenderer.cs
+index 1a699cf53..97ba7f4f5 100644
+--- a/src/Tertius.Rendering/VulkanRenderer.cs
++++ b/src/Tertius.Rendering/VulkanRenderer.cs
+@@ -1323,6 +1323,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
+                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+         );
+ 
++    public void DebugDumpVolume(string path)
++    {
++        uint[] words = ReadBufferWords(Graph.Passes.OfType<LightVolumePass>().Single().Buffer);
++        System.IO.File.WriteAllBytes(path, System.Runtime.InteropServices.MemoryMarshal.AsBytes(words.AsSpan()).ToArray());
++        float[] hdr = ReadHdr();
++        System.IO.File.WriteAllBytes(path + ".hdr", System.Runtime.InteropServices.MemoryMarshal.AsBytes(hdr.AsSpan()).ToArray());
++    }
++
++    internal uint[] ReadVolumeBufferForProbe() => ReadBufferWords(Graph.Passes.OfType<LightVolumePass>().Single().Buffer);
++
+     internal uint ReadVolumeLightEvaluations() =>
+         ReadBufferWords(
+             Graph.Passes.OfType<LightVolumePass>().Single().Buffer,
