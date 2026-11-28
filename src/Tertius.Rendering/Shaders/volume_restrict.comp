@@ -29,13 +29,13 @@ void main()
         ivec3 c = first + ivec3(i & 1, (i >> 1) & 1, i >> 2);
         if (!withinGrid(level - 1, c))
             continue;
-        SurfaceBucket sampleBucket = volume.surfaces[(firstCellOf(level - 1) + cellIndex(level - 1, c)) * 6 + side];
+        SurfaceBucket sampleBucket = volume.surfaces[bucketIndex(level - 1, c, side)];
         areaNormal += vec4(sampleBucket.areaNormal);
         color += vec4(sampleBucket.color);
         source += uintBitsToFloat(sampleBucket.source.rgb);
     }
     // One parent face covers four child faces. Preserve shell geometry already in this cell.
-    int target = (firstCellOf(level) + cell) * 6 + side;
+    int target = bucketIndex(level, coordinates(level, cell), side);
     volume.surfaces[target].areaNormal += ivec4(round(areaNormal * 0.25));
     volume.surfaces[target].color += uvec4(round(color * 0.25));
     volume.surfaces[target].source.rgb = floatBitsToUint(uintBitsToFloat(volume.surfaces[target].source.rgb) + source * 0.25);

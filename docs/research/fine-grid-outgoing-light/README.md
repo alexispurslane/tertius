@@ -15,7 +15,7 @@ Both tests fail on `d3123fe715dea1fd141649271c315096712d72a2`. Four controls pas
 
 ## The change
 
-The fix (`3b9e7c8ff`) evaluates direct light in each grid before the grids combine. For each lighting group, the shading pass computes the light on a unit white diffuse surface, as before. Then it multiplies that light by each cell's own diffuse reflectance, applies the restraint (`restrainNeutral`), adds emission, and stores the area-weighted outgoing light in the words that held area-weighted emission after the raster. The restriction pass then adds a quarter of each child face's area, reflectance and outgoing light to its parent face, because one parent face covers four child faces. A parent cell that also holds geometry from its own shell keeps that geometry's outgoing light and adds the children's. The volume buffer no longer holds the white-light array of the lighting groups, so it shrinks by 33,024 bytes, from 15,291,200 to 15,258,176 bytes.
+The fix (`3b9e7c8ff`) evaluates direct light in each grid before the grids combine. For each lighting group, the shading pass computes the light on a unit white diffuse surface, as before. Then it multiplies that light by each cell's own diffuse reflectance, applies the restraint (`restrainNeutral`), adds emission, and stores the area-weighted outgoing light in the words that held area-weighted emission after the raster. The restriction pass then adds a quarter of each child face's area, reflectance and outgoing light to its parent face, because one parent face covers four child faces. A parent cell that also holds geometry from its own shell keeps that geometry's outgoing light and adds the children's. The volume buffer no longer holds the white-light array of the lighting groups, so it shrinks by 33,024 bytes, from 15,291,200 to 15,258,176 bytes. The change also splits the restraint in the second sweep, in every grid: it now acts on a cell's direct diffuse light in the shading pass and on its bounce light in the second sweep, where the baseline restrained their sum once. No test pins this, because #42 redefines what the restraint acts on.
 
 ## Probe scene
 
@@ -125,11 +125,12 @@ In the scene-linear frame, pixels within 2 m of the camera change by at most 0.0
 The probe is a diagnostic. It stays out of the engine. `tools/prepare-render.py` writes the probe scenes into the Demo and a readback into `VulkanRenderer` that writes the volume buffer, the HDR image, the depth and the camera after each frame when `TERTIUS_ISSUE22_VOLUME_DUMP` names a file. `tools/render-evidence.sh` applies the probe, renders the fix and then the baseline (the engine change reversed), and restores the checkout on exit. It needs no change under `src/` and writes to `captures/issue22/`. `tools/crossing-video.sh` films the crossing, and `tools/art-pair.sh` renders a still of a real-art script on both versions. `tools/mutants.json` lists the mutants of the change for `tools/mutate.py`.
 
 ```powershell
+$env:TERTIUS_CONTENT_ROOT = '<the content folder>'
 nix develop --command bash docs/research/fine-grid-outgoing-light/tools/render-evidence.sh
 nix develop --command bash docs/research/fine-grid-outgoing-light/tools/crossing-video.sh
 nix develop --command bash docs/research/fine-grid-outgoing-light/tools/art-pair.sh docs/research/fine-grid-outgoing-light/tools/cockpit-still.json cockpit --exposure 6.0043726
 nix develop --command bash docs/research/fine-grid-outgoing-light/tools/red-only.sh
-python3 -I docs/research/fine-grid-outgoing-light/tools/measure-volume.py captures/issue22/candidate/across/volume.bin --camera-x 0.2
+bash docs/research/fine-grid-outgoing-light/tools/measurements.sh
 ```
 
-`evidence/measurements.txt` holds the output of every reader for the captures above.
+`tools/measurements.sh` runs every reader on the captures and writes `evidence/measurements.txt`. `evidence/mutation.md` holds the mutation table. The full-art scripts need `TERTIUS_CONTENT_ROOT`.
