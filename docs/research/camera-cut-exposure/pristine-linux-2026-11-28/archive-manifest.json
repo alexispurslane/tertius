@@ -1,0 +1,178 @@
+{
+  "original_external_root": "/tmp/tertius-issue37-one-attempt",
+  "original_records": [
+    {
+      "path": "approval.json",
+      "bytes": 1962,
+      "sha256": "7a55d0232c20012c381ed1719369c07b7524acbaee0abf7428b4bc613c8a1711"
+    },
+    {
+      "path": "fresh-verification.json",
+      "bytes": 3002,
+      "sha256": "5909a47794454122dd344e7b44366c3ee4cc107e10d04d1e9272c4c20510a3e0"
+    },
+    {
+      "path": "canonical-audit.json",
+      "bytes": 5604,
+      "sha256": "d2bded37be013f6859461340c0a433a2caff80518da2e7817f114da244f90114"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 5762,
+      "sha256": "f855c8c195b019198e6dffa78382fd7659729ae16b8dc55c9e95d4dc345809ea"
+    },
+    {
+      "path": "canonical-argv.json",
+      "bytes": 4959,
+      "sha256": "06009dcbf879d66a0e58cd70d572cf3174b2ea9548e80f3ff2e0b1c76cb57452"
+    },
+    {
+      "path": "run_once.py",
+      "bytes": 7944,
+      "sha256": "db31d948557adc5b8218a4c3473634a69e0e2d0e48ffa5414702f63bba9507be"
+    },
+    {
+      "path": "submission-consumed.json",
+      "bytes": 230,
+      "sha256": "74787ef2c1db6731f5e403481d67db007ad3e12d66067cee38bd430959f72627"
+    },
+    {
+      "path": "canonical-exit.json",
+      "bytes": 89,
+      "sha256": "7ab6bf8ebb5cd4b4bcbbcc965927393dad5d9af5f09b2a837bc50bb2f4ccedca"
+    },
+    {
+      "path": "restoration.json",
+      "bytes": 816,
+      "sha256": "691b104713c6444fb7361bf5f80c97a8491b2c53cbcf5bd64ea6cf97661a8d54"
+    },
+    {
+      "path": "returned/result.json",
+      "bytes": 9456,
+      "sha256": "48f105360363b678abfba1af29e457557183cf299b71e43f235d05d10c10f12a"
+    }
+  ],
+  "files": [
+    {
+      "path": "analyzed.json",
+      "bytes": 9215,
+      "sha256": "94fdf6bda03cdcf9d9959857af66c957d6f55a3f72f11cfe7f98cefb51a9873c"
+    },
+    {
+      "path": "approval.json",
+      "bytes": 1962,
+      "sha256": "7a55d0232c20012c381ed1719369c07b7524acbaee0abf7428b4bc613c8a1711"
+    },
+    {
+      "path": "canonical-audit.json",
+      "bytes": 1286,
+      "sha256": "2758b1ddca816daffc32faf1d57708e40c04fb50854d5b28112993cb69c4b90e"
+    },
+    {
+      "path": "canonical-exit.json",
+      "bytes": 89,
+      "sha256": "7ab6bf8ebb5cd4b4bcbbcc965927393dad5d9af5f09b2a837bc50bb2f4ccedca"
+    },
+    {
+      "path": "canonical-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "canonical-stdout.log",
+      "bytes": 241,
+      "sha256": "86e3e04e84c2804afb25d1d53a2290dee346cac84e9475e4fabe517790687e71"
+    },
+    {
+      "path": "checkpoint.json",
+      "bytes": 185,
+      "sha256": "05d0aaf7ed0d5048ad5d0d99529ab873c9596eb016df0cf6252bf7cf067acc29"
+    },
+    {
+      "path": "client.json",
+      "bytes": 219,
+      "sha256": "4e1e6fb31bea3f1d5b6199796523c71d8f1aefebeaa5689d928c744767176649"
+    },
+    {
+      "path": "endpoints-after-before-cleanup.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "endpoints-after.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "endpoints-before.json",
+      "bytes": 610,
+      "sha256": "8a5d2a6c6cd3143a1e08af98fc90dc85cbb270a6695b601e4bc95fc343096ea6"
+    },
+    {
+      "path": "evidence-manifest.json",
+      "bytes": 7765,
+      "sha256": "6dc57edb29672afd0eadca59f8c45864eff322a836b4a170d201bd786bd8bd2b"
+    },
+    {
+      "path": "evidence-verification.json",
+      "bytes": 1294,
+      "sha256": "cec4507e234251f49b8d16ef9caa34f178cb2286f7092136b324c6e550925c6f"
+    },
+    {
+      "path": "evidence.tar.gz",
+      "bytes": 358027,
+      "sha256": "97dbfcf1b9836e6ea23a463ad78168a29cd32de3bde0541f0403ce56ff2856aa"
+    },
+    {
+      "path": "fresh-verification.json",
+      "bytes": 3002,
+      "sha256": "5909a47794454122dd344e7b44366c3ee4cc107e10d04d1e9272c4c20510a3e0"
+    },
+    {
+      "path": "no-live-command.json",
+      "bytes": 149,
+      "sha256": "a3d54423025a4fe59d9029704ec77b42aa5a805175dd97b0b681238620e6b6dc"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 1444,
+      "sha256": "9fad8e25d943b15e29969a06818d9303269143f59de01aceec728d81e44d0009"
+    },
+    {
+      "path": "restoration.json",
+      "bytes": 816,
+      "sha256": "691b104713c6444fb7361bf5f80c97a8491b2c53cbcf5bd64ea6cf97661a8d54"
+    },
+    {
+      "path": "result.json",
+      "bytes": 595,
+      "sha256": "461548f6b523e020f53a4b66b57bad70c134c3c9fe89f71a21cd1bf17ad7b87b"
+    },
+    {
+      "path": "status.json",
+      "bytes": 768,
+      "sha256": "e8ea75e66296120db72c539819a3337abb98c6091d7d8ee232a637164ba7ccd1"
+    },
+    {
+      "path": "submission-consumed.json",
+      "bytes": 230,
+      "sha256": "74787ef2c1db6731f5e403481d67db007ad3e12d66067cee38bd430959f72627"
+    },
+    {
+      "path": "terminal.json",
+      "bytes": 2210,
+      "sha256": "7bac4f2354aa4265161e249a06d952d2619679cd53956c9810553ab34fc0b13d"
+    },
+    {
+      "path": "wrapper-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "wrapper-stdout.log",
+      "bytes": 157,
+      "sha256": "53d731306a0f4b0f7dfd4fdcb180eee638f931c6aa3a77dcf3b157dcef740f2b"
+    }
+  ],
+  "note": "Manifest covers published machine evidence. README.md is narrative. Temporary endpoint config bytes, canonical argv and executable launch wrapper remain external. Returned evidence.tar.gz is byte-identical to the canonical return and carries its own 47-file evidence manifest plus that manifest as member 48."
+}

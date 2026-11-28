@@ -1,0 +1,36 @@
+{
+  "archive_entries": 48,
+  "manifest_evidence_files": 47,
+  "all_archived_hashes_verified": true,
+  "assets_unchanged": true,
+  "asset_sources_equal_across_pins": true,
+  "asset_sources_unchanged": true,
+  "cooked_manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+  "pristine_production_source_clean_both_pins": true,
+  "permitted_runtime_config_differences": [
+    {
+      "path": ".approval.authorized_submissions",
+      "source": 0,
+      "runtime": 1
+    },
+    {
+      "path": ".approval.issue4_explicit_paid_approval",
+      "source": false,
+      "runtime": true
+    },
+    {
+      "path": ".approval.coordinator_reviewed",
+      "source": false,
+      "runtime": true
+    }
+  ],
+  "fixture_csharp_sha256": "70cc38ab48e94728d9706609cd8d3f343eb2ab5ded8ad71f183f3e5dc11b106d",
+  "worker_sha256": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+  "analyzer_sha256": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+  "candidate_first_correct_count": 8,
+  "baseline_first_correct_count": 0,
+  "baseline_right_censored_count": 8,
+  "maximum_candidate_reference_error_stops": 3.940000000035582e-05,
+  "maximum_candidate_reference_error_srgb_code": 0,
+  "reviewed_head": "b262210823b2db859129a46388f1fc0bbb0ff858"
+}

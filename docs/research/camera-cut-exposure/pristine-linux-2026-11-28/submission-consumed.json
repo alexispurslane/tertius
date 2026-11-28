@@ -1,0 +1,7 @@
+{
+  "at": "2026-11-28T14:25:09.823640+00:00",
+  "authorized_attempt_consumed": true,
+  "maximum_submissions": 1,
+  "automatic_retry": false,
+  "command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c"
+}

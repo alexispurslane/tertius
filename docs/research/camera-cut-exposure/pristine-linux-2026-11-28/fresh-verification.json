@@ -1,0 +1,40 @@
+{
+  "at": "2026-11-28T14:24:52.080635+00:00",
+  "reviewed_clean_head": "b262210823b2db859129a46388f1fc0bbb0ff858",
+  "wrapper_sha256": "db31d948557adc5b8218a4c3473634a69e0e2d0e48ffa5414702f63bba9507be",
+  "approval_template_sha256": "33853b0ed0eca4498c51cc7f8fa128d92bcdb7d115b06b99e04b4ed111174fce",
+  "canonical_argv_sha256": "fb2624c14611b7cb4c4e6cb8f1605e63764c51f7fac1dc48c0bb58ebfc6018ab",
+  "command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c",
+  "command_bytes_including_nul": 4227,
+  "aggregate_reserved_bytes": 102685,
+  "http_bytes": 5219,
+  "pins": {
+    "before": "b002351eb48d33f008f8333e53e61345de3260cd",
+    "after": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "harness": "6f14335c629b25e36899699006c268026d33ce7e"
+  },
+  "payloads": {
+    "worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "fixture.py": "9d8cb9346ec7ade2fb5d430cd7fe044a581570989019da4a86c9edd931d1ee5f",
+    "analyze_runs.py": "b97ee302a35e6dddf3fdc4ab1ba424479deb114af460d9cafbca6fed182312af",
+    "config.json": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+    "linux-scripts/issue4-cut-first-present.json": "9dd8ea5ae9f701fa2578da55e8aed7143791f5f6d4d65f36c45f2869bb8ff480",
+    "linux-scripts/issue4-cut-outside-control.json": "60ef4f88409a52aec52892ade737e9486ce0d97a7bd45ccd4e8076bf1ced6929",
+    "linux-scripts/issue4-cut-return-control.json": "43cdbbfce0d8f2e80e8244813c42bcece12248487118f9fb31558da1fc50f791",
+    "retained-diagnostics/diagnostic-after/fsr/cut/rows.json.gz": "53975b28d872c4f3b8a93cc807cdf1ba1229ceca9de05ce9baddd117d7431174",
+    "retained-diagnostics/diagnostic-after/fsr/steady/rows.json.gz": "8a79e8a777b02286ac387ae4121fcd21b1cb27ae6007429a3fb32c2e52817c54",
+    "retained-diagnostics/diagnostic-after/native/cut/rows.json.gz": "1fb8c4261240cf1a64de4cddfbf425075d2db7b18e28ae71e9c28f4a0d7b8a47",
+    "retained-diagnostics/diagnostic-after/native/steady/rows.json.gz": "eb8f223728c93fe3ebe89b6fb3e9022e3cefd05420d15d9004ee2485b364637d",
+    "retained-diagnostics/diagnostic-before/fsr/cut/rows.json.gz": "c26b5e6dda864756ee8359925071af59f0f6669dcedf162978a02c9a4a1fd722",
+    "retained-diagnostics/diagnostic-before/fsr/steady/rows.json.gz": "d58af38fe8e20d594db0f0f28d84f96af35db457b984d207173d23f5dd8d1147",
+    "retained-diagnostics/diagnostic-before/native/cut/rows.json.gz": "26782b8a3ff493b202a39e9c7799a734ee0efe724b5297d435c9bb1ba60c6b27",
+    "retained-diagnostics/diagnostic-before/native/steady/rows.json.gz": "1a439b6a87e64f158c5ffef8c0925d111902cc25340d07dbc370f326b49f6aa6"
+  },
+  "original_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "temporary_config_sha256": "6cc6990f6a024f9cb6c326de260612047841dc42c1eaa395bfd3402024776c6b",
+  "budget_refusal": null,
+  "maximum_modeled_usd": 0.328,
+  "original_endpoint_defaults_verified": true,
+  "paid_submissions_before": 0,
+  "other_gpu_submissions_from_checkout": "paused until restoration"
+}

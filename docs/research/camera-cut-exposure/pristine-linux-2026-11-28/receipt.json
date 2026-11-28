@@ -1,0 +1,38 @@
+{
+  "time": "2026-11-28T14:25:09.898516+00:00",
+  "agent": "issue4-exposure",
+  "kind": "gpu",
+  "endpoint": "shmmav4u60m5u8",
+  "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+  "trees": {
+    "before": {
+      "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/b002351eb48d33f008f8333e53e61345de3260cd",
+      "sha": "b002351eb48d33f008f8333e53e61345de3260cd"
+    },
+    "after": {
+      "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/588b6d2747560c73aac542fb25ce80eec1ba8db7",
+      "sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7"
+    },
+    "harness": {
+      "ref": "refs/gpu-jobs/2026-11-28/issue4-exposure/6f14335c629b25e36899699006c268026d33ce7e",
+      "sha": "6f14335c629b25e36899699006c268026d33ce7e"
+    }
+  },
+  "outputs": [
+    "linux-out/return/*"
+  ],
+  "worstCaseUsd": 0.328,
+  "jobId": "f236f0d9-689b-43ad-9bd4-58f0fd11d73e-u2",
+  "expires": "2026-11-28T16:58:09.898701+00:00",
+  "name": "ff3b906e957a4bec9508c24cfb00477a",
+  "client_tmux": "issue4-pristine-once-1128",
+  "client_metadata": "/private/tmp/tertius-issue37-one-attempt",
+  "command_seconds": 1920,
+  "execution_seconds": 1980,
+  "maximum_modeled_usd": 0.328,
+  "receipt_recorded": "2026-11-28T14:25:19.871228+00:00",
+  "command_sha256": [
+    "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c"
+  ],
+  "publication_note": "Embedded command omitted. Exact bytes remain in the original external record. This record retains command hashes."
+}
