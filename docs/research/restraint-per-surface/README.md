@@ -64,6 +64,35 @@ The volume holds much more light (`tools/volume-totals.py`). The 0.5 m grid's su
 
 So at this pose the gray self-lit panels do not lift the deck visibly. A pose that faces the floor's glow strips can show more. This set does not measure that.
 
+## Set 2: the two lamp scenes, Design 2 against the hybrid
+
+Both scenes keep the layout of the #22 probe (`tools/prepare-render.py`). A gray receiver panel (reflectance 0.65) stands 3 m ahead of the camera. A wall 0.48 m wide stands 1.9 m ahead, where the probe's slabs stand, outside the picture on the right. One star lights the wall's face that looks at the receiver, and its light does not reach the receiver's front. So the receiver shows only the wall's bounce light. The exposure is fixed at EV 0, with no environment map, no screen tracer and no upscaling, at the "outside" camera pose. Glow plays no part: no surface emits. Every variant at commit `7f7a3979e` and gain 1.
+
+**Warm-white lamp (1, 0.9, 0.8) on a beige wall (0.7, 0.6, 0.5):**
+
+![warm-white lamp: today, Design 2, hybrid](evidence/warm-white-lamp.png)
+
+**Orange lamp (1, 0.4, 0) on a gray wall (0.8, 0.8, 0.8):**
+
+![orange lamp: today, Design 2, hybrid](evidence/orange-lamp.png)
+
+The receiver's mean scene-linear RGB in W/(m² sr) (`tools/stills.py`; the region is the panel from x = 1/16 to 5/8 and y = 1/9 to 5/6 of the frame), at the two camera poses:
+
+| Scene | Variant | Receiver RGB, outside | Saturation | Receiver RGB, across | Saturation |
+|---|---|---|---:|---|---:|
+| warm-white on beige | today | (0.0193, 0.0149, 0.0111) | 0.43 | (0.0182, 0.0141, 0.0104) | 0.43 |
+| warm-white on beige | Design 2 | (0.4252, 0.2043, 0.0110) | 0.97 | (0.4015, 0.1930, 0.0104) | 0.97 |
+| warm-white on beige | hybrid | (0.0155, 0.0155, 0.0155) | 0.00 | (0.0146, 0.0146, 0.0146) | 0.00 |
+| orange on gray | today | (1.1064, 0.4426, 0) | 1.00 | (1.0441, 0.4177, 0) | 1.00 |
+| orange on gray | Design 2 | (1.1043, 0.4417, 0) | 1.00 | (1.0428, 0.4171, 0) | 1.00 |
+| orange on gray | hybrid | (1.1043, 0.4417, 0) | 1.00 | (1.0428, 0.4171, 0) | 1.00 |
+
+What the pictures show:
+
+- Warm-white on beige decides between the two. Design 2 keeps the whole colored part of the beige paint under the warm light. The receiver gets 22 times today's red and turns strong orange at saturation 0.97. The hybrid's knees drop the faint tint of the paint (saturation 0.29) and of the light (saturation 0.2) into the gray level. So the hybrid holds the scene back like today, at about the same luminance, but neutral gray instead of today's faint warm tint.
+- Orange on gray is the same in all three. Today keeps this light already, because the lamp's light is saturated, and both new rules keep it in full too. The 0.2% difference between today and the new rules comes from the second bounce.
+- The two poses differ by 5 to 6% in every row and every variant alike. The receiver region shows a different part of the panel when the camera moves 0.15 m, so this difference is the view and not the restraint.
+
 ## Reproduce
 
 `tools/render-variant.sh` applies the probe of #22 (`docs/research/fine-grid-outgoing-light/tools/prepare-render.py`) and adds the two lamp scenes (`tools/prepare-render.py`), sets the two constants, builds the Demo and renders the sets that it names. It restores the checkout on exit.
@@ -87,4 +116,5 @@ nix develop --command python3 -I docs/research/fine-grid-outgoing-light/tools/me
 | `tools/stills.py` | The whole frame's and the receiver's mean scene-linear RGB, with saturation. |
 | `tools/deck-shift.py` | The color shift of the deck between two variants, by region, and the display difference times 16. |
 | `tools/volume-totals.py` | The summed outgoing light that each grid holds. |
+| `tools/sheet.sh` | One labeled row of stills of one capture from several variants. |
 | `tools/take.sh` | A list of `render-variant.sh` calls in one take, with logs in `captures/issue42/logs/`. |
