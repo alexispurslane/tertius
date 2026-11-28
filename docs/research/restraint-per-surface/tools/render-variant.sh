@@ -10,6 +10,9 @@
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
 # Writes captures/issue42/v<variant>-g<gain>/<name>/. Needs no change under src/, and restores it on exit.
+# Each finished case leaves the file .done in its folder, and a later run skips it, so a take can resume after a restart.
+# Before each render it waits while any other Tertius.Demo render or Tertius.Rendering.Tests run exists on the machine
+# (one GPU job at a time).
 set -euo pipefail
 variant=$1
 gain=$2
@@ -43,15 +46,25 @@ EOF
 dotnet build src/Tertius.Demo -c Release -v quiet
 mkdir -p "$out"
 
+gpu_free() {
+    while pgrep -f 'Tertius.Demo.*--headless|Tertius.Rendering.Tests' > /dev/null; do
+        echo "$(date +%T) waiting: another GPU job runs"
+        sleep 30
+    done
+}
 render() {
     local dir=$1
     local script=$2
     shift 2
+    [[ -f "$dir/.done" ]] && return 0
+    rm -rf "$dir"
     mkdir -p "$dir"
+    gpu_free
     env TERTIUS_LIGHT_VOLUME=1 TERTIUS_ISSUE22_VOLUME_DUMP="$dir/volume.bin" TERTIUS_ISSUE22_PIXEL_DUMP=1 \
         bash tools/gpu-lock.sh --shared "$dir/render.log" \
         dotnet run --project src/Tertius.Demo -c Release --no-build -- \
         --script "$script" --headless --out "$dir" "$@"
+    touch "$dir/.done"
 }
 probe=(--exposure 0 --environment-map off --upscaling off --screen-trace off)
 for set in "$@"; do
@@ -71,11 +84,15 @@ for set in "$@"; do
         done
         ;;
     crossing)
+        [[ -f "$out/crossing/.done" ]] && continue
+        rm -rf "$out/crossing" "$out/crossing.mkv"
         mkdir -p "$out/crossing"
+        gpu_free
         env TERTIUS_LIGHT_VOLUME=1 bash tools/gpu-lock.sh --shared "$out/crossing/render.log" \
             dotnet run --project src/Tertius.Demo -c Release --no-build -- \
             --script "$PWD/captures/issue22/crossing.json" --headless --out "$out/crossing" \
             --video "$out/crossing.mkv" --fps 60 "${probe[@]}"
+        touch "$out/crossing/.done"
         ;;
     deck)
         TERTIUS_CONTENT_ROOT="$content" render "$out/deck" "$tools/deck-still.json" --size 1280x720
