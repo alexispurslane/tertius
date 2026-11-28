@@ -79,6 +79,7 @@ float volumeTransmissionAt(vec3 position, vec3 geometricNormal, vec3 direction)
     }
     return clamp(transmission, 0.0, 1.0);
 }
+// Apply the volume's scene-unit radiance and environment transmission to scene-unit surface light.
 void applyLightVolume(
     ShadingInput s, vec3 view, MaterialFactors factors, bool replaceGlossy, inout vec3 diffuse, inout vec3 specular)
 {
@@ -100,11 +101,11 @@ void applyLightVolume(
         g += weight * (lg - vec4(0, 0, 0, 1));
         remaining -= weight;
     }
-    diffuse = clamp(d.a, 0.0, 1.0) * diffuse + factors.diffuse * preExposed(max(d.rgb, vec3(0)));
+    diffuse = clamp(d.a, 0.0, 1.0) * diffuse + factors.diffuse * max(d.rgb, vec3(0));
     if (needsSpecular)
     {
         float open = clamp(g.a, 0.0, 1.0);
-        vec3 broad = open * specular + factors.specular * preExposed(max(g.rgb, vec3(0)));
+        vec3 broad = open * specular + factors.specular * max(g.rgb, vec3(0));
         // When glossy reflections will not replace this specular term, keep volume transmission without coarse volume radiance.
         specular = replaceGlossy ? broad : mix(broad, open * specular, share);
     }

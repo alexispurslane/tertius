@@ -45,9 +45,9 @@ void main()
     // haze"): it stands in for none of the haze's light.
     vec3 radiance = throughAir(light, vec3(0.0), center, vec3(0.0));
     // Puffs that overlap add in the blend unit, so each takes an equal share of the puffs' budget, and all the puffs over
-    // a pixel add at most ShaderInput.PuffBudget, half of MaxRadiance, before the blend rounds (ARCHITECTURE.md,
+    // a pixel add at most ShaderInput.PuffBudget in scene units, before the blend rounds (ARCHITECTURE.md,
     // "Portable Vulkan").
-    outRadiance = exposed(radiance, exposureScale(), frame.params.x);
+    outRadiance = exposed(radiance, 1.0, frame.params.x);
     outRadius = radius;
     gl_Position = draw.viewProj * vec4(world, 1.0);
 }

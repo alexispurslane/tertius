@@ -1,7 +1,7 @@
 #version 460
 // The direct pass (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7): the direct light of each lit pixel in its two parts, the
-// diffuse and the specular light of every light of the main view with its shadows, as the loop of the forward passes takes
-// them, each divided by its material factor and pre-exposed (RenderTargets.DirectDiffuse and DirectSpecular). No ambient
+// diffuse and specular radiance of every light of the main view with its shadows, as the forward passes compute
+// them. Both images hold actual scene radiance, before exposure and without material-factor division. No ambient
 // light and no emission: the composite adds both.
 #extension GL_GOOGLE_include_directive : require
 #include "frame.glsl"
@@ -29,8 +29,6 @@ void main()
     vec3 V = -normalize(s.position);
     SurfaceLobes lobes = lobesOf(s, V);
     DirectTerms direct = directLight(s, lobes, V, ShadowMapsMainView, MainView);
-    MaterialFactors factors = materialFactors(s, lobes);
-    float k = exposureScale();
-    outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
-    outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
+    outDiffuse = vec4(direct.diffuse, 1.0);
+    outSpecular = vec4(direct.specular, 1.0);
 }

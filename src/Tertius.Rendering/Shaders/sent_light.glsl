@@ -25,7 +25,7 @@ Reprojection surfaceReprojectionAt(ivec2 pixel)
 // its light.
 vec3 glowAt(ivec2 pixel)
 {
-    return glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+    return glowSent(preExposed(texelFetch(gbufferEmissive, pixel, 0).rgb), lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
 }
 
 // The fresh diffuse light that the pixel q sends: its glow and directDiffuse, its direct diffuse light times its diffuse

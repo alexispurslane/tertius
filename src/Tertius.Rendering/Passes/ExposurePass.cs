@@ -62,6 +62,7 @@ internal sealed unsafe class ExposurePass : RenderPass
 
         barriers.Image(context.Targets.Hdr, ImageUse.SampledCompute);
         barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         barriers.Buffer(histogram, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         BindSets(context);
@@ -81,9 +82,6 @@ internal sealed unsafe class ExposurePass : RenderPass
             groupCountY: MeterGroups(extent.Height),
             groupCountZ: 1
         );
-
-        if (context.Targets.Upscale is null)
-            Adapt(context);
     }
 
     public void Adapt(FrameContext context)

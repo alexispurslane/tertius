@@ -18,7 +18,6 @@ void main()
         return;
     vec3 scattered = scatterAlong(pixel, ivec2(0, 1), imageLoad(rowImage, pixel).rgb);
     vec4 lit = imageLoad(hdrImage, pixel);
-    // Every input is finite and at most 2 · MaxRadiance, so the clamp acts on finite values (https://github.com/alexispurslane/tertius/wiki/skin-and-hair,
-    // "Portable Vulkan").
-    imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + scattered - diffuse.rgb, 0.0, MaxRadiance), lit.a));
+    // Scene inputs and the normalized kernel keep the update finite. Remove only negative subtraction roundoff.
+    imageStore(hdrImage, pixel, vec4(max(lit.rgb + scattered - diffuse.rgb, vec3(0.0)), lit.a));
 }

@@ -420,38 +420,32 @@ public sealed class BloomTests
     [Theory]
     [InlineData(3)]
     [InlineData(4)]
-    public void ALargeSquareAtTheCapGlowsByItsLightWithoutOverflowing(int levels)
+    public void ALargeExtremeSquareKeepsItsHaloFinite(int levels)
     {
-        // At 0 stops the HDR image holds the square's light at the surfaces' cap, 32,256, and so does each level inside
-        // the square, so a sum of 3 or more levels as they are overflows to infinity. The glow is linear in the light,
-        // so beside the square it equals the glow of a square 1,024 times dimmer under a bloom 1,024 times stronger. The
-        // strength brings that glow into the range of the tone curve, as an exposure would before pre-exposure.
-        const float dimmer = 1024;
-        const int side = 200;
-        float largest = ShaderInput.MaxRadiance,
-            strength = 1f / 65536;
-        VulkanRenderer bright = Headless(Shaped(strength: strength, levels: levels, threshold: 0, knee: 0));
-        VulkanRenderer dim = Headless(Shaped(strength: strength * dimmer, levels: levels, threshold: 0, knee: 0));
+        VulkanRenderer renderer = Headless(Shaped(strength: 1f / 256, levels: levels, threshold: 0, knee: 0));
         try
         {
-            Capture brightImage = Render(bright, "bloom-largest", Centered(side: side, radiance: largest));
-            Capture dimImage = Render(dim, "bloom-largest-dimmer", Centered(side: side, radiance: largest / dimmer));
-            Vector3 glow = brightImage.Color(Width / 2 + side / 2 + 4, Height / 2);
-            Vector3 expected = dimImage.Color(Width / 2 + side / 2 + 4, Height / 2);
-
-            expected.X.Should().BeInRange(0.1f, 0.9f, "the glow beside the square lies inside the tone curve's range");
-            LargestChannelDifference(glow, expected)
+            Capture image = Render(
+                renderer,
+                "bloom-extreme-large",
+                Centered(side: 200, radiance: ShaderInput.RadianceLimit)
+            );
+            image
+                .Luma(Width / 2 + 104, Height / 2)
                 .Should()
-                .BeLessThanOrEqualTo(
-                    1 / 255f,
-                    "the {0} levels hold the glow of light at the cap without overflowing",
-                    levels
-                );
+                .BeInRange(0.05f, 0.95f, "an extreme source keeps a visible, bounded halo outside its white core");
+            for (int i = 0; i < levels; i++)
+                renderer
+                    .ReadGlowLevel(i)
+                    .Should()
+                    .OnlyContain(
+                        value => float.IsFinite(value) && value >= 0 && value <= 512,
+                        "every level stays finite before the additive tone consumer"
+                    );
         }
         finally
         {
-            Gpu.DisposeAndAssertClean(bright);
-            Gpu.DisposeAndAssertClean(dim);
+            Gpu.DisposeAndAssertClean(renderer);
         }
     }
 

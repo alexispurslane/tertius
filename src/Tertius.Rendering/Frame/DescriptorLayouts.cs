@@ -321,6 +321,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "key fill tiles layout"
         );
 
+        FsrInputLayout = ComputeLayout<Extent2D>(sets: [FrameSet, MeterSet], name: "FSR input layout");
+
         (SurfaceTestLayout, AccumulateLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -450,6 +452,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The post set plus <see cref="ToneMapPushConstants"/>.</summary>
     public PipelineLayout PostLayout { get; }
+
+    /// <summary>Converts scene radiance to the bounded exposed input that FSR consumes.</summary>
+    public PipelineLayout FsrInputLayout { get; }
 
     /// <summary>The glow source set plus <see cref="BloomPushConstants"/>.</summary>
     public PipelineLayout BloomLayout { get; }
@@ -942,12 +947,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "overlay layout"
         );
         PipelineLayout postLayout = CreatePipelineLayout(
-            sets: [PostSet],
+            sets: [FrameSet, PostSet],
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()),
             name: "post layout"
         );
         PipelineLayout bloomLayout = CreatePipelineLayout(
-            sets: [GlowSourceSet],
+            sets: [FrameSet, GlowSourceSet],
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
             name: "bloom layout"
         );
@@ -1053,7 +1058,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
-                3 * PyramidLevelSets
+                2
+                    + 3 * PyramidLevelSets
                     + Pyramids * PyramidTail.Mips
                     + 4 * EnvironmentLevelsSets
                     + 3
@@ -1110,6 +1116,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
+            StorageImage(binding: 2),
+            StorageImage(binding: 3),
         ];
         Span<DescriptorSetLayoutBinding> exposure =
         [

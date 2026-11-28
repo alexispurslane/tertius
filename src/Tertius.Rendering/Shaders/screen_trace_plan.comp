@@ -22,8 +22,7 @@ const float LightChangeShare = 0.02;
 const float LeastFootprintWeight = 1.0 / 64.0;
 
 // The exact light at the pixel, the light that has no noise in a still scene: the luminance of the demodulated direct
-// diffuse light and of the glow that the pixel sends, with the pre-exposure undone, so that an exposure change is no light
-// change. It leaves out the direct specular light, which moves with the eye, and every history, which holds noisy bounced
+// diffuse light and of the glow that the pixel sends, in scene units, so an exposure change is no light change. It leaves out the direct specular light, which moves with the eye, and every history, which holds noisy bounced
 // light. An impostor's light is its glow, as at a hit. The sky has none: −1.
 float exactLightAt(ivec2 pixel)
 {
@@ -31,8 +30,13 @@ float exactLightAt(ivec2 pixel)
         return -1.0;
     vec3 light = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
     if (texelFetch(gbufferBaseColor, pixel, 0).a != 0.0)
-        light += imageLoad(directDiffuseLight, pixel).rgb;
-    return luminance(light) / exposureScale();
+    {
+        ShadingInput s = materialAt(pixel);
+        MaterialFactors factors = materialFactors(s, lobesOf(s, -normalize(s.position)));
+        vec3 factor = max(factors.diffuse, vec3(LeastFactor));
+        light += imageLoad(directDiffuseLight, pixel).rgb / factor;
+    }
+    return luminance(light);
 }
 
 // Whether the light leaves the range from `least` to `most` by more than LightChangeShare of the range's end and by more

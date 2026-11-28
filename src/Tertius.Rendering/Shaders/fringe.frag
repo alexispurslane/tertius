@@ -36,13 +36,12 @@ void main()
     float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
     if (opaqueDistance > 0.0 && length(inPosition - draw.eye.xyz) > opaqueDistance)
         discard;
-    float exposure = exposureScale();
     // surfaceRadiance caps the light at MaxRadiance, so the fringe writes at most MaxRadiance · a = MaxRadiance · (1 − T):
     // the glass's bound, which keeps the blend inside the half float's range (ARCHITECTURE.md, "Portable Vulkan").
-    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), V, ShadowMapsMainView, exposure);
+    vec3 radiance = surfaceRadiance(shading, s.emissive, V, ShadowMapsMainView);
     // The haze between the eye and the fringe stands in for the share that it covers, as for a pane
-    // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"). Each part is at most MaxRadiance · a, and so is their convex sum.
-    vec3 seen = throughAir(radiance * coverage, vec3(coverage), inPosition, exposed(frame.atmosphere.haze.rgb, exposure));
+    // (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The haze"). This is a convex mixture in scene units.
+    vec3 seen = throughAir(radiance * coverage, vec3(coverage), inPosition, frame.atmosphere.haze.rgb);
     outColor = vec4(seen, 0.0);
     outTransmittance = vec4(vec3(1.0 - coverage), 0.0);
 }

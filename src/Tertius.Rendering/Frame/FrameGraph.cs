@@ -377,7 +377,6 @@ internal sealed class FrameGraph : IDisposable
         /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>
         Exposure,
         Upscale,
-        ExposureAdapt,
 
         /// <summary>
         /// After every pass that writes the HDR image, so that all bright light glows, and before the tone map, which adds the
@@ -386,6 +385,9 @@ internal sealed class FrameGraph : IDisposable
         /// </summary>
         Bloom,
         ToneMap,
+
+        /// <summary>Adapts the exposure for the next draw after every display consumer has read the current exposure.</summary>
+        ExposureAdapt,
 
         /// <summary>Debug drawing over the output image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,

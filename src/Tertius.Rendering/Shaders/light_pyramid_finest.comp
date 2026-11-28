@@ -1,7 +1,7 @@
 #version 460
 // The finest level of the light pyramid (light_pyramid.glsl): each pixel's guide light, the luminance of the fresh light
 // that the pixel sends toward a reflection ray, as a hit reads it without its history (sentDiffuseLight in sent_light.glsl):
-// this frame's direct diffuse light times the diffuse factor, and the glow, times the pixel's surface share. The sky holds
+// this frame's actual direct diffuse scene radiance, and the glow, times the pixel's surface share. The sky holds
 // none, and an impostor only its glow times its share. One invocation per pixel.
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
@@ -14,7 +14,7 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 3, binding = 0) uniform texture2D directDiffuseLight;            // demodulated and pre-exposed
+layout(set = 3, binding = 0) uniform texture2D directDiffuseLight;            // actual scene radiance
 layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // the finest level, the screen's size
 layout(set = 3, binding = 2, r16ui) uniform readonly uimage2D surfaceTest;    // the pass bits (signals.glsl)
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D motionTarget; // the G-buffer's motion target
@@ -28,9 +28,7 @@ float guideLightAt(ivec2 pixel)
     vec3 directDiffuse = vec3(0.0);
     if (texelFetch(gbufferBaseColor, pixel, 0).a != 0.0)
     {
-        ShadingInput s = materialAt(pixel);
-        vec3 V = -normalize(viewRayThrough(vec2(pixel) + 0.5));
-        directDiffuse = materialFactors(s, lobesOf(s, V)).diffuse * texelFetch(directDiffuseLight, pixel, 0).rgb;
+        directDiffuse = preExposed(texelFetch(directDiffuseLight, pixel, 0).rgb);
     }
     return luminance(min(sentDiffuseLight(pixel, directDiffuse, surfaceReprojectionAt(pixel)), vec3(MaxRadiance)));
 }

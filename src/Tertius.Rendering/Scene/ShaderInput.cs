@@ -10,9 +10,8 @@ namespace Tertius.Rendering;
 internal static class ShaderInput
 {
     /// <summary>
-    /// The most light per channel that the surfaces write into one pixel of the HDR image, the emissive target or the
-    /// impostor atlas: 32,256, `MaxRadiance` in Shaders/exposure.glsl. With twice <see cref="PuffBudget"/> it keeps each
-    /// pixel at or below 64,512, below the largest half float (ARCHITECTURE.md, "Portable Vulkan").
+    /// The retained half-float estimator budget per channel, 32,256, `MaxRadiance` in Shaders/exposure.glsl.
+    /// Original scene sources use RGBA32F without this cap. FSR input and bounded indirect estimates retain it.
     /// </summary>
     public const float MaxRadiance = 32256;
 
@@ -67,10 +66,12 @@ internal static class ShaderInput
 
     /// <summary>
     /// The C# copy of `exposed` in Shaders/exposure.glsl: <paramref name="radiance"/> times <paramref name="exposure"/>,
-    /// at most <see cref="MaxRadiance"/> per channel. The cap applies before the product, which stays in the float range.
+    /// at most <see cref="MaxRadiance"/> per channel. The factor selects which operand can be bounded without overflow.
     /// </summary>
     public static Vector3 Exposed(Vector3 radiance, float exposure) =>
-        Vector3.Min(radiance, new(MaxRadiance / exposure)) * exposure;
+        exposure <= 1
+            ? Vector3.Min(radiance * exposure, new(MaxRadiance))
+            : Vector3.Min(radiance, new(MaxRadiance / exposure)) * exposure;
 
     /// <summary>
     /// The light that a surface pass writes: <paramref name="radiance"/> exposed, plus <paramref name="preExposedLight"/>,

@@ -17,7 +17,7 @@
 // term (https://github.com/alexispurslane/tertius/wiki/environment-map, "The one source of the ambient light"). The forward passes read the ambient
 // light through ambientTerms, with every direction open. The deferred surfaces take their indirect light from the
 // screen tracer's signals, or from the closed form of temporal.glsl (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 9).
-// lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
+// lobesRadiance adds scene light before display exposure.
 //
 // A light's shadow slot says how its shadows dim it (shadows.glsl): a far light by its far shadows (a sphere per caster,
 // tested analytically) and, with a cascade set, within 2 km by its cascaded shadow maps, the two multiplied; a near light
@@ -45,12 +45,8 @@ const float RectPointDistanceRatio = 8.0;
 // RectView.PointRoughness: the roughness from which a far rectangle's shine is a point light's, not the LTC's.
 const float RectPointRoughness = 0.5;
 
-// ShaderInput.IrradianceLimit, 2^64: the most irradiance per channel in W/m² that one light gives a surface, and the most
-// face radiance per channel in W/(m²·sr) of a rectangle light. A point, spot or tube light's irradiance before the cap is
-// finite, at most 10^34 W/sr over the floor of 10^−4 m². A rectangle's face radiance can pass the float range before the
-// cap, 10^34 W/sr over a face of 10^−12 m², and min(+∞, cap) is the cap. Below the cap, the sum over every light of its
-// product with the response, its visibility and the exposure stays a finite single float: a rectangle's response per
-// unit of face radiance is at most about its albedo (ARCHITECTURE.md, "Portable Vulkan").
+// ShaderInput.IrradianceLimit, 2^64: the per-channel irradiance limit, or a rectangle's face-radiance limit.
+// exposed bounds the falloff product before multiplication. No overflowing operand reaches a later min.
 const float IrradianceLimit = 18446744073709551616.0;
 
 struct ShadingInput
@@ -427,7 +423,9 @@ void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out Lig
         if (nearestSq >= faceReach * faceReach)
             return;
         // A quarter of the face's area along its front.
-        vec3 front = cross(halfWidth, halfHeight);
+        float halfWidthLength = sqrt(widthSq);
+        float halfHeightLength = sqrt(heightSq);
+        vec3 front = cross(halfWidth / halfWidthLength, halfHeight / halfHeightLength);
         // Behind the face, or in its plane, where it fills no solid angle: the point's height over the plane, times the
         // half sides' lengths, is not above 0.
         if (dot(p.toCenter, front) >= 0.0)
@@ -437,7 +435,7 @@ void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out Lig
         p.halfWidth = halfWidth;
         p.halfHeight = halfHeight;
         // The peak intensity over the face's area is its face radiance.
-        falloff = window * window / (4.0 * length(front));
+        falloff = window * window / (4.0 * halfWidthLength * halfHeightLength);
     }
     else if (shape == TubeShape)
     {
@@ -474,12 +472,11 @@ void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out Lig
             // Cone.Of keeps cos(inner) above cos(outer), so the edges of smoothstep differ.
             falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-p.L, light.directionCosOuter.xyz));
     }
-    vec3 irradiance = light.intensityKind.rgb * falloff;
-    // The atmosphere's sun takes the air's tint at the lit point (https://github.com/alexispurslane/tertius/wiki/atmosphere, "The sun's tint"). The tint
-    // is at most 1, so the product stays finite.
+    vec3 intensity = light.intensityKind.rgb;
+    // Tint precedes the bounded falloff product, so the irradiance cap still applies after the atmosphere.
     if (tinted && index == frame.counts.y)
-        irradiance *= sunTintAt(position);
-    p.irradiance = min(irradiance, vec3(IrradianceLimit));
+        intensity *= sunTintAt(position);
+    p.irradiance = exposed(intensity, falloff, IrradianceLimit);
 }
 
 // sin ϕ of the angular radius ϕ of `light` at distance d from its center: R / d, at most 1 inside its sphere. The floor
@@ -675,7 +672,8 @@ DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
 bool rectShadesAsPoint(vec3 n, LightPath p)
 {
     float halfDiagonalSq = dot(p.halfWidth, p.halfWidth) + dot(p.halfHeight, p.halfHeight);
-    bool far = p.d * p.d >= RectPointDistanceRatio * RectPointDistanceRatio * halfDiagonalSq;
+    float distant = p.d / RectPointDistanceRatio;
+    bool far = distant * distant >= halfDiagonalSq;
     bool aboveHorizon = dot(n, p.toCenter) - abs(dot(n, p.halfWidth)) - abs(dot(n, p.halfHeight)) > 0.0;
     return far && aboveHorizon;
 }
@@ -689,8 +687,9 @@ bool rectShadesAsPoint(vec3 n, LightPath p)
 // rough surface also its shine: the sums cost the direct pass most of its time (ARCHITECTURE.md, "Rectangle lights").
 DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
 {
-    // In units of the center's distance, where the sums are the same and no product overflows.
-    float scale = 1.0 / max(p.d, 1e-6);
+    // A uniform geometry scale preserves the angular integrals and bounds near-face corners (ARCHITECTURE.md).
+    float extent = max(length(p.halfWidth), length(p.halfHeight));
+    float scale = 1.0 / max(max(p.d, extent), 1e-6);
     vec3 c = p.toCenter * scale;
     vec3 w = p.halfWidth * scale;
     vec3 h = p.halfHeight * scale;
@@ -809,8 +808,8 @@ DirectTerms modelLight(
 // of the list, then the tubes, then the rectangles, each in the order of the list, so the sum rounds the same way on
 // every run.
 // A light adds only where takesLight says. A hair card's shadow lookups take its geometric normal turned toward the
-// light, the side that the light sees (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
-// by its material factors into the direct light's images (Shaders/direct.frag).
+// light, the side that the light sees (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass stores
+// the two parts as actual scene radiance (Shaders/direct.frag).
 //
 // A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each
 // model has a loop of its own. Chosen per light inside one loop, the hair's code made the direct pass of demo-exit's deck
@@ -840,25 +839,16 @@ vec3 directSum(DirectTerms terms)
     return terms.diffuse + terms.specular;
 }
 
-// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
-// surfaces' share of the HDR image (exposure.glsl): the reflected light times `exposure`, plus `preExposedEmission`,
-// which the caller has already exposed and capped. The cap applies to the whole sum, because the share bounds what a
-// surface writes, whatever the parts.
-// The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
-// V points from the surface to the eye. Impostor captures pass ShadowMapsNone and an exposure of 1, because the atlas
-// stores radiance. The main view's opaque surfaces split the same cap over the direct and the ambient pass
-// (https://github.com/alexispurslane/tertius/wiki/screen-space-illumination, "The cap at MaxRadiance").
-vec3 lobesRadiance(
-    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 V, uint shadowMaps, float exposure)
+// Scene-referred radiance from a forward surface, before exposure. The direct sum uses the same finite
+// physical light bounds as the deferred direct pass. Environment lighting retains its existing estimator budget.
+vec3 lobesRadiance(ShadingInput s, SurfaceLobes lobes, vec3 emission, vec3 V, uint shadowMaps)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directSum(directLight(s, lobes, V, shadowMaps, MainView));
-    return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
+    return ambientLight(s, lobes, V) + directSum(directLight(s, lobes, V, shadowMaps, MainView)) + emission;
 }
 
-// lobesRadiance with the lobes of the material itself: every opaque surface.
-vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 V, uint shadowMaps, float exposure)
+vec3 surfaceRadiance(ShadingInput s, vec3 emission, vec3 V, uint shadowMaps)
 {
-    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, V, shadowMaps, exposure);
+    return lobesRadiance(s, lobesOf(s, V), emission, V, shadowMaps);
 }
 
 // The light that the lights that the view keeps send from a surface point toward V, plus its emission, in plain

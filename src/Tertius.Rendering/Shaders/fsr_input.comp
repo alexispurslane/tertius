@@ -1,0 +1,22 @@
+#version 460
+#extension GL_EXT_samplerless_texture_functions : require
+#extension GL_GOOGLE_include_directive : require
+#include "exposure.glsl"
+
+// FSR consumes exposed half-float color. The original HDR stays scene-referred for the meter and bloom.
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(set = 1, binding = 0) uniform texture2D sceneImage;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image2D exposedImage;
+layout(set = 1, binding = 3, rgba32f) uniform image2D opaqueImage;
+layout(push_constant, std430) uniform InputPush { uvec2 activeSize; } inputColor;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, ivec2(inputColor.activeSize))))
+        return;
+    vec4 color = texelFetch(sceneImage, pixel, 0);
+    vec4 opaque = imageLoad(opaqueImage, pixel);
+    imageStore(exposedImage, pixel, vec4(preExposed(color.rgb), color.a));
+    imageStore(opaqueImage, pixel, vec4(preExposed(opaque.rgb), opaque.a));
+}

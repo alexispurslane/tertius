@@ -210,7 +210,7 @@ public sealed class LightVolumeRenderTests
     }
 
     [Fact]
-    public void ChangingExposureScalesTheVolumesIndirectLightWithoutChangingItsWorldRadiance()
+    public void ChangingExposureKeepsTheVolumesSceneRadianceUnchanged()
     {
         float baseReflector = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 0);
         float boostedReflector = MeasureOffscreenReflectorRed(baseColor: Vector4.One, exposureStops: 4);
@@ -219,10 +219,10 @@ public sealed class LightVolumeRenderTests
 
         (boostedReflector / baseReflector)
             .Should()
-            .BeApproximately(16f, 0.4f, "four stops of exposure scale neutral diffuse bounce by 16x");
+            .BeApproximately(1f, 0.025f, "display exposure does not change the scene-referred diffuse bounce");
         (boostedEmitter / baseEmitter)
             .Should()
-            .BeApproximately(16f, 0.4f, "four stops of exposure scale neutral emission bounce by 16x");
+            .BeApproximately(1f, 0.025f, "display exposure does not change the scene-referred emission bounce");
     }
 
     [Fact]

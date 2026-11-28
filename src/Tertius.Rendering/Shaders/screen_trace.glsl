@@ -16,8 +16,8 @@
 
 layout(set = 3, binding = 0) uniform texture2D depthFinest;                    // RG32F: each pixel's center w and back w
 layout(set = 3, binding = 1) uniform texture2D depthPyramid;                   // RG32F, mip m = level m + 1
-layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLight;   // demodulated and pre-exposed
-layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;
+layout(set = 3, binding = 2, rgba32f) uniform readonly image2D directDiffuseLight;   // actual scene radiance
+layout(set = 3, binding = 3, rgba32f) uniform readonly image2D directSpecularLight;
 layout(set = 3, binding = 4, r16ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
 layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   // the G-buffer's motion target
 // The reprojected reflection from the previous frame.
@@ -458,19 +458,22 @@ SignalReprojections reprojectionsAt(ivec2 pixel)
 vec3 leavingLightOf(ivec2 q, ShadingInput s, vec3 V, SignalReprojections r)
 {
     MaterialFactors factors = materialFactors(s, lobesOf(s, V));
-    IndirectLight closedLight = closedForm(withAmbientFootprint(s, q), V);
+    IndirectLight closedLight = closedFormScene(withAmbientFootprint(s, q), V);
     vec3 indirectDiffuse = factors.diffuse * closedLight.diffuse;
     vec3 indirectSpecular = factors.specular * closedLight.specular;
     if (lightVolumeOn)
         applyLightVolume(s, V, factors, holdsHistory(r.specular), indirectDiffuse, indirectSpecular);
-    vec3 light = sentDiffuseLight(q, factors.diffuse * imageLoad(directDiffuseLight, q).rgb, r.diffuse)
+    // Only the tracer's estimator crosses into the bounded, pre-exposed encoding.
+    indirectDiffuse = preExposed(indirectDiffuse);
+    indirectSpecular = preExposed(indirectSpecular);
+    vec3 light = sentDiffuseLight(q, preExposed(imageLoad(directDiffuseLight, q).rgb), r.diffuse)
         + indirectDiffuse;
     float share = glossyShare(s.roughness);
     vec3 specular = indirectSpecular;
     if (share > 0.0 && holdsHistory(r.specular))
         specular = mix(specular, factors.specular * lastLightOf(r.specular), share);
     vec3 reflection = light
-        + factors.specular * (surfaceShare(r.diffuse) * imageLoad(directSpecularLight, q).rgb) + specular;
+        + surfaceShare(r.diffuse) * preExposed(imageLoad(directSpecularLight, q).rgb) + specular;
     return min(reflection, vec3(MaxRadiance));
 }
 

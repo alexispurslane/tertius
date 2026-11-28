@@ -22,7 +22,7 @@ namespace Tertius.Rendering;
 /// <item><term>specular</term><description>R8G8B8A8_UINT: the 8-bit codes of metallic, roughness r₀, reflectance and the lobe's
 /// sky share. The G-buffer pass rounds them itself: a UNORM store may take either of the two nearest codes, and a code
 /// apart moved a sharp highlight's tail by 14 % on NVIDIA (ticket ter-8esk).</description></item>
-/// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
+/// <item><term>emissive</term><description>R32G32B32A32_SFLOAT: emitted scene radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// <item><term>shading</term>
 /// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 1 in b where the pixel's entity holds a light, the
@@ -37,9 +37,9 @@ namespace Tertius.Rendering;
 /// </description></item>
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct light's images
-/// are R16G16B16A16_SFLOAT: the diffuse and the specular part of each lit pixel's direct light, each divided by its material
-/// factor and pre-exposed, 0 for sky and impostors, which the direct pass draws and the composite and the screen tracer
-/// read as storage images (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
+/// are R32G32B32A32_SFLOAT: actual diffuse and specular scene radiance at each lit pixel,
+/// 0 for sky and impostors, which the direct pass draws and the composite and the screen tracer
+/// read as storage images (https://github.com/alexispurslane/tertius/wiki/temporal-renderer, section 7). The diffuse image is R32G32B32A32_SFLOAT: the diffuse
 /// light D of each skin pixel, which the composite writes, and the skin mask, whose pixels the skin scatter spreads
 /// (https://github.com/alexispurslane/tertius/wiki/skin-and-hair, "The diffuse light D").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
@@ -52,20 +52,21 @@ internal sealed class RenderTargets : IDisposable
     public const Format BaseColorFormat = Format.R8G8B8A8Srgb;
     public const Format NormalFormat = Format.R16G16B16A16SNorm;
     public const Format SpecularFormat = Format.R8G8B8A8Uint;
-    public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;
+    public const Format EmissiveFormat = Format.R32G32B32A32Sfloat;
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format ShadingFormat = Format.R8G8B8A8Uint;
     public const Format MotionFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
-    public const Format HdrFormat = Format.R16G16B16A16Sfloat;
-    public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+    public const Format HdrFormat = Format.R32G32B32A32Sfloat;
+    public const Format GlowFormat = Format.R16G16B16A16Sfloat;
+    public const Format DiffuseFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>
     /// The back share's format: a color target format that the Vulkan spec requires, exact at 0 and at 1
     /// (https://github.com/alexispurslane/tertius/wiki/back-face-depth-layer, decision 9).
     /// </summary>
     public const Format BackShareFormat = Format.R16Sfloat;
-    public const Format DirectFormat = Format.R16G16B16A16Sfloat;
+    public const Format DirectFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>
     /// The color attachments per pass, and the outputs of a fragment shader, that the renderer asks of a device
@@ -185,8 +186,7 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Hdr { get; private set; }
 
     /// <summary>
-    /// The diffuse part of each lit pixel's direct light after the direct pass: rgb the light divided by the diffuse factor,
-    /// pre-exposed, a 1, and 0 for sky and impostors.
+    /// The diffuse part of each lit pixel's direct light after the direct pass: rgb actual scene radiance in W/(m² sr), a 1, and 0 for sky and impostors.
     /// </summary>
     public GpuImage DirectDiffuse { get; private set; }
 
@@ -288,7 +288,7 @@ internal sealed class RenderTargets : IDisposable
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular", readable: true);
-        Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
+        Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive", readable: true);
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
         // A storage image too, for the surface test, which writes the sky's motion.
@@ -336,6 +336,11 @@ internal sealed class RenderTargets : IDisposable
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: PostHdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
+        if (Upscale is { } upscale)
+        {
+            layouts.WriteStorageImage(set: MeterSet, binding: 2, image: upscale.Color);
+            layouts.WriteStorageImage(set: MeterSet, binding: 3, image: upscale.OpaqueOnly);
+        }
     }
 
     /// <summary>
@@ -348,7 +353,10 @@ internal sealed class RenderTargets : IDisposable
             allocator: allocator,
             extent: extent,
             format: DirectFormat,
-            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit,
+            usage: ImageUsageFlags.ColorAttachmentBit
+                | ImageUsageFlags.StorageBit
+                | ImageUsageFlags.SampledBit
+                | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
             name: name
         );
@@ -373,12 +381,12 @@ internal sealed class RenderTargets : IDisposable
     {
         if (Glow.Length == 0)
             return;
-        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: PostHdr);
+        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: Hdr);
         Extent2D level = extent;
         for (int i = 0; i < Glow.Length; i++)
         {
             level = new((level.Width + 1) / 2, (level.Height + 1) / 2);
-            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}", readable: true);
+            Glow[i] = ColorTarget(extent: level, format: GlowFormat, name: $"bloom level {i}", readable: true);
             layouts.WriteImage(set: GlowSources[i + 1], binding: 0, arrayElement: 0, image: Glow[i]);
         }
 
@@ -458,6 +466,15 @@ internal sealed class RenderTargets : IDisposable
                 );
         }
 
+        const FormatFeatureFlags sceneFeatures =
+            FormatFeatureFlags.SampledImageFilterLinearBit
+            | FormatFeatureFlags.StorageImageBit
+            | FormatFeatureFlags.TransferSrcBit
+            | FormatFeatureFlags.TransferDstBit;
+        if ((device.FormatProperties(HdrFormat).OptimalTilingFeatures & sceneFeatures) != sceneFeatures)
+            throw new NotSupportedException(
+                $"{HdrFormat} cannot be filtered, stored and copied on {device.DeviceName}."
+            );
         if (
             (device.FormatProperties(HdrFormat).OptimalTilingFeatures & FormatFeatureFlags.ColorAttachmentBlendBit) == 0
         )

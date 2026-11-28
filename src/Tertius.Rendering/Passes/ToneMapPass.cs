@@ -71,6 +71,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
         BarrierBatch barriers = context.Barriers;
         GpuImage target = context.Output;
         barriers.Image(context.Targets.PostHdr, ImageUse.SampledFragment);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         if (glow is not null)
             barriers.Image(context.Targets.Glow[0], ImageUse.SampledFragment);
         barriers.Image(target, ImageUse.ColorAttachment, discard: true);
@@ -81,7 +82,18 @@ internal sealed unsafe class ToneMapPass : RenderPass
             loadOp: AttachmentLoadOp.DontCare,
             pipeline: pipeline,
             layout: layouts.PostLayout,
-            set: context.Targets.PostSet
+            set: context.Frame.FrameSet
+        );
+        DescriptorSet postSet = context.Targets.PostSet;
+        vk.CmdBindDescriptorSets(
+            commandBuffer: commandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layouts.PostLayout,
+            firstSet: 1,
+            descriptorSetCount: 1,
+            pDescriptorSets: &postSet,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
         );
         var push = new ToneMapPushConstants
         {
@@ -90,6 +102,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             GlowStrength = glow?.Strength ?? 0,
             DrawIndex = (uint)context.History.DrawIndex,
             Code = code,
+            SceneReferred = context.Targets.Upscale is null ? 1u : 0u,
         };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

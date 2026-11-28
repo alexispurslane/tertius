@@ -12,7 +12,7 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed unsafe class ScatterImages : IDisposable
 {
-    public const Format RowFormat = Format.R16G16B16A16Sfloat;
+    public const Format RowFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>The kernel buffer's taps: room for the most taps per side, so its uniform block has one size.</summary>
     public const int KernelTaps = 2 * SeparableSubsurface.MaxTapsPerSide + 1;

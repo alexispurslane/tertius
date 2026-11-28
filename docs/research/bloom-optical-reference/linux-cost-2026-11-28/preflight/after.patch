@@ -1,0 +1,18 @@
+--- after/original
++++ after/diagnostic
+@@ -146,6 +146,7 @@
+         this.device = device;
+         this.headless = headless;
+         upscaling = UpscalingOf(options, headless);
++        System.Console.Error.WriteLine("RESOLVED_OPTIONS " + System.Text.Json.JsonSerializer.Serialize(new { options.Width, options.Height, options.Validation, options.FramesInFlight, options.CapturesInFlight, options.VSync, options.ShadowMapSize, options.CascadedLights, LocalShadows = options.LocalShadows.ToString(), LightPairs = options.LightPairs.ToString(), options.Impostors, options.ImpostorTiles, Exposure = options.Exposure is FixedExposure fixedExposure ? fixedExposure.ToString() : "auto", ToneCurve = options.ToneCurve.ToString(), options.OutputDither, Bloom = options.Bloom is Bloom glow ? glow.ToString() : "off", ScreenTrace = options.ScreenTrace.ToString(), options.LightVolume, options.WarmUpFrames, Subsurface = options.Subsurface.ToString(), EnvironmentMap = options.EnvironmentMap.ToString(), options.Deformation, options.PassTimestamps, Upscaling = upscaling.ToString(), Scale = upscaling.LargestScale, Headless = headless }));
+         if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
+             ScaleController = new(target);
+         capturesInFlight = options.CapturesInFlight;
+@@ -722,6 +723,7 @@
+     private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, FrameHistory.PendingFrame pending)
+     {
+         long number = FrameNumber;
++        System.Console.Error.WriteLine($"ACTIVE_EXTENT {number} {pending.RenderSize.Width} {pending.RenderSize.Height} {pending.OutputSize.Width} {pending.OutputSize.Height}");
+         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
+         keptPositions?.Drew(releases: releases, frame: number);
+         localShadows?.Tiles.Drew();

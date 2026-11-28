@@ -1,0 +1,67 @@
+{
+  "content_root": "/tmp/tertius-job-8udtdevk/before/content",
+  "entries": [
+    {
+      "path": "cargo-pod/cargo.model/model.glb",
+      "bytes": 1108392,
+      "sha256": "33ebb2c037da105046b58fc7aeaebc17c1b789e738c8a0d0acdda98b649b5fce"
+    },
+    {
+      "path": "crew/human_male.blend/model.glb",
+      "bytes": 31739944,
+      "sha256": "cad889c7c67289dd9f74f57c9c4f4489f190a3091118de3906d7ad7665a3e14d"
+    },
+    {
+      "path": "earth/material.zip",
+      "bytes": 27829898,
+      "sha256": "7dfc5d3c6c3a2201751bedece37e1ad64ce890f8b6d9beb0a9444582bb1068ad"
+    },
+    {
+      "path": "lunar-shuttle/lunarshuttle.model/model.glb",
+      "bytes": 7168340,
+      "sha256": "905ee1e5fd13bd1b342e83cad9cd4ad64f59403dd2ae9f58720515071737d794"
+    },
+    {
+      "path": "orbital-station/orbital_station_2-2k.model/model.glb",
+      "bytes": 30278568,
+      "sha256": "75de1453542f7eaec8d7ed91ec9bdbc7c186fd4cdf9e1284754158125bb4a96c"
+    },
+    {
+      "path": "props/industrial_caged_sconce.gltf/model.glb",
+      "bytes": 3582796,
+      "sha256": "7b5f1277b6e65edcf54e517323b125c2103ac707ef62f1ab72a2f2acd51d02b7"
+    },
+    {
+      "path": "props/industrial_storage_cart.gltf/model.glb",
+      "bytes": 3110332,
+      "sha256": "6f0601852b3ca836ab7b7c897eb1f4a4fc6093a142c7efb4a2a94f1da51035c6"
+    },
+    {
+      "path": "props/metal_stool_01.gltf/model.glb",
+      "bytes": 2374576,
+      "sha256": "683878e58209c1e0fe01cddb3bad99c650f4428616456bde3761caf9eea4436b"
+    },
+    {
+      "path": "props/metal_toolbox.gltf/model.glb",
+      "bytes": 3021736,
+      "sha256": "e8e5c5822dd96527e82d39decd2ae39ceaebbfe04e1525aaf8afdab606cb291c"
+    },
+    {
+      "path": "props/modified_thermos.gltf/model.glb",
+      "bytes": 2546192,
+      "sha256": "dd9f0f8f7bb51921288eb4fc5a7105dfbca5246e44ff76c1ac02cd657609a5cf"
+    },
+    {
+      "path": "props/modular_street_seating.gltf/model.glb",
+      "bytes": 8134140,
+      "sha256": "6a6a6ebbe4efcfa78bb91b6c8610c7d4880962e329bbd8d6b8343888ed0c2afa"
+    }
+  ],
+  "manifest_sha256": "210510fe09f7195174b57d4491223a5721fc03c6a33325b4e24bbf0063319f75",
+  "mac_canonical_manifest_sha256": "0bc4de65f352f451dd55aa24698e78cf01b62d4cfeabeb00450767868835132b",
+  "matches_mac_cooked_bytes": false,
+  "shared_by": [
+    "before",
+    "after"
+  ]
+}

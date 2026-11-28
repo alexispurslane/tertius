@@ -21,7 +21,7 @@ layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. y: the 
                                                      // the card code (mesh.vert)
 layout(location = 5) flat in vec4 inHemisphere;
 
-layout(location = 0) out vec4 outColor;   // RGBA16F: lit color premultiplied by coverage (1 here), coverage
+layout(location = 0) out vec4 outColor;   // RGBA32F: scene-referred lit color premultiplied by coverage (1 here), coverage
 layout(location = 1) out float outDepth;  // R16F: view depth over the center's depth, minus 1, times coverage
 
 void main()
@@ -31,8 +31,8 @@ void main()
     // The capture bakes the light of the object's own map. It has no screen around it for the screen tracer to walk, so
     // it takes the ambient light with every direction open, as a forward surface does.
     ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inInstanceWords.y, V);
-    // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
-    vec3 color = surfaceRadiance(shading, s.emissive, V, ShadowMapsNone, 1.0);
+    // The atlas and the billboard both retain scene radiance; exposure belongs to downstream consumers.
+    vec3 color = surfaceRadiance(shading, s.emissive, V, ShadowMapsNone);
     outColor = vec4(color, 1.0);
     // gl_FragCoord.w is 1 / clip w, and clip w is the view depth over the center's depth. Negative in front of the
     // center's plane.
