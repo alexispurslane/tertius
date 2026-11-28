@@ -17,7 +17,17 @@ export TERTIUS_CONTENT_ROOT=${TERTIUS_CONTENT_ROOT:-/Users/alexispurslane/Develo
 exposure="--exposure ${EXPOSURE:-6.0043726}"; [ "${EXPOSURE:-}" = auto ] && exposure=""
 # One GPU job at a time on the machine: a film starts only when no Tertius.Demo render and no Tertius.Rendering.Tests
 # run exists in any worktree. A film whose exposure.json exists (written at its end) is complete and is skipped.
-gpu_busy() { pgrep -f 'Tertius\.Demo --script|Tertius\.Rendering\.Tests' > /dev/null; }
+# A shell, sleep or search whose command line only names those jobs (such as another session's wait loop) is no job.
+gpu_busy() {
+  local p
+  for p in $(pgrep -f 'Tertius\.Demo --script|Tertius\.Rendering\.Tests'); do
+    case $(basename "$(ps -o comm= -p "$p" 2>/dev/null)") in
+      bash | zsh | sh | dash | fish | pwsh | sleep | grep | ugrep | pgrep | timeout | "") ;;
+      *) return 0 ;;
+    esac
+  done
+  return 1
+}
 film() {
   local name=$1; shift
   if [ -f "$out/$name/exposure.json" ]; then echo "skip complete film $out/$name"; return; fi
