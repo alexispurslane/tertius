@@ -1,6 +1,6 @@
 # Measured bloom candidate
 
-The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. The verified common source-unit commit is adopted. Source hardening and matched Linux cost measurements are complete. Independent review and required CI remain pending.
+The candidate preserves source radiance and the selected normal glow. It compresses extreme glare after exposure. This is an artistic response; the optical references in [README.md](README.md) characterize its normal energy and angular falloff independently. The verified common source-unit commit is adopted. Source hardening and matched Linux cost measurements are complete. The independent review found a missing meter compute-read dependency and stale architecture descriptions. Both are resolved with the evidence below. Required CI remains pending.
 
 ## Source and halo measurements
 
@@ -111,3 +111,13 @@ The canonical report subtracts each run's median headless capture pass from its 
 All five paired round differences are positive in both modes. Individual-run ranges overlap, and GPU clocks were logged without locking them. This measures the complete source, format, consumer and bloom change. It does not isolate the artistic response. The bloom pass itself rises from 0.198688 to 0.311728 ms at native resolution, and from 0.199328 to 0.294768 ms with FSR. No performance tuning follows from this one scene alone.
 
 The [raw artifacts](linux-cost-2026-11-28/) retain all twenty timing files, clock logs, diagnostic settings, source restoration evidence, cooked hashes and the worker script. The summary records their SHA-256 hashes. No further paid run was submitted.
+
+## Final independent review
+
+A fresh read-only SOL high reviewer inspected the complete `d15fdf7` to `e41f7c2` change. Correctness and fulfillment each required one correction. Software design passed with source ownership evidence. The [review and resolution record](final-review-2026-11-28.json) preserves all three assessments, their limits and the original reviewed SHA.
+
+The meter now declares its exposure-buffer compute read before dispatch, including when screen tracing is disabled. The regression first failed because the buffer visibility lacked the compute stage. After the fix, 15 focused exposure cases passed. Three consecutive changing-luminance frames also matched the CPU histogram reference with clean validation. Coverage reaches the sole added executable production line. A scripted deletion fault was killed, then the runner verified restoration and rebuilt the unmodified assembly.
+
+The binding architecture now describes the actual glossy-history conversion, native and FSR exposure, the 128/256 bloom response, source formats, skin scatter, atlas and finite source bounds. The composite snippet matches the production shader exactly. Repeated numerical explanations refer to their owning section.
+
+The Linux measurements remain pinned to `f97afc5663c5406f92307f4ff93a37e5fd532a93`. The correction adds one dependency in the automatic-exposure meter and changes no shader, format or response. Both measured scenarios use fixed exposure 6.0043726 stops. The renderer registers the meter only for automatic exposure, so that dependency adds no command in the measured scenarios. This is a source comparison, not a post-correction timing run. No further paid measurement or review round ran.

@@ -1,0 +1,232 @@
+{
+  "reviewed_head": "e41f7c2cebbccf137a803481867ef29db2baedee",
+  "base": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
+  "reviewer": {
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "read_only": true,
+    "independent_rounds": 1
+  },
+  "independent_review": {
+    "reviewed_head": "e41f7c2cebbccf137a803481867ef29db2baedee",
+    "base": "d15fdf702e29a891fd298c30e8c9f0deac518a15",
+    "pr": "https://github.com/alexispurslane/tertius/pull/33",
+    "overall_verdict": "changes_required",
+    "review_scope": {
+      "checkout": "/Users/alexispurslane/.t3/worktrees/tertius/t3-f7e85210-d3c50131f039227b",
+      "evidence_root": "/Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery",
+      "method": "Read-only source, diff, log, numerical artifact and image inspection. No builds, tests, captures, cloud jobs, edits or external comments.",
+      "production_identity": "Verified no src differences between f97afc5663c5406f92307f4ff93a37e5fd532a93 and the reviewed head.",
+      "assessment_weight": "Each assessment has equal authority to block acceptance."
+    },
+    "correctness": {
+      "verdict": "changes_required",
+      "findings": [
+        {
+          "id": "C1",
+          "severity": "P2",
+          "path": "src/Tertius.Rendering/Shaders/exposure_meter.comp",
+          "line": 31,
+          "title": "Declare the meter's new exposure-buffer compute read",
+          "trigger": "Automatic exposure with NoScreenTrace, including native rendering.",
+          "expected": "The meter reads the producing exposure through an explicit dependency that makes the exposure-buffer write visible to compute shaders.",
+          "statically_predicted_problem": "The shader now reads exposureStops, but ExposurePass.Record declares only its image accesses and histogram access. Graphics ShaderRead covers vertex and fragment stages only. With screen tracing disabled, the earlier compute-read declaration is absent. FSR declares its compute read after the meter, so it cannot supply the missing dependency before this dispatch. The resource-state chain therefore omits this new read, leaving portable visibility of the exposure value unestablished.",
+          "evidence": [
+            "exposure_meter.comp:15 introduces ExposureBlock; line 31 reads exposureStops.",
+            "Passes/ExposurePass.cs:63-66 prepares HDR, distance and histogram, then flushes without declaring Exposure.Buffer.",
+            "Vulkan/ResourceState.cs:170-178 distinguishes graphics ShaderRead from ComputeRead.",
+            "Passes/ScreenTracePass.cs:163 supplies ComputeRead only when that pass exists.",
+            "Passes/UpscalePass.cs:119 supplies ComputeRead after the meter."
+          ],
+          "remedy": "Declare Exposure.Buffer as ComputeRead before the meter's barrier flush. Add a focused validating regression with automatic exposure, screen tracing disabled and consecutive frames.",
+          "reproduction": {
+            "status": "unexecuted",
+            "recipe": "Render consecutive changing-luminance frames with AutoExposure, NoScreenTrace, NoUpscaling and synchronization validation enabled. Check validation and compare histogram-derived exposure with the CPU reference.",
+            "limitation": "This is a static synchronization finding. No stale histogram or validation failure was reproduced during this read-only review."
+          }
+        }
+      ],
+      "positive_evidence": [
+        "Both direct writers store actual scene radiance. Composite, transparent, skin and impostor paths consistently use the widened source formats.",
+        "Bloom thresholds original source texels before interpolation. Active dimensions, render scale and jitter enter the mapping.",
+        "Read the saved full Rendering hook result: 3,675 passed, 12 skipped and zero failed. Read the later four-case hardening result: four passed.",
+        "Inspected raw mutation results: the source run initially killed 19 of 22 faults; the scoped rerun killed all three survivors.",
+        "Inspected the surviving-fault failure logs: doubled ambient returned 0.99853516 versus 0.50001717, doubled volume reflection returned 9.34669 versus 4.671875, and half-float atlas storage retained 65,504 versus 262,144.",
+        "Bloom mutation results support nine kills after the B09 centering regression. B08 remains an explicit portability judgment, not an equivalent mutant."
+      ],
+      "validation_gaps": [
+        "No new execution was permitted. Saved passing runs do not independently resolve C1.",
+        "C# coverage establishes the mapped 12 BloomPass executable lines only. It does not instrument GLSL or establish whole-PR consumer coverage.",
+        "The required Tests and metrics check is skipped on the reviewed draft head."
+      ]
+    },
+    "fulfillment": {
+      "verdict": "changes_required",
+      "findings": [
+        {
+          "id": "F1",
+          "severity": "P2",
+          "path": "ARCHITECTURE.md",
+          "line": 1606,
+          "title": "Make the binding architecture describe the implemented source boundary",
+          "problem": "The newly written composite example divides both indirect terms by exposure. The implementation keeps fresh ambient and volume terms in scene units and divides only stored glossy history. The example describes the behavior that the ambient correction removed. The new scene-radiance section also retains the superseded 8192/16384 response.",
+          "evidence": [
+            "ARCHITECTURE.md:1606-1614 presents unconditional indirectDiffuse and indirectSpecular exposure removal.",
+            "Shaders/composite_pass.glsl:90-101 obtains fresh scene-unit terms and removes exposure only from the stored glossy-history contribution.",
+            "ARCHITECTURE.md:2606 states identity through 8,192 and an asymptote of 16,384.",
+            "Shaders/bloom_prefilter.frag:26-29 implements identity through 128 and an asymptote of 256.",
+            "ARCHITECTURE.md:978 still says tone mapping applies no exposure; line 2845 still describes a capped half-float impostor atlas."
+          ],
+          "impact": "A maintainer following the binding document could reintroduce exposure-dependent ambient radiance or apply obsolete storage and bloom bounds.",
+          "remedy": "Quote the actual composite conversion, correct the current bloom response, and reconcile the affected tone-map, direct-light, atlas and numerical-bound descriptions. Link repeated explanations to one authoritative section.",
+          "reproduction": {
+            "status": "static_document_source_comparison",
+            "runtime_execution": "unexecuted"
+          }
+        }
+      ],
+      "requirement_evidence": [
+        {
+          "requirement": "Preserve original emission and reflected source brightness",
+          "assessment": "Supported",
+          "evidence": "The source tests retain 1000-fold assertions for emissive, matte and glossy sources on both direct-light paths. Saved measurements retain lamp 64,000, matte 50,867.406 and glossy 36,699.316."
+        },
+        {
+          "requirement": "Preserve normal glow and distinguish extreme halos",
+          "assessment": "Supported",
+          "evidence": "Normal lamp energy and rings match the saved baseline. Saved extreme lamp energies are 19,771.8295 and 19,802.8884 for source radiances 64,000 and 640,000. The response is explicitly artistic."
+        },
+        {
+          "requirement": "Keep shuttle structure recognizable during emergence",
+          "assessment": "Supported for inspected frames",
+          "evidence": "Opened all three candidate sample PNGs and their bloom-off counterparts, plus the settled pair. The upper hull outline, nose and bright lower strips remain recognizable. Bloom still substantially reduces nearby contrast."
+        },
+        {
+          "requirement": "Retain the helmet highlight",
+          "assessment": "Supported for the saved control",
+          "evidence": "Opened helmet-94901.png. The gold highlight and local warm glow remain visible. Its saved exposed maximum is 37.313484, below the response join."
+        },
+        {
+          "requirement": "Isolate bloom from exposure",
+          "assessment": "Supported for the saved continuous comparison",
+          "evidence": "Independently compared both raw exposure arrays: 800 values each, with zero differences in float32 bits."
+        },
+        {
+          "requirement": "Document finite arithmetic and portable formats",
+          "assessment": "Supported by source checks and scoped evidence, subject to C1 and F1",
+          "evidence": "The downstream exposure helper bounds multiplication, source formats have feature checks, and the research records separate source, estimator and bloom bounds. Saved Linux diagnostics exercise the final runtime."
+        },
+        {
+          "requirement": "Measure Linux cost",
+          "assessment": "Supported",
+          "evidence": "Independently read all twenty timing files. Capture-excluded medians reproduce 14.021120 to 14.963872 ms native and 10.416656 to 11.189072 ms with FSR. Every paired difference is positive. Four diagnostic combinations each contain 152 submitted frames with matching settings and correct dimensions."
+        }
+      ],
+      "validation_gaps": [
+        "The inspected stills do not establish visual approval of every movie frame or the exact brightest frame.",
+        "Same-frame analytic metering and remaining exposure/history integration belong to #4. This review does not claim their completion or demand duplicate #4 work.",
+        "Linux cost increases by 0.942752 ms native and 0.772416 ms with FSR in this scene. The report states that tradeoff accurately. Unlocked clocks and overlapping run ranges limit broader conclusions.",
+        "Required CI and its head-specific metrics remain pending."
+      ]
+    },
+    "software_design": {
+      "verdict": "pass",
+      "findings": [],
+      "evidence": [
+        {
+          "source": "User: one model for old and new; one authoritative representation",
+          "assessment": "The original scene HDR remains the source for metering and bloom. Emission/direct attachments are shading intermediates. FSR color and bloom levels are derived consumer representations with explicit conversion points."
+        },
+        {
+          "source": "Ousterhout: information hiding and deep modules",
+          "assessment": "BloomPass derives mapping values from FrameContext. Callers do not supply a second source image or maintain a separate exposure copy. UpscalePass owns its input conversion."
+        },
+        {
+          "source": "User: keep state transitions under their owner",
+          "assessment": "The exposure buffer remains under ExposureResources and ExposurePass. FrameGraph places adaptation after display consumers. C1 is an omitted resource-use declaration within that arrangement; it needs a local correction."
+        },
+        {
+          "source": "Muratori: compress real repeated mechanisms",
+          "assessment": "The shared finite-product helper serves display exposure, estimator conversion, falloff and bloom strength. closedFormScene supplies one ambient implementation, with the bounded wrapper serving history consumers."
+        },
+        {
+          "source": "Ousterhout: hide storage lifetime",
+          "assessment": "CompositePass owns and initializes the disabled-history image. Scene attachments no longer double as history-format placeholders. The tone-map encoding flag is derived from the actual upscale target."
+        }
+      ],
+      "validation_gaps": [
+        "F1 records documentation obscurity separately. It must be fixed even though the implemented ownership model is coherent.",
+        "Saved pooled metrics are incomplete population measurements. They do not prove the design of each changed type.",
+        "Consumer hardening assigned to #4 is outside the focused BloomPass coverage and selected source-mutant evidence."
+      ]
+    },
+    "handoff": "PR https://github.com/alexispurslane/tertius/pull/33, head e41f7c2cebbccf137a803481867ef29db2baedee, checks and reviews: required Tests and metrics skipped; independent review changes_required."
+  },
+  "builder_resolutions": {
+    "C1": {
+      "status": "resolved",
+      "change": "ExposurePass declares Exposure.Buffer ComputeRead before meter flush.",
+      "red": "New validating meter probe observed stages4232 missing ComputeShaderBit2048 before the fix. One test failed for that dependency.",
+      "green": "15 exposure synchronization, shader and readback cases passed; the regression checks three changing-luminance frames, CPU histogram agreement and validation.",
+      "coverage": "Scoped Cobertura confirms the sole changed executable production line65 hit.",
+      "mutation": {
+        "result": "killed",
+        "rows": 1,
+        "survived": 0,
+        "timeouts": 0,
+        "build_failures": 0,
+        "no_tests": 0,
+        "runner_wall_seconds": 51,
+        "results": {
+          "stopped": null,
+          "rows": [
+            {
+              "id": "C1",
+              "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+              "line": 65,
+              "change": "Omit the producing exposure compute visibility before the meter dispatch",
+              "result": "killed",
+              "killed_by": [
+                "ExposureSynchronizationTests.TheMeterMakesTheProducingExposureVisibleToComputeWithoutScreenTracing"
+              ],
+              "seconds": 18.1607250822708,
+              "original": "        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+              "replacement": "",
+              "classes": [
+                "ExposureSynchronizationTests"
+              ]
+            }
+          ]
+        },
+        "restoration": "Runner completed exit0 and verified source/index/HEAD. Independently confirmed source matches staged bytes, HEAD e41 unchanged and restore build succeeded with zero warnings/errors."
+      }
+    },
+    "F1": {
+      "status": "resolved",
+      "change": "Binding architecture now quotes actual composite history conversion, defines128/256Bloom, native-tone/FSR exposure, RGBA32Fatlas/skin/sourceformats, pass order, meter limitation and numerical proofs.",
+      "verification": "Quoted composite block is byte-for-byte present in production shader. Full affected source descriptions inspected; repeated bounds link to authoritative source section."
+    }
+  },
+  "linux_evidence_validity": {
+    "measured_candidate": "f97afc5663c5406f92307f4ff93a37e5fd532a93",
+    "new_measurement": false,
+    "production_delta": "One automatic-meter compute-read dependency; no shaders/formats/response changes.",
+    "fixed_exposure_scenario": "Raw resolved options use FixedExposure6.0043726. VulkanRenderer.AddPassesAfterGeometry registers ExposurePass only for AutoExposure, so added dependency records no command in either measured fixed-exposure scenario. This is source reasoning, not a post-fix timing run.",
+    "automatic_with_tracing": "Earlier tracer ComputeRead and subsequent read-only graphics uses retain compute stage in BarrierBatch state. Repeating ComputeRead adds no barrier when that stage is already covered.",
+    "limits": "No post-fix performance measurement is claimed. Linux results remain pinned to original measured SHA; C1 regression validates automatic native rendering on this Mac."
+  },
+  "remaining_gates": [
+    "normal hook on this commit (not yet recorded when this evidence file is staged)",
+    "required Tests and metrics CI on final head",
+    "head-specific metrics review by parent",
+    "parent merge/issue closure"
+  ],
+  "no_second_review": true,
+  "no_new_paid_job": true,
+  "final_builder_assessments": {
+    "correctness": "pass_after_C1_resolution",
+    "fulfillment": "pass_after_F1_resolution_for_issue3_scope",
+    "software_design": "pass_independent_review_unchanged"
+  }
+}

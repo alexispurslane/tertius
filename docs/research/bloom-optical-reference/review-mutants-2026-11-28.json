@@ -1,0 +1,12 @@
+[
+  {
+    "id": "C1",
+    "file": "src/Tertius.Rendering/Passes/ExposurePass.cs",
+    "line": 65,
+    "original": "        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);",
+    "replacement": "",
+    "project": "tests/Tertius.Rendering.Tests",
+    "class": "ExposureSynchronizationTests",
+    "note": "Omit the producing exposure compute visibility before the meter dispatch"
+  }
+]
