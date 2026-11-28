@@ -122,6 +122,12 @@ vec3 restrainNeutral(vec3 radiance)
 // PROTOTYPE (issue #42): 1 counts, in the unused word source.w of the first four cell faces of the 0.25 m grid:
 // [0] capture fragments that reach the cell-face write, [1] capture fragments before the axis test, [2] the sum over the
 // lighting points of the lamps with visibility above zero, [3] the largest such count at one lighting point.
+// Research switch (issue #42, a test of one cause of #47): 1 makes the final filter pass read, at a cell face that holds
+// surface area, the strictly upwind corner (incidentAtSurface) as the bounce pass does, in place of the sweep's
+// interpolated input, whose taps in the cell's own layer can hold light from the far side of the same wall.
+#ifndef FILTER_UPWIND_AT_SURFACE
+#define FILTER_UPWIND_AT_SURFACE 0
+#endif
 #ifndef VOLUME_COUNTERS
 #define VOLUME_COUNTERS 0
 #endif

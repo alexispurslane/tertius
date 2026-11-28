@@ -16,6 +16,8 @@
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
 #   glow      set 1b: three deck views beside the floor's glow (glow-back, glow-up, glow-along), like deck
+# FILTER=1 in the environment sets FILTER_UPWIND_AT_SURFACE 1 (the final filter pass reads the strictly upwind corner at
+# cell faces with surface) and writes into v<variant>-g<gain>-f1 instead.
 # COUNTERS=1 in the environment turns on the volume's research counters (tools/counters.py reads them).
 # Writes captures/issue42/v<variant>-g<gain>/<name>/. Needs no change under src/, and restores it on exit.
 # Each finished case leaves the file .done in its folder, and a later run skips it, so a take can resume after a restart.
@@ -27,7 +29,7 @@ gain=$2
 shift 2
 tools="$(cd "$(dirname "$0")" && pwd)"
 scope="$PWD/captures/issue42"
-out="$scope/v$variant-g$gain"
+out="$scope/v$variant-g$gain${FILTER:+-f$FILTER}"
 content=${TERTIUS_CONTENT_ROOT:-/Users/alexispurslane/Development/tertius/content}
 glsl=src/Tertius.Rendering/Shaders/volume.glsl
 if [[ -n $(git status --short --untracked-files=no -- src) ]]; then
@@ -41,11 +43,11 @@ restore() {
 }
 trap restore EXIT
 python3 -I "$tools/prepare-render.py"
-python3 -I - "$glsl" "$variant" "$gain" "${COUNTERS:-0}" <<'EOF'
+python3 -I - "$glsl" "$variant" "$gain" "${COUNTERS:-0}" "${FILTER:-0}" <<'EOF'
 import re
 import sys
 from pathlib import Path
-path, spec, gain, counters = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+path, spec, gain, counters, filter_switch = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 number, ramp, lamps = re.fullmatch(r"([0-5])([ABCD]?)(L?)", spec).groups()
 assert (number in "35") == (ramp != ""), "variants 3 and 5 need a ramp letter, and only they take one"
 assert number == "3" or not lamps, "only variant 3 takes L; variant 5 always judges each lamp alone"
@@ -54,7 +56,8 @@ for old, new in (("#define RESTRAINT_VARIANT 0", f"#define RESTRAINT_VARIANT {nu
                  ("#define RESTRAINT_RAMP 0", f"#define RESTRAINT_RAMP {'ABCD'.index(ramp) if ramp else 0}"),
                  ("#define VOLUME_COUNTERS 0", f"#define VOLUME_COUNTERS {counters}"),
                  ("#define RESTRAINT_LAMPS 0", f"#define RESTRAINT_LAMPS {1 if lamps else 0}"),
-                 ("#define COLOR_GAIN 1.0", f"#define COLOR_GAIN {gain}")):
+                 ("#define COLOR_GAIN 1.0", f"#define COLOR_GAIN {gain}"),
+                 ("#define FILTER_UPWIND_AT_SURFACE 0", f"#define FILTER_UPWIND_AT_SURFACE {filter_switch}")):
     assert text.count(old) == 1, old
     text = text.replace(old, new)
 path.write_text(text)
