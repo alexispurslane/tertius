@@ -191,6 +191,34 @@ What the pictures show:
 - Ramp C gives a clear warm wash at a fraction of Design 2's strength: 6.4 times today's red on beige (Design 2: 22 times) and 2.6 times on the faint beige (Design 2: 14.6 times).
 - No rule turns the tint gray. The blue channel, the gray level, is the same in every rule.
 
+### The product rule on the mean paint and ramp D on the same walls
+
+The same two walls, lamp, pose and exposure, now with the weighted split with ramp B and ramp D beside the product rule on the mean paint with ramps B and C. The mixed-paint crossing above rules out the product rule on the mean paint. These columns are a record of what it would give on a wall of one paint.
+
+![today, weighted B, weighted D, mean paint B, mean paint C; top: beige, bottom: faint beige](evidence/ramps-product-rule.png)
+
+| Rule | Beige: receiver RGB | Saturation | Red against today | Faint beige: receiver RGB | Saturation | Red against today |
+|---|---|---:|---:|---|---:|---:|
+| today | (0.0193, 0.0149, 0.0111) | 0.43 | 1 | (0.0172, 0.0149, 0.0123) | 0.28 | 1 |
+| weighted split, ramp B | (0.0349, 0.0221, 0.0110) | 0.68 | 1.81 | (0.0198, 0.0163, 0.0124) | 0.37 | 1.15 |
+| weighted split, ramp D | (0.0860, 0.0454, 0.0110) | 0.87 | 4.45 | (0.0277, 0.0202, 0.0124) | 0.55 | 1.61 |
+| product rule on the mean paint, ramp B | (0.0862, 0.0457, 0.0111) | 0.87 | 4.46 | (0.0281, 0.0206, 0.0123) | 0.56 | 1.64 |
+| product rule on the mean paint, ramp C | (0.2514, 0.1218, 0.0111) | 0.96 | 13.0 | (0.0867, 0.0512, 0.0123) | 0.86 | 5.05 |
+
+The arithmetic, per unit light, with the receiver's scale of 1.380 (today's red on beige over today's red bounce per unit light):
+
+| Rule | Beige: bounce per unit light | Times 1.380 | Render against it |
+|---|---|---|---|
+| weighted split, ramp D | (0.0623, 0.0329, 0.0080) | (0.0860, 0.0454, 0.0110) | within 0.1% |
+| product rule on the mean paint, ramp B | (0.0628, 0.0336, 0.0080) | (0.0867, 0.0464, 0.0110) | red 0.6%, green 1.5% lower |
+| product rule on the mean paint, ramp C | (0.1828, 0.0896, 0.0080) | (0.2522, 0.1236, 0.0110) | red 0.3%, green 1.5% lower |
+
+On the faint beige the product rule's renders fall within 3% of the arithmetic (ramp B: (0.0200, 0.0149, 0.0090) per unit light). The variants 0, 4 and 5 keep the reflectance at a scale of 1 in the cell faces' fixed point, so they round more coarsely than the weighted split (scale 64).
+
+- Ramp D of the weighted split gives the same wash as the product rule with ramp B on these walls (4.45 against 4.46 times today's red on beige). It matches only here. Ramp D passes a saturated paint in full from saturation 0.54, where ramp B passes it in full only from 0.78.
+- The product rule with ramp C gives a strong yellow wash: 13 times today's red on beige.
+- No column turns the tint gray. The blue channel, the gray level, is the same in every rule.
+
 ## Set 2 (record): Design 2 and the rejected hybrid
 
 The user rejected the hybrid of this set on 2026-11-28, because it turned faint tints gray ([#42](https://github.com/alexispurslane/tertius/issues/42#issuecomment-7243692495)). Its pictures stay here as a record only. They came from commit `7f7a3979e`, whose variant 3 was the hybrid, and its renders are in `captures/issue42/rejected-hybrid-g1.0/`.
