@@ -1,5 +1,13 @@
 # A restraint for each surface: three prototypes (#42)
 
+## The rule that ships
+
+The user chose the weighted split with ramp B at gain 1, each lamp judged alone, with glow in full (variant 3BL of this record, at gain 1). The design is the comment "The rule that ships" on issue #42. `ARCHITECTURE.md`, "Directional light volume", describes it as built, and `tests/Tertius.Rendering.Tests/LightVolumeRestraintTests.cs` states it in tests.
+
+The build removed every prototype switch of this record from the code: `RESTRAINT_VARIANT`, `RESTRAINT_RAMP`, `RESTRAINT_LAMPS`, `COLOR_GAIN`, `VOLUME_COUNTERS` and `FILTER_UPWIND_AT_SURFACE`. The color gain stays as the one constant `ColorGain` at 1. So the tools in `tools/` render only from the prototype's commits, up to 596ed1e2e for the filter switch and 9e4e9d8de for the corrected gain. The rest of this README is the record of the choice.
+
+The two crossing films that show the shipped rule: `captures/issue42/v3BL-g1.0/crossing-second.mkv` (the rule) beside `captures/issue42/v0-g1.0/crossing-second.mkv` (today), measured in "The second-bounce crossing at gain 1". They stay in the worktree's captures and are not committed.
+
 RESULTS
 
 ## Terms
