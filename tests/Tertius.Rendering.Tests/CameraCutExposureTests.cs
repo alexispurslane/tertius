@@ -269,7 +269,7 @@ public sealed class CameraCutExposureTests
     {
         FilmFrame expected = Destination(destination);
         PresentationOutput? made = null;
-        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+        var renderer = VulkanRenderer.CreateOffscreen(
             options: new()
             {
                 Validation = true,

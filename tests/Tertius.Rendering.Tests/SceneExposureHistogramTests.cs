@@ -1,5 +1,3 @@
-using Silk.NET.Vulkan;
-
 namespace Tertius.Rendering.Tests;
 
 /// <summary>The GPU reduction keeps counts across every lane block of the full scene-luminance histogram.</summary>
@@ -9,7 +7,7 @@ public sealed class SceneExposureHistogramTests
     [Fact]
     public void AUniformSceneHistogramPlacesItsMedianAtMinusSixteenStops()
     {
-        uint[] counts = Enumerable.Repeat(1u, 2304).ToArray();
+        uint[] counts = [.. Enumerable.Repeat(1u, 2304)];
 
         float stops = Adapt(counts);
 

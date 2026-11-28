@@ -23,7 +23,7 @@ public sealed class SceneMeterFloatTests
         );
         try
         {
-            ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "scene_meter_probe.comp");
+            var probe = ScreenTraceProbe.On(renderer, "scene_meter_probe.comp");
             renderer.Render(Gpu.Snapshot(System.Numerics.Vector3.UnitZ), 1f);
 
             probe
