@@ -87,7 +87,7 @@ The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights
 | ramp C | (0.1237, 0.0630, 0.0110) | 0.91 | 6.40 | (0.0453, 0.0293, 0.0124) | 0.73 | 2.64 |
 | Design 2 | (0.4252, 0.2043, 0.0110) | 0.97 | 22.0 | (0.2498, 0.1394, 0.0124) | 0.95 | 14.6 |
 
-Each render matches the arithmetic of the rule within 0.3% in its ratio to today. The arithmetic for the beige wall: w_p and w_L are the weights of the paint (saturation 0.29) and of the light (saturation 0.20).
+Each render matches the arithmetic of the rule within 1% in its ratio to today (beige within 0.2%, faint beige within 0.9%). The arithmetic for the beige wall: w_p and w_L are the weights of the paint (saturation 0.29) and of the light (saturation 0.20).
 
 | Ramp | w_p | w_L | Bounce of the wall per unit light | Red against today |
 |---|---:|---:|---|---:|
