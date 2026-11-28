@@ -1,5 +1,7 @@
 # First displayed frames after camera cuts
 
+The [corrected Design A Linux run](design-a-linux-2026-11-28/README.md) ended after validating diagnostics and pristine rebuilds. Its capacity check stopped both matched timing rounds. The synthetic FSR destination references also disagree between trees. Linux acceptance remains HOLD. The corrected attempt counted $0.09488624, separately from the earlier $0.05953728 attempt. PR #32 stays draft and In Progress for the parent's decision. F1 is resolved; no further review or paid retry is authorized.
+
 The capture and hardening campaign below records the earlier cf84 source. The user-selected 32-bit scene-radiance implementation has separate [Design A milestone evidence](design-a-2026-11-28/README.md). The earlier 201 captures and old glossy exposure-conversion mutants do not establish acceptance of that new path.
 
 The outside cut at simulation tick 1417 and the return cut at tick 1462 use the destination exposure in their first displayed frame. Each cut shades the destination once and presents once. The controls reach each destination independently and repeat eight captures without advancing the simulation.
@@ -47,4 +49,4 @@ The external Linux harness compiled against both immutable API inputs and passed
 
 The sole approved Linux job ended `FAILED` during baseline diagnostics. It reported three Vulkan allocations larger than their selected memory heap, before candidate diagnostics or either matched round. The [terminal evidence](linux-2026-11-28/README.md) preserves the returned files, approved harness, provenance and canonical audit. Execution took 302.108 seconds. The canonical audit counted $0.05953728 against the approved maximum of $0.1552. No retry ran.
 
-Linux acceptance remains on hold. [Issue #35](https://github.com/alexispurslane/tertius/issues/35) records the allocation defect. The incomplete run supplies no request-to-fence-complete offscreen cut latency, ordinary unobserved GPU cost or shared correctness conclusion. A fresh read-only review of the final combined head remains. The draft pull request stays In Progress for that review and parent-owned CI and merge.
+That earlier run left Linux acceptance on hold. [Issue #35](https://github.com/alexispurslane/tertius/issues/35) records the allocation defect, since fixed and merged. Its incomplete result supplies no request-to-fence-complete offscreen cut latency, ordinary unobserved GPU cost or shared correctness conclusion. The corrected Design A run linked above records the current result. The sole review's F1 finding is resolved. The draft pull request stays In Progress for the parent's decision, CI and merge.

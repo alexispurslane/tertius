@@ -1,0 +1,15 @@
+{
+  "measured_candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "measured_candidate_tree": "76b5d43a9f3f841b19d7d542b93dc0308ba7a43e",
+  "immutable_paths": {
+    "src": "e43190ec376c148da05718e062d3521ab280b533",
+    "tests": "f7af011aea6c89ecf32263d7aae3ad7bb8b7ebd9",
+    "analyzers": "ebd4057f888f5a6cdd6879be4e365efcecbed76c",
+    "tools": "289edf96cc4399a5176a475d66c919dcfac0bec8",
+    "flake.nix": "ddcc019a0b7b3150796e3f88e7f9793e9a8459b7",
+    "flake.lock": "78b476d4eab9dfecda32972244c51b420065e406",
+    "native": "b3734f61dc65b3c1374f386e23a5b70d3ea2801f",
+    "scripts": "beba4b200323bac88709faa5b13475951182d2db",
+    "ARCHITECTURE.md": "6c0fe0250127e30b44e5cef3c096a59b3b9f11d4"
+  }
+}

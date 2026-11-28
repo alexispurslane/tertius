@@ -1,0 +1,130 @@
+{
+  "job_id": "e1315547-2360-47f4-b91d-681cf8fe10c0-u1",
+  "worker_id": "rdbu7v3vrgdxmz",
+  "endpoint": "shmmav4u60m5u8",
+  "image": "8cb5570f06810215acaa4311758417d7d159aca1",
+  "provider_status": "FAILED",
+  "canonical_result": "failed",
+  "acceptance": "HOLD",
+  "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+  "measured_candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "measured_candidate_tree": "76b5d43a9f3f841b19d7d542b93dc0308ba7a43e",
+  "canonical_client_exit": 1,
+  "command_exit": 1,
+  "command_seconds": 513.9802059860667,
+  "execution_seconds": 523.039,
+  "queue_seconds": 7.876,
+  "canonical_cost_usd": 0.09488624000000001,
+  "cost_model": "(execution seconds + 60 worker start seconds + 10 idle seconds) * 0.00016 USD/second; provider invoice not independently reconciled",
+  "prior_failed_job": {
+    "id": "40d9f654-f5dc-4671-8a58-01c21712037f-u2",
+    "canonical_cost_usd": 0.05953728,
+    "distinct_attempt": true
+  },
+  "command_cap_seconds": 840,
+  "execution_cap_seconds": 900,
+  "maximum_usd": 0.1552,
+  "authorized_corrected_submissions": 1,
+  "submissions": 1,
+  "automatic_retries": 0,
+  "original_client_live": false,
+  "pending_record_removed_by_canonical_client": true,
+  "ended_utc": "2026-11-28T06:39:10.802859+00:00",
+  "returned_artifacts": 34,
+  "returned_artifacts_all_present": true,
+  "worker_phase": {
+    "phase": "stopped before timed rounds: projected work exceeds remaining cap",
+    "elapsed_seconds": 512.9281618900131
+  },
+  "capacity": {
+    "per_tree_mode": [
+      {
+        "tree": "before",
+        "mode": "native",
+        "diagnostic_case_seconds": {
+          "real-outside": 65.211157495,
+          "synthetic-extreme": 5.003751521,
+          "steady": 10.724461149
+        },
+        "one_timed_visit_seconds_upper_estimate": 206.78145998499997,
+        "max_real_draw_wall_seconds": 0.746937216
+      },
+      {
+        "tree": "before",
+        "mode": "fsr",
+        "diagnostic_case_seconds": {
+          "real-outside": 18.747725541,
+          "synthetic-extreme": 5.239620609,
+          "steady": 9.968305554
+        },
+        "one_timed_visit_seconds_upper_estimate": 112.81525380500001,
+        "max_real_draw_wall_seconds": 0.709194967
+      },
+      {
+        "tree": "after",
+        "mode": "native",
+        "diagnostic_case_seconds": {
+          "real-outside": 67.160506309,
+          "synthetic-extreme": 4.538382487,
+          "steady": 10.934809457
+        },
+        "one_timed_visit_seconds_upper_estimate": 209.76185947949998,
+        "max_real_draw_wall_seconds": 0.7839053885
+      },
+      {
+        "tree": "after",
+        "mode": "fsr",
+        "diagnostic_case_seconds": {
+          "real-outside": 16.966310517,
+          "synthetic-extreme": 4.827500552,
+          "steady": 10.195669213
+        },
+        "one_timed_visit_seconds_upper_estimate": 107.7248852715,
+        "max_real_draw_wall_seconds": 0.7251464825
+      }
+    ],
+    "margin_factor": 1.25,
+    "projected_remaining_seconds": 1612.7086463524997,
+    "model_limit": "Diagnostic validation and timestamps can overestimate pristine work. This is a capacity estimate, not a completion guarantee.",
+    "remaining_command_seconds": 317.0721961510135,
+    "fits_remaining_cap": false
+  },
+  "restoration": {
+    "all_diagnostic_source_restored": true,
+    "elapsed_seconds": 512.9667649420444,
+    "note": "A failed diagnostic phase is not valid timed evidence. No automatic resubmission."
+  },
+  "completion_analyzer_executed": false,
+  "completion_analyzer_reason": "Worker phase is not complete. The original analyzer and its completion gate remain unchanged.",
+  "diagnostic_validation_messages": 0,
+  "diagnostic_validation_checks": 20,
+  "shared_reference_agreement": false,
+  "evidence_only_paths_unchanged_from_measured_commit": {
+    "src": true,
+    "tests": true,
+    "analyzers": true,
+    "tools": true,
+    "flake.nix": true,
+    "flake.lock": true,
+    "native": true,
+    "scripts": true,
+    "ARCHITECTURE.md": true
+  },
+  "reused_checks": {
+    "source_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+    "full_rendering_checked": {
+      "total": 3810,
+      "passed": 3798,
+      "failed": 0,
+      "skipped": 12
+    },
+    "note": "Previously published hook and hardening evidence retained. This evidence-only publication reruns no engine suite, fault injection or film capture."
+  },
+  "missing": [
+    "All four pristine timing processes: round 1 before/after and round 2 after/before, each native/FSR cut and steady lanes.",
+    "Pristine real return cut at tick 1462, ordinary synthetic sources, second extreme source, fixed and continuous controls.",
+    "Matched ordinary unobserved wall/GPU medians, ranges, two paired round differences and clocks.",
+    "End-of-run cooked assets and source comparisons, compressed-output gate, worker complete phase and completed-run analyzer."
+  ],
+  "decision": "Keep PR #32 draft and In Progress. Parent owns next decision, required exact-head CI/metrics and any future spending. No paid retry is authorized."
+}

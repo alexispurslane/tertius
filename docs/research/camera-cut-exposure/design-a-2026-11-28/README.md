@@ -2,7 +2,7 @@
 
 Glossy reflections now keep 32-bit linear scene radiance per color channel, in W/(m² sr), through hit and miss producers, real and impostor emission, hit-light storage, own and block ray records, resolve samples, both fast-history parities, slow history, shared scratch, temporal and spatial filtering, reflection sharing and composition. Original, precise-capped and precise-uncapped modes use the same light units and formats. Camera exposure applies downstream to displayed color.
 
-The implementation now has [scoped hardening and fresh final game captures](hardening-and-film.md). The original milestone evidence below keeps its source provenance. Integration through the normal hook and the final matched Linux proposal follow this evidence. PR #32 stays draft and In Progress. No new reviewer or cloud job ran.
+The implementation has [scoped hardening and fresh final game captures](hardening-and-film.md). The full Rendering Checked hook passed 3798 tests and skipped 12 on candidate `588b6d2747560c73aac542fb25ce80eec1ba8db7`. F1 is resolved. The [corrected Linux attempt](../design-a-linux-2026-11-28/README.md) completed diagnostics and pristine rebuilds, then stopped at its capacity check. Its synthetic FSR references disagree between trees. Linux acceptance remains HOLD, and PR #32 stays draft and In Progress. The original milestone evidence below keeps its source provenance.
 
 ## Runtime evidence
 
@@ -57,6 +57,6 @@ Baseline main is b002351eb48d33f008f8333e53e61345de3260cd. Its only production-s
 
 ## Integration boundary
 
-Scoped hardening and fresh native/FSR game cuts are complete. [The follow-up report](hardening-and-film.md) holds coverage, the unified mutant table and all first-cut/control readings. The normal hook, local merge commit, push and F1 thread resolution follow. The final immutable candidate pins the matched Linux proposal. No paid retry is approved.
+Scoped hardening and fresh native/FSR game cuts are complete. [The follow-up report](hardening-and-film.md) holds coverage, the unified mutant table and all first-cut/control readings. Integration, the normal hook, push and F1 thread resolution are complete on the measured candidate. The single corrected Linux submission consumed its approval and returned partial evidence. The parent owns the next decision, exact-head CI and metrics, and merge. No further paid retry is approved.
 
 The external artifact root is /Users/alexispurslane/Movies/Blue Danube/exposure-bloom-recovery/issue-4-evidence. design-a-next-stage.md is the continuation brief. evidence.tar.gz preserves logs, commands, source snapshots and hashes. The source manifest pins this milestone without claiming an uncreated candidate commit or a completed normal hook.

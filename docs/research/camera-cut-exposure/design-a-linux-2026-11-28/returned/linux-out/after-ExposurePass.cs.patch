@@ -1,0 +1,26 @@
+--- /tmp/tertius-job-hyyrkzp5/after/src/Tertius.Rendering/Passes/ExposurePass.cs
++++ /tmp/tertius-job-hyyrkzp5/after/src/Tertius.Rendering/Passes/ExposurePass.cs.diagnostic
+@@ -59,6 +59,7 @@
+             size: Vk.WholeSize,
+             data: 0
+         );
++        context.Timer.After(commandBuffer: context.CommandBuffer, slot: context.Frame.Index, pass: new("linux histogram clear", 0));
+ 
+         barriers.Image(context.Targets.Hdr, ImageUse.SampledCompute);
+         barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
+@@ -81,6 +82,7 @@
+             groupCountY: MeterGroups(extent.Height),
+             groupCountZ: 1
+         );
++        context.Timer.After(commandBuffer: context.CommandBuffer, slot: context.Frame.Index, pass: new("linux histogram meter", 0));
+         if (context.History.MetersNewView)
+             WriteExposure(context, phase: 1);
+         context.Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: context.Frame.Index);
+@@ -112,6 +114,7 @@
+             pValues: &push
+         );
+         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);
++        context.Timer.After(commandBuffer: context.CommandBuffer, slot: context.Frame.Index, pass: new($"linux reduction+adapt phase{phase}", 0));
+     }
+ 
+     public override void Dispose()

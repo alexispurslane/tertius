@@ -1,0 +1,7 @@
+{
+  "commit": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "fixture_csharp_sha256": "6f04a6f6b86bcfcab97b02a8b7e2933f2b904edabf91185403eb5464931c4e53",
+  "production_source_clean": true,
+  "rendering_assembly_sha256": "9c5cdc5e82dfb2ca6f041f19edeb57a45506459821cb00323e858bd917aa2825",
+  "host_test_assembly_sha256": "8955c824cc448652b625b7224396be0b1e344897b8e7baa57f18306f27ab1fac"
+}

@@ -1,0 +1,10 @@
+--- /tmp/tertius-job-hyyrkzp5/before/src/Tertius.Rendering/VulkanRenderer.cs
++++ /tmp/tertius-job-hyyrkzp5/before/src/Tertius.Rendering/VulkanRenderer.cs.diagnostic
+@@ -722,6 +722,7 @@
+     private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, FrameHistory.PendingFrame pending)
+     {
+         long number = FrameNumber;
++        System.Console.Error.WriteLine($"LINUX_ACTIVE {number} {pending.RenderSize.Width} {pending.RenderSize.Height} {pending.OutputSize.Width} {pending.OutputSize.Height}");
+         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
+         keptPositions?.Drew(releases: releases, frame: number);
+         localShadows?.Tiles.Drew();
