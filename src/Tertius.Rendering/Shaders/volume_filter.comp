@@ -51,12 +51,7 @@ void main()
         float weight = cosine;
         float glossy = weight * cosine * cosine * cosine;
         int index = fieldIndex(level, d, local);
-#if FILTER_UPWIND_AT_SURFACE
-        bool upwind = pass.finalPass == 0u || volume.surfaces[k].areaNormal.w != 0;
-#else
-        bool upwind = pass.finalPass == 0u;
-#endif
-        vec4 light = upwind ? incidentAtSurface(level, local, d, step) : incomingOf(volume.field[index]);
+        vec4 light = pass.finalPass == 0u ? incidentAtSurface(level, local, d, step) : incomingOf(volume.field[index]);
         diffuse += weight * light;
         specular += glossy * light;
         total += vec2(weight, glossy);

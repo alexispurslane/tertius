@@ -17,9 +17,6 @@ layout(push_constant) uniform VolumeDraw
 draw;
 void main()
 {
-#if VOLUME_COUNTERS
-    atomicAdd(volume.surfaces[1].source.w, 1u);
-#endif
     vec2 uvDx = dFdx(uv), uvDy = dFdy(uv);
     vec3 crossArea = cross(dFdx(world), dFdy(world));
     vec3 a = abs(crossArea);
@@ -50,29 +47,16 @@ void main()
         m.metallic *
         textureGrad(sampler2D(textures[nonuniformEXT(m.metallicRoughnessMap)], materialSampler), uv, uvDx, uvDy).b;
     vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
-    vec4 reflectance = capturedReflectance(diffuse);
-    vec3 glow = capturedEmission(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
+    vec4 paint = capturedPaint(diffuse);
+    vec3 glow = min(glowSent(m.emissive, draw.words.z), vec3(32256));
     float area = length(crossArea) / (g.w * g.w) * 4096.0;
-#if VOLUME_COUNTERS
-    atomicAdd(volume.surfaces[0].source.w, 1u);
-#endif
     int k = bucketIndex(finest, c, side);
     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
     for (int i = 0; i < 3; ++i)
     {
         atomicAdd(volume.surfaces[k].areaNormal[i], int(round(area * n[i])));
-        atomicAdd(volume.surfaces[k].color[i], uint(round(area * reflectance[i])));
+        atomicAdd(volume.surfaces[k].color[i], uint(round(area * paint[i])));
         atomicAdd(volume.surfaces[k].source[i], uint(round(area * glow[i] / EmissionScale)));
     }
-#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    atomicAdd(volume.surfaces[k].color.w, uint(round(area * reflectance.w)));
-#endif
-#if RESTRAINT_VARIANT == 3 && !VOLUME_COUNTERS
-    if (COLOR_GAIN != 1.0)
-    {
-        vec3 part = diffuse - min(diffuse.r, min(diffuse.g, diffuse.b));
-        atomicAdd(volume.surfaces[k].source.w,
-                  uint(round(area * ReflectanceScale * gainedWeight(diffuse, COLOR_GAIN) * (part.r + part.g + part.b))));
-    }
-#endif
+    atomicAdd(volume.surfaces[k].color.w, uint(round(area * paint.w)));
 }

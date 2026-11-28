@@ -3,14 +3,25 @@
 #include "volume_layout.glsl"
 const float EmissionScale = 4.0;
 const float NeutralSourceShare = 0.02;
+// The color gain of the restraint: a saturated color's kept light times ColorGain, through the ramp, so a faint tint
+// keeps nearly its plain weight (restraintWeight, gain). 1 in the shipped rule. The paint's part acts in the capture,
+// so its sums carry the gain into the second bounce too. A value other than 1 needs a plain paint sum for the second
+// bounce first.
+const float ColorGain = 1.0;
+// The color words of a cell face sum products as small as area x 0.02 x reflectance in integers, and one fragment adds
+// up to about 256 area units. One step per unit biased a gray fragment by up to 15%. 64 steps per unit keep about 200
+// steps for one fragment of 0.65 gray paint at the neutral share.
+const float ReflectanceScale = 64.0;
 struct SurfaceBucket
 {
     ivec4 areaNormal; // xyz oriented area vector, w area
-    uvec4 color;      // rgb area times diffuse reflectance; variants 2 and 3 (PROTOTYPE, below): its colored part, w its gray level
-    // Rasterization accumulates area times emission as fixed-point integers.
-    // Shading replaces these words with area times total outgoing radiance in float bits, in every bucket with area.
-    // A raster write adds at least the 256 units of one sample's projected area, so a bucket with nonzero emission
-    // words has area, and the restriction and the source pass read only float bits.
+    // The paint sums of the restraint (capturedPaint), in ReflectanceScale steps per unit of area x reflectance: rgb
+    // area times the paints' weighted colored parts, w area times their gray levels.
+    uvec4 color;
+    // rgb holds one of two things, by pass. After the capture (volume_surface.frag): area times emission, as integers
+    // at EmissionScale. After the shading (volume_shade.frag): area times total outgoing radiance, as float bits, in
+    // every bucket with area. A raster write adds at least the 256 units of one sample's projected area, so a bucket
+    // with nonzero emission words has area, and the restriction and the source pass read only float bits. w is unused.
     uvec4 source;
 };
 #ifndef VOLUME_SET
@@ -66,226 +77,60 @@ vec4 parentOutgoing(ivec3 c, int level, int direction)
     return outgoingOf(volume.field[fieldIndex(level + 1, direction, cellIndex(level + 1, coarse))]);
 }
 
-// The knee of the restraint: 0 for a saturation, (max - min) / max, under 0.58, 1 above 0.78.
-float saturationKnee(vec3 c)
+// THE RESTRAINT (issue #42): how much of each surface's bounce light the volume keeps. Gray light on gray paint keeps
+// NeutralSourceShare, so a gray room's bounce does not flatten its contrast, and saturated light keeps its full
+// strength. The rule judges one surface and one light. It splits each color into its gray level, the smallest
+// channel, and its colored part, the color minus the gray level. The colored part keeps the weight of the color's
+// saturation (restraintWeight), and the gray level keeps NeutralSourceShare. Nothing moves from a colored part into a
+// gray level, so a faint tint gives a dim wash of its own hue.
+//
+// The paint's half runs in the capture, per fragment (capturedPaint): each cell face sums area times the paint's
+// weighted colored part in color.rgb and area times its gray level in color.w. The light's half runs where each light
+// exists (grayPaintKeeps): per lamp in the first bounce (shapeLight sums it into volumeGrayPaintKeeps), and on the
+// incoming bounce light in the second bounce. After that every step only adds and multiplies (reflectedLight), so one
+// surface's light does not depend on the grid cell that holds it or on its neighbours in the cell. Glow enters in full.
+// Three functions hold the rule: colorSplit, restraintWeight and grayPaintKeeps.
+
+// The colored part of `c` in rgb and its gray level in w.
+vec4 colorSplit(vec3 c)
 {
-    float peak = max(c.r, max(c.g, c.b));
-    float valley = min(c.r, min(c.g, c.b));
-    return smoothstep(0.58, 0.78, (peak - valley) / max(peak, 1e-12));
+    float gray = min(c.r, min(c.g, c.b));
+    return vec4(c - gray, gray);
 }
 
-// Low-saturation indirect sources are restrained to NeutralSourceShare so neutral bounce
-// preserves contrast while saturated colors keep their full indirect strength. Scaling all
-// channels by a function of saturation alone preserves hue and keeps the light field
-// independent of camera exposure.
-vec3 restrainNeutral(vec3 radiance)
+// The part of its colored part that a color keeps, from its saturation (max - min) / max: the ramp
+// min(1, (saturation / 0.78)^3) takes the weight from NeutralSourceShare for a gray color to 1 at saturation 0.78 and
+// above, and the gain from 1 to `gain` alike: mix(share, 1, ramp) x mix(1, gain, ramp). `split` is the color as
+// colorSplit splits it.
+float restraintWeight(vec4 split, float gain)
 {
-    return radiance * mix(NeutralSourceShare, 1.0, saturationKnee(radiance));
-}
-
-// PROTOTYPE (issue #42, stage 1). This switch selects the restraint variant for the pictures of the user's choice.
-// Stage 2 keeps the chosen rule and removes the switches and the other variants.
-//   0: today (eff66e481): the restraint reads each cell face's summed color, and restrains each surface's glow.
-//   1: free. Design 1 (the paint decides) was dropped by the user's decision of 2026-11-28.
-//   2: Design 2, only gray on gray is held back: the capture splits each reflectance into a colored part (color.rgb)
-//      and a gray level (color.w), and the bounce keeps the neutral share of gray level times the light's gray level.
-//   3: the weighted split: Design 2's split, where the colored part of the paint and of the light each keeps the weight
-//      mix(share, 1, ramp(its own saturation)). Nothing moves from a colored part into a gray level, so a faint tint
-//      gives a dim light of the same hue. RESTRAINT_RAMP selects the ramp, and RESTRAINT_LAMPS whether the first
-//      bounce judges the summed direct light or each lamp alone.
-//   4: today's restraint of scattered light, with the glow unrestrained.
-//   5: the product rule on the mean paint: the capture sums area x paint as today. The shading forms, for each lamp,
-//      P = (the cell face's mean paint) x (that lamp's light), and keeps gain x w(P) x (P - g) + share x g, with g the
-//      smallest channel of P and w(P) = mix(share, 1, ramp(saturation of P)). The second bounce does the same with the
-//      incoming light and no gain. It is exact for a cell face of one paint. RESTRAINT_RAMP selects the ramp.
-// Variants 2 to 5 send each surface's glow into the volume in full (the user's decision). After the capture, variants
-// 2 and 3 only add sums and multiply them by the light. (The old hybrid of variant 3, which moved the dropped colored
-// part into the gray level, was rejected by the user on 2026-11-28.)
-#ifndef RESTRAINT_VARIANT
-#define RESTRAINT_VARIANT 0
-#endif
-#if RESTRAINT_VARIANT == 1 || RESTRAINT_VARIANT < 0 || RESTRAINT_VARIANT > 5
-#error RESTRAINT_VARIANT names no variant
-#endif
-// PROTOTYPE (issue #42): the ramp of variants 3 and 5, of a saturation s from 0 to 1.
-//   0 (A): smoothstep(0.58, 0.78, s), today's knee.  1 (B): (s / 0.78)^3, at most 1.  2 (C): smoothstep(0, 0.78, s).
-//   3 (D): ((s - 0.1) / 0.44)^1.8, limited to 0 and 1. With variant 3 it matches the product rule with ramp B on the two
-//   beige walls under the warm-white lamp, and it passes saturated paint in full from 0.54 upward.
-#ifndef RESTRAINT_RAMP
-#define RESTRAINT_RAMP 0
-#endif
-// PROTOTYPE (issue #42): 1 makes variant 3's first bounce judge each lamp's light alone (lighting.glsl, shapeLight,
-// with VOLUME_JUDGES_LAMPS from volume_shade.frag). 0 judges the summed direct light of the lighting group.
-#ifndef RESTRAINT_LAMPS
-#define RESTRAINT_LAMPS 0
-#endif
-// PROTOTYPE (issue #42): 1 counts, in the unused word source.w of the first four cell faces of the 0.25 m grid:
-// [0] capture fragments that reach the cell-face write, [1] capture fragments before the axis test, [2] the sum over the
-// lighting points of the lamps with visibility above zero, [3] the largest such count at one lighting point.
-// Research switch (issue #42, a test of one cause of #47): 1 makes the final filter pass read, at a cell face that holds
-// surface area, the strictly upwind corner (incidentAtSurface) as the bounce pass does, in place of the sweep's
-// interpolated input, whose taps in the cell's own layer can hold light from the far side of the same wall.
-#ifndef FILTER_UPWIND_AT_SURFACE
-#define FILTER_UPWIND_AT_SURFACE 0
-#endif
-#ifndef VOLUME_COUNTERS
-#define VOLUME_COUNTERS 0
-#endif
-int volumeVisibleLamps = 0;
-
-// PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 2 and 3 keep of
-// the colored parts. It does not act on emission, and the second bounce carries the boosted light on with no second
-// gain.
-#ifndef COLOR_GAIN
-#define COLOR_GAIN 1.0
-#endif
-// Variants 2 and 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
-// adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
-// the neutral share.
-#if RESTRAINT_VARIANT == 0 || RESTRAINT_VARIANT == 4 || RESTRAINT_VARIANT == 5
-const float ReflectanceScale = 1.0;
-#else
-const float ReflectanceScale = 64.0;
-#endif
-
-// The weight that the colored part of a color `c` keeps: 1 in Design 2, and mix(share, 1, ramp(saturation)) in
-// variant 3.
-float rampOf(vec3 c)
-{
-#if RESTRAINT_VARIANT == 3 || RESTRAINT_VARIANT == 5
-    float peak = max(c.r, max(c.g, c.b));
-    float valley = min(c.r, min(c.g, c.b));
-    float saturation = (peak - valley) / max(peak, 1e-12);
-#if RESTRAINT_RAMP == 0
-    float ramp = smoothstep(0.58, 0.78, saturation);
-#elif RESTRAINT_RAMP == 1
-    float ramp = min(1.0, pow(saturation / 0.78, 3.0));
-#elif RESTRAINT_RAMP == 2
-    float ramp = smoothstep(0.0, 0.78, saturation);
-#elif RESTRAINT_RAMP == 3
-    float ramp = pow(clamp((saturation - 0.1) / 0.44, 0.0, 1.0), 1.8);
-#else
-#error RESTRAINT_RAMP names no ramp
-#endif
-    return ramp;
-#else
-    return 1.0;
-#endif
-}
-float coloredWeight(vec3 c)
-{
-    return mix(NeutralSourceShare, 1.0, rampOf(c));
-}
-// The weight with the color gain (variant 3): the gain follows the ramp, so a faint tint keeps nearly its weight at
-// gain 1 and a saturated color gets the whole gain. mix(share, 1, ramp) * mix(1, gain, ramp). Other variants put the
-// gain in front of the whole colored part.
-float gainedWeight(vec3 c, float gain)
-{
-#if RESTRAINT_VARIANT == 3
-    float ramp = rampOf(c);
+    float colored = max(split.r, max(split.g, split.b));
+    float peak = colored + split.w;
+    float ramp = min(1.0, pow((peak > 0.0 ? colored / peak : 0.0) / 0.78, 3.0));
     return mix(NeutralSourceShare, 1.0, ramp) * mix(1.0, gain, ramp);
-#else
-    return gain * coloredWeight(c);
-#endif
-}
-// Variant 3 at a color gain other than 1: the factor that the first bounce gives the colored paint sum. The capture adds
-// the channel sum of each paint's colored part with its gained weight to source.w, beside the same sum with its plain
-// weight in color.rgb, which the second bounce keeps. Their ratio is each paint's mix(1, gain, ramp) when the cell face
-// holds one colored paint, and the mean of the paints' factors, weighted by their colored sums, when it holds several.
-// Gray paint adds to neither sum. The research counters (VOLUME_COUNTERS) also use source.w, so with them on the capture
-// adds no gained sum and the factor is 1.
-float paintGainOf(uvec4 color, uint gained)
-{
-#if RESTRAINT_VARIANT == 3
-    float plain = float(color.r) + float(color.g) + float(color.b);
-    if (COLOR_GAIN == 1.0 || plain <= 0.0)
-        return 1.0;
-    return clamp(float(gained) / plain, 1.0, max(COLOR_GAIN, 1.0));
-#else
-    return COLOR_GAIN;
-#endif
 }
 
-// The reflectance words of one surface of diffuse reflectance `diffuse`, per unit of area.
-vec4 capturedReflectanceOf(vec3 diffuse)
-{
-#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    float gray = min(diffuse.r, min(diffuse.g, diffuse.b));
-    return vec4(coloredWeight(diffuse) * (diffuse - gray), gray);
-#else
-    return vec4(diffuse, 0.0);
-#endif
-}
-
-// The words that one surface of diffuse reflectance `diffuse` adds to its cell face's color, per unit of area.
-vec4 capturedReflectance(vec3 diffuse)
-{
-    return ReflectanceScale * capturedReflectanceOf(diffuse);
-}
-
-// The light that the volume keeps of the radiance `light` that falls on gray paint: its colored part times its weight
-// and `gain`, plus its gray level at the neutral share.
+// The light that gray paint of reflectance 1 keeps of the radiance `light` that falls on it: the light's colored part
+// at its weight, plus its gray level at NeutralSourceShare. The first bounce passes ColorGain, the second 1.
 vec3 grayPaintKeeps(vec3 light, float gain)
 {
-    float gray = min(light.r, min(light.g, light.b));
-    return gainedWeight(light, gain) * (light - gray) + NeutralSourceShare * gray;
+    vec4 split = colorSplit(light);
+    return restraintWeight(split, gain) * split.rgb + NeutralSourceShare * split.w;
 }
 
-// The product rule of variant 5: what the volume keeps of the light `reflected` that leaves a surface, paint times
-// light. The colored part keeps its weight times `gain`, and the gray level the neutral share.
-vec3 productKeeps(vec3 reflected, float gain)
+// The color words that a surface of diffuse reflectance `paint` adds per unit of area: its colored part at its weight
+// in rgb and its gray level in w, at ReflectanceScale steps per unit.
+vec4 capturedPaint(vec3 paint)
 {
-    float gray = min(reflected.r, min(reflected.g, reflected.b));
-    return gain * coloredWeight(reflected) * (reflected - gray) + NeutralSourceShare * gray;
+    vec4 split = colorSplit(paint);
+    return ReflectanceScale * vec4(restraintWeight(split, ColorGain) * split.rgb, split.w);
 }
 
-#if RESTRAINT_VARIANT == 5
-// Variant 5 keeps the diffuse light of each lamp of a lighting group, for the product rule of each cell face. A group
-// with more lamps adds the rest into the last one.
-const int VolumeLampLimit = 16;
-vec3 volumeLamps[VolumeLampLimit];
-int volumeLampCount = 0;
-#endif
-
-// What gray paint keeps of one lamp's light in the first bounce, summed over the lamps by shapeLight when
-// volume_shade.frag defines VOLUME_JUDGES_LAMPS. Only variant 3 with RESTRAINT_LAMPS 1 reads the sum. Variant 5 keeps
-// each lamp's light in volumeLamps instead.
-vec3 lampGrayKeeps(vec3 light)
+// Area times the diffuse radiance that a cell face reflects. `color` is the face's color words, `light` the radiance
+// that falls on it and `grayKept` what gray paint keeps of that light: grayPaintKeeps of one light, or its sum over
+// the lamps. The colored paint takes the whole light, and the gray paint what it keeps.
+vec3 reflectedLight(uvec4 color, vec3 light, vec3 grayKept)
 {
-    ++volumeVisibleLamps;
-#if RESTRAINT_VARIANT == 3 && RESTRAINT_LAMPS == 1
-    return grayPaintKeeps(light, COLOR_GAIN);
-#elif RESTRAINT_VARIANT == 5
-    if (volumeLampCount < VolumeLampLimit)
-        volumeLamps[volumeLampCount++] = light;
-    else
-        volumeLamps[VolumeLampLimit - 1] += light;
-    return vec3(0);
-#else
-    return vec3(0);
-#endif
-}
-
-// The emitted radiance that one surface sends into the volume.
-vec3 capturedEmission(vec3 glow)
-{
-#if RESTRAINT_VARIANT >= 2
-    return glow;
-#else
-    return restrainNeutral(glow);
-#endif
-}
-
-// Area times the diffuse radiance that a cell face reflects: `color` is the face's summed color words, `area` its
-// summed area, `light` the radiance that falls on it, `grayKeeps` what gray paint keeps of that light
-// (grayPaintKeeps, or the sum over the lamps), and `gain` the color gain of the bounce (1 for the second bounce).
-vec3 reflectedLight(vec4 color, float area, vec3 light, vec3 grayKeeps, float gain)
-{
-#if RESTRAINT_VARIANT == 2 || RESTRAINT_VARIANT == 3
-    return (gain * color.rgb * light + color.w * grayKeeps) / ReflectanceScale;
-#elif RESTRAINT_VARIANT == 5
-    return area * productKeeps(color.rgb / area * light, gain);
-#else
-    return area * restrainNeutral(color.rgb * light / area);
-#endif
+    vec4 sums = vec4(color);
+    return (sums.rgb * light + sums.w * grayKept) / ReflectanceScale;
 }
