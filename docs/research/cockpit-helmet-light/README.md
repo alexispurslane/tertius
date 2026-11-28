@@ -3,9 +3,34 @@
 Issue #20 asks why the 1:41 cockpit shot of the demo film lost the orange light that the pilot's helmet reflects onto
 the sloped panel above it. The legacy renderer at 860685c71 showed that light. The renderer with the merged directional
 light volume (main at 90a6be90d) shows less of it. This folder holds the evidence and the diagnostic tools of the
-investigation. No production change for #20 came out of it.
+investigation.
 
 ## Result
+
+The user dropped #20 on 2026-11-28: "drop orange helmet light, since we can't get it to do what I want without an art
+decision; let's just go with my choice for #42; let's move on to #47 and #48".
+
+- Asked: make the helmet's orange light visible on the sloped panel above the pilot, with no scene-specific cheat.
+- Found: the helmet's light reaches the panel and keeps its hue (21°, saturation 0.92 or more). But it is only about 3%
+  of the panel's light. Other light divided by the helmet's red is 35 today (`panelOrange`, scene-linear).
+- No ramp and no color gain of the #42 restraint makes it visible ("The cockpit cases of the #42 ramps" below). Every
+  lever that lifts the helmet's light lifts the cabin's own lamp and paint light too, so the panel's normal-helmet and
+  black-helmet frames look the same in every case. More transport directions change the panel by less than one level
+  ("Direction count").
+- The levers that remain are the helmet's power and the panel's paint. Both are art decisions.
+
+What the study left behind:
+
+- Bug #47: the light volume carries light through a thin wall inside one cell. The nose lamps' back-side glow crossed
+  the hull and the cabin floor this way (`art-glow-vs-lamps.md`, the comments on #47).
+- Bug #48: a volume receiver takes light from a source behind its own surface. The two small ceiling glow patches put
+  13 times the possible light on the panel this way (`cockpit-light-inventory.md`, the comments on #48).
+- The asset fix: the shuttle's baked glow faces now glow from their painted side only, with an opaque backing
+  (`tools/blue-danube-assets/shuttle_cabin.py`, checked by `TheShuttleGlowFaces` in `tools/test_blue_danube_assets.py`).
+- The inventory of every lamp and self-lit surface of the cockpit, with each source's share of the light
+  (`cockpit-light-inventory.md`, `self-lit-surfaces.md`).
+
+## The first comparison: legacy against the merged grid (2026-11-27)
 
 - The helmet's light on the panel is small in both renderers. Over the panel region (`panelOrange`, a 120 × 130 px crop
   at +770+65 of the 1280 × 720 frame), the mean helmet light of 120 frames is (+1.95, +0.91, +0.31) in 8-bit sRGB levels
@@ -136,6 +161,14 @@ The tools are diagnostic only. Paths inside them point at the scratch checkouts 
 | `measure.sh`, `meanpanel.sh` | Region means and the 120-frame mean crop. |
 | `helmet_at_panel.py`, `analytic.py` | The receiver sample and the form-factor bound. |
 | `fib-dirs.py` | Patches the volume to use N Fibonacci directions with equal weights. |
+| `diagnostics.patch` | The black-helmet recolor, the dump of the volume and the HDR frame (`TERTIUS_DEBUG_VOLUME_FRAME`, `TERTIUS_DEBUG_VOLUME_DUMP`) and the composite debug modes, for the current code. Every variant checkout below applies it first. |
+| `helmet-pair.sh` | Renders the normal-helmet and black-helmet films of `cockpit.json` and measures them with `helmet_map.py`, `hdr_panel.py` and `helmet_buckets.py`. It waits for any other GPU job and skips a complete film. |
+| `variant-cases.sh` | Sets the `#define` switches of a case in a variant checkout, builds it and runs `helmet-pair.sh` into one folder per case. |
+| `cases_table.py`, `cases-sheet.sh`, `sheet.sh` | The table of the cases against a reference case, and the labeled sheets. |
+| `vol2.py` | Reads a volume dump in the layout after #22. `glow_cells.py`, `helmet_buckets.py`, `leak_cells.py`, `ceiling_patches.py` and `receiver_cut.py` use it. |
+| `nose-glow-switch.patch` | The research switch `NOSE_GLOW` (1 no nose glow, 2 front side only, 3 captured 1 m forward) for #47. |
+| `cockpit-cases-ramp.patch` | The cockpit cases' switches on #42 commit 3ce85da6d: `NOSE_GLOW` and `CEILING_GLOW`. |
+| `leak_cells.py`, `receiver_cut.py` | The diagnosis of #47 (where back-side light crosses the floor row) and the check of #48 (a receiver cut at its surface). |
 
 The blue helmet is not a fair control. Under the warm cabin lamp, a mixed blue bucket reaches saturation 0.61, so the
 volume's color restraint keeps about 6% of it. The black helmet has no such asymmetry.
