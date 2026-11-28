@@ -1,5 +1,5 @@
 # Diagnostic research switch (#20), never committed to the engine: NOSE_GLOW in volume.glsl (0 = scene as is, 1 = the
-# shuttle art nose lamps send no glow into the volume, 2 = front side only). Apply after diagnostics.patch.
+# shuttle art nose lamps send no glow into the volume, 2 = front side only, 3 = their capture 1 m further forward, for #47). Apply after diagnostics.patch.
 diff --git a/src/Tertius.Rendering/Shaders/volume.glsl b/src/Tertius.Rendering/Shaders/volume.glsl
 index d6e9e5c..53547a7 100644
 --- a/src/Tertius.Rendering/Shaders/volume.glsl
@@ -17,10 +17,10 @@ index d6e9e5c..53547a7 100644
  // Variants 2 and 3 store small products, such as area x 0.02 x reflectance, in the integer color words. One fragment
  // adds up to about 256 area units, so 64 steps per unit keep about 200 steps for one fragment of 0.65 gray paint at
 diff --git a/src/Tertius.Rendering/Shaders/volume_surface.frag b/src/Tertius.Rendering/Shaders/volume_surface.frag
-index 0347a22ad..e043e6bf5 100644
+index 0347a22ad..9c46f5566 100644
 --- a/src/Tertius.Rendering/Shaders/volume_surface.frag
 +++ b/src/Tertius.Rendering/Shaders/volume_surface.frag
-@@ -49,6 +49,22 @@ void main()
+@@ -49,6 +49,27 @@ void main()
      vec3 diffuse = clamp(base.rgb * (1.0 - metal), 0.0, 1.0);
      vec4 reflectance = capturedReflectance(diffuse);
      vec3 glow = capturedEmission(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
@@ -32,6 +32,11 @@ index 0347a22ad..e043e6bf5 100644
 +    {
 +#if NOSE_GLOW == 1
 +        glow = vec3(0);
++#elif NOSE_GLOW == 3
++        // The nose patches' whole capture, both sides, 1 m further forward (-z): into cells that touch no cabin cell.
++        c = ivec3(floor((world + vec3(0, 0, -1) - g.xyz) / g.w));
++        if (!withinGrid(finest, c))
++            return;
 +#else
 +        // The art's own facing: glow3 faces forward (-z), glow1 faces down, glow0 and glow2 face up.
 +        bool front = e > 40.0 ? n.z < 0.0 : (abs(e - 11.28) < 1.0 ? n.y < 0.0 : n.y > 0.0);
