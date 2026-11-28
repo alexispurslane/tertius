@@ -19,13 +19,21 @@ RESULTS
 
 The user decided on 2026-11-28 ([#42](https://github.com/alexispurslane/tertius/issues/42#issuecomment-7242969945)): a self-lit surface sends exactly the light that it emits, and only light scattered off surfaces is held back, per surface, gray paint times gray light alone. So Design 1 is dropped, and every variant that stays sends glow in full. Open are pure Design 2 against the hybrid, and the two amounts (the neutral share and the color gain).
 
-Commit `1ae3e6170` puts the rule behind two preprocessor constants in `src/Tertius.Rendering/Shaders/volume.glsl`. `RESTRAINT_VARIANT` selects the rule and `COLOR_GAIN` the gain. The defaults, 0 and 1.0, are today's rule. Stage 2 keeps the chosen rule and removes both switches. Every picture in `evidence/` comes from this commit or from a commit with the same meaning of its variant.
+Commit `bd76475b8` puts the rule behind preprocessor constants in `src/Tertius.Rendering/Shaders/volume.glsl`. `RESTRAINT_VARIANT` selects the rule, `RESTRAINT_RAMP` the ramp of variant 3, `RESTRAINT_LAMPS` whether variant 3 judges the summed direct light (0) or each lamp alone (1), and `COLOR_GAIN` the gain. The defaults (0, 0, 0, 1.0) are today's rule. Stage 2 keeps the chosen rule and removes the switches. The render tool names a variant 0, 2, 4 or 3 with its ramp letter, such as 3A, and an L for each lamp alone, such as 3AL.
+
+The three ramps of a saturation s:
+
+| Ramp | ramp(s) |
+|---|---|
+| A | smoothstep(0.58, 0.78, s), today's knee |
+| B | (s / 0.78)³, at most 1 |
+| C | smoothstep(0, 0.78, s) |
 
 | Variant | What the capture adds to the cell face, per unit of area | What the first bounce sends out, times area | Glow |
 |---|---|---|---|
 | 0, today | reflectance | restraint(sum × light / area) × area: the knee reads the whole cell face's sum | restrained for each surface |
 | 2, Design 2: only gray on gray is held back | colored part in `color.rgb`, gray level in `color.w` | gain × C × L + G × (gain × λ + share × m) | in full |
-| 3, hybrid | w × colored part in `color.rgb`; gray level + luminance((1 − w) × colored part) in `color.w`, with w = knee(reflectance) | gain × C × L + G × (gain × u × λ + share × (m + luminance((1 − u) × λ))), with u = knee(light) | in full |
+| 3, the weighted split (ramp A, B or C) | w_p × colored part in `color.rgb`, gray level in `color.w`, with w_p = mix(share, 1, ramp(saturation of the reflectance)) | gain × C × L + G × (gain × w_L × λ + share × m), with w_L = mix(share, 1, ramp(saturation of L)) | in full |
 | 4, today with unrestrained glow | reflectance | as today | in full |
 
 Number 1 held Design 1 and now stops the shader build.
@@ -34,7 +42,8 @@ where
 
 - C and G are the cell face's summed `color.rgb` and `color.w`.
 - L is the direct light of the lighting group, m its gray level and λ its colored part.
-- luminance(x) = 0.2126 x.r + 0.7152 x.g + 0.0722 x.b. A gray color (y, y, y) has luminance y, so a knee moves its dropped colored part into the gray level without a change of luminance.
+- Nothing moves from a colored part into a gray level, so a faint tint gives a dim light of the same hue. With both weights at the share, the bounce is share × reflectance × light, today's value with its natural tint. With both weights at 1 it is Design 2.
+- The second bounce uses the same function with the light that reaches the cell face from the volume in place of L, and with no gain.
 - "Glow in full" keeps the once-only rule of `glowSent`: an entity that holds a light sends no glow, so its power counts once.
 
 After the capture, variants 2 and 3 only add sums and multiply them by the light. The restriction pass of #22 adds a quarter of each child face's four color words to its parent face. So the light of one surface cannot depend on the grid that captures it or on the other surfaces in its cell.
@@ -42,7 +51,7 @@ After the capture, variants 2 and 3 only add sums and multiply them by the light
 The second bounce (`volume_source.comp`) uses the same rule with the light that reaches the cell face from the volume, and with no gain. Small choices of the prototype, settled by the design's own rules and confirmed by the line orchestrator:
 
 - Variants 2 and 3 store the color words with 64 steps per unit. One capture fragment of 0.65 gray at the neutral share adds only about 3 units at one step per unit, so rounding would bias it by up to 15%.
-- The hybrid multiplies the colored paint by the light as it is. The light's knee acts only on the light that falls on gray paint.
+- With `RESTRAINT_LAMPS` 1, `volume_shade.frag` defines `VOLUME_JUDGES_LAMPS`. Then its copy of the light loop in `lighting.glsl` (`shapeLight`) also sums what gray paint keeps of each lamp's light alone, in the specular words that the volume shade does not read. No other shader changes. Stage 2 gives that sum a field of its own.
 - `whiteLightAt` skips a cell face when all four color words are 0, not only `color.rgb`, because Designs 2 and 3 hold a gray surface in `color.w` alone. With today's rule `color.w` is always 0. The #20 lead, who owns the lighting points, agreed.
 
 ## Set 1: the cost of glow in full on the deck
@@ -64,17 +73,48 @@ The volume holds much more light (`tools/volume-totals.py`). The 0.5 m grid's su
 
 So at this pose the gray self-lit panels do not lift the deck visibly. A pose that faces the floor's glow strips can show more. This set does not measure that.
 
-## Set 2: the two lamp scenes, Design 2 against the hybrid
+## The ramp sheet: a faint tint gives a dim tinted wash
+
+The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
+
+![today, ramp A, ramp B, ramp C, Design 2; top: beige, bottom: faint beige](evidence/ramps-warm-white-lamp.png)
+
+| Rule | Beige: receiver RGB | Saturation | Red against today | Faint beige: receiver RGB | Saturation | Red against today |
+|---|---|---:|---:|---|---:|---:|
+| today | (0.0193, 0.0149, 0.0111) | 0.43 | 1 | (0.0172, 0.0149, 0.0123) | 0.28 | 1 |
+| ramp A | (0.0193, 0.0149, 0.0110) | 0.43 | 1.00 | (0.0171, 0.0149, 0.0124) | 0.28 | 1.00 |
+| ramp B | (0.0349, 0.0221, 0.0110) | 0.68 | 1.81 | (0.0198, 0.0163, 0.0124) | 0.37 | 1.15 |
+| ramp C | (0.1237, 0.0630, 0.0110) | 0.91 | 6.40 | (0.0453, 0.0293, 0.0124) | 0.73 | 2.64 |
+| Design 2 | (0.4252, 0.2043, 0.0110) | 0.97 | 22.0 | (0.2498, 0.1394, 0.0124) | 0.95 | 14.6 |
+
+Each render matches the arithmetic of the rule within 0.3% in its ratio to today. The arithmetic for the beige wall: w_p and w_L are the weights of the paint (saturation 0.29) and of the light (saturation 0.20).
+
+| Ramp | w_p | w_L | Bounce of the wall per unit light | Red against today |
+|---|---:|---:|---|---:|
+| A | 0.020 | 0.020 | (0.0140, 0.0108, 0.0080), today's value | 1.00 |
+| B | 0.068 | 0.037 | (0.0253, 0.0160, 0.0080) | 1.81 |
+| C | 0.318 | 0.180 | (0.0897, 0.0456, 0.0080) | 6.40 |
+
+What the pictures show:
+
+- Ramp A is today on these two walls. Both tints lie under the knee of 0.58, so both weights stay at the share. The hue stays today's faint warm tint.
+- Ramp B gives a dim warm wash: 1.8 times today's red on beige and 1.15 times on the faint beige. The faint beige looks almost like today.
+- Ramp C gives a clear warm wash at a fraction of Design 2's strength: 6.4 times today's red on beige (Design 2: 22 times) and 2.6 times on the faint beige (Design 2: 14.6 times).
+- No rule turns the tint gray. The blue channel, the gray level, is the same in every rule.
+
+## Set 2 (record): Design 2 and the rejected hybrid
+
+The user rejected the hybrid of this set on 2026-11-28, because it turned faint tints gray ([#42](https://github.com/alexispurslane/tertius/issues/42#issuecomment-7243692495)). Its pictures stay here as a record only. They came from commit `7f7a3979e`, whose variant 3 was the hybrid, and its renders are in `captures/issue42/rejected-hybrid-g1.0/`.
 
 Both scenes keep the layout of the #22 probe (`tools/prepare-render.py`). A gray receiver panel (reflectance 0.65) stands 3 m ahead of the camera. A wall 0.48 m wide stands 1.9 m ahead, where the probe's slabs stand, outside the picture on the right. One star lights the wall's face that looks at the receiver, and its light does not reach the receiver's front. So the receiver shows only the wall's bounce light. The exposure is fixed at EV 0, with no environment map, no screen tracer and no upscaling, at the "outside" camera pose. Glow plays no part: no surface emits. Every variant at commit `7f7a3979e` and gain 1.
 
 **Warm-white lamp (1, 0.9, 0.8) on a beige wall (0.7, 0.6, 0.5):**
 
-![warm-white lamp: today, Design 2, hybrid](evidence/warm-white-lamp.png)
+![warm-white lamp: today, Design 2, rejected hybrid](evidence/warm-white-lamp.png)
 
 **Orange lamp (1, 0.4, 0) on a gray wall (0.8, 0.8, 0.8):**
 
-![orange lamp: today, Design 2, hybrid](evidence/orange-lamp.png)
+![orange lamp: today, Design 2, rejected hybrid](evidence/orange-lamp.png)
 
 The receiver's mean scene-linear RGB in W/(m² sr) (`tools/stills.py`; the region is the panel from x = 1/16 to 5/8 and y = 1/9 to 5/6 of the frame), at the two camera poses:
 
@@ -82,10 +122,10 @@ The receiver's mean scene-linear RGB in W/(m² sr) (`tools/stills.py`; the regio
 |---|---|---|---:|---|---:|
 | warm-white on beige | today | (0.0193, 0.0149, 0.0111) | 0.43 | (0.0182, 0.0141, 0.0104) | 0.43 |
 | warm-white on beige | Design 2 | (0.4252, 0.2043, 0.0110) | 0.97 | (0.4015, 0.1930, 0.0104) | 0.97 |
-| warm-white on beige | hybrid | (0.0155, 0.0155, 0.0155) | 0.00 | (0.0146, 0.0146, 0.0146) | 0.00 |
+| warm-white on beige | rejected hybrid | (0.0155, 0.0155, 0.0155) | 0.00 | (0.0146, 0.0146, 0.0146) | 0.00 |
 | orange on gray | today | (1.1064, 0.4426, 0) | 1.00 | (1.0441, 0.4177, 0) | 1.00 |
 | orange on gray | Design 2 | (1.1043, 0.4417, 0) | 1.00 | (1.0428, 0.4171, 0) | 1.00 |
-| orange on gray | hybrid | (1.1043, 0.4417, 0) | 1.00 | (1.0428, 0.4171, 0) | 1.00 |
+| orange on gray | rejected hybrid | (1.1043, 0.4417, 0) | 1.00 | (1.0428, 0.4171, 0) | 1.00 |
 
 What the pictures show:
 
