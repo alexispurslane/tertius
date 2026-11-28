@@ -123,6 +123,27 @@ Where the added light comes from, as far as this pose can tell (the question of 
 
 The research counters (`tools/counters.py`, today's rule, one frame each): 37,632 to 45,043 capture fragments before the axis test and 20,186 to 23,642 at the cell-face write; 170 to 181 lighting points with 3.8 to 4.2 visible lamps each, and at most 8 or 9 at one point.
 
+## The mixed-paint crossing: the weighted split against the product rule on the mean paint
+
+The crossing of #22: the red slab beside the white slab, the camera from x = 0 to 0.24 m and back, EV 0, 388 frames at 60 frames per second. Only the 0.25 m grid steps on the way, between camera positions 50 and 51 (x = 0.125 to 0.1275 m): the red slab moves from the 0.5 m grid's capture, where it shares a cell face with the white slab, into the 0.25 m grid's capture, where it is alone. Gain 1. The weighted split judges each lamp alone (3BL, 3CL); the scene has one lamp. Ramps B and C give the same weighted split here, because the red slab has saturation 1 and the white slab 0.
+
+[`evidence/crossing-mixed-paint.mp4`](evidence/crossing-mixed-paint.mp4): top left today, top right the weighted split, bottom left the product rule on the mean paint with ramp B, bottom right with ramp C. [`evidence/crossing-mixed-paint-sheet.png`](evidence/crossing-mixed-paint-sheet.png) holds frames 96 to 107 around the step.
+
+The largest one-frame change of the region's mean, in 8-bit display levels (`tools/crossing-steps.py`; "receiver" is the panel left of the slabs, "top" the band at its top where main showed a red patch). All largest changes fall at the grid's step, frames 101 to 102 on the way out or 285 to 286 on the way back. Two frames at one camera position differ by at most 0.01 levels.
+
+| Rule | Receiver: largest step | Receiver: red after / before | Top band: largest step | Top band: red after / before |
+|---|---:|---:|---:|---:|
+| today | 95.5 | 7.94 | 86.6 | 8.51 |
+| weighted split, ramp B or C | 1.6 | 0.992 | 4.6 | 1.049 |
+| product rule on the mean paint, ramp B | 48.6 | 0.555 (on the way back) | 48.2 | 1.97 |
+| product rule on the mean paint, ramp C | 12.6 | 1.13 | 16.9 | 1.21 |
+
+- Today steps from dim pink to strong red, as in #22.
+- The weighted split shows no visible step in the video. The receiver's mean changes by 0.8% in red at the step, and the top band by 4.9%. The red patch at the top of the receiver that main shows at the step is gone: the top band is red before and after.
+- The product rule on the mean paint steps by 44% with ramp B and 13% with ramp C, both visible. In the 0.5 m cell face that holds both slabs, the mean paint (0.95, 0.5, 0.5) is not saturated enough for the ramp, so the red slab's light falls until the fine grid separates it.
+
+By the line orchestrator's rule (a step above 10%), the weighted split stays the rule.
+
 ## The ramp sheet: a faint tint gives a dim tinted wash
 
 The user's choice of the ramp. The warm-white lamp (1, 0.9, 0.8) of set 2 lights a beige wall in the top row, reflectance (0.7, 0.6, 0.5), and a fainter beige in the bottom row, reflectance (0.62, 0.6, 0.56), closer to hull paint. The receiver gets only the wall's bounce light. Every picture has the same fixed exposure, EV 0, the "outside" pose, gain 1 and commit `bd76475b8`. Glow plays no part: no surface emits. Each label gives the receiver's mean scene-linear RGB in W/(m² sr) and its saturation.
