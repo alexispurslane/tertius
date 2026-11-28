@@ -1,0 +1,8 @@
+known-answer cell 1: mean measured 0.12072 exact 0.11028 ratio 1.0946; center 0.05829 exact 0.12434 ratio 0.4688; rms 0.04798
+chip cell 1: central mean change 0.044 %, worst pixel 11.446 %
+known-answer cell 0.5: mean measured 0.12072 exact 0.11028 ratio 1.0946; center 0.05829 exact 0.12434 ratio 0.4688; rms 0.04798
+chip cell 0.5: central mean change 0.044 %, worst pixel 11.446 %
+known-answer cell 0.25: mean measured 0.12072 exact 0.11028 ratio 1.0946; center 0.05829 exact 0.12434 ratio 0.4688; rms 0.04798
+chip cell 0.25: central mean change 0.221 %, worst pixel 57.547 %
+thin wall: lit face radiance 0.7639; unlit face mean 0.01278 (1.67 % of lit), middle 0.01637, edge band (|x|>0.40) mean 0.01086 max 0.01206
+thin wall row 32: 0.000 0.000 0.000 0.000 0.000 0.000 0.010 0.010 0.011 0.011 0.012 0.012 0.013 0.013 0.013 0.014 0.014 0.015 0.015 0.015 0.016 0.016 0.016 0.017 0.017 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.018 0.017 0.017 0.016 0.016 0.016 0.015 0.015 0.015 0.014 0.014 0.014 0.013 0.013 0.012 0.012 0.012 0.011 0.011 0.010 0.000 0.000 0.000 0.000 0.000 0.000
