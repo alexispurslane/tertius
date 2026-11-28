@@ -1,0 +1,38 @@
+{
+  "base": "e28140dae211aedc744cc9ff1f22667e67df0442",
+  "branch": "t3/issue-35-valid-memory-heaps",
+  "production_path": "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs",
+  "base_blob": "9e8fe919f53c65950b792559637aa006c120486a",
+  "final_blob": "f7aae7bd20d48ea3adf0d565ed476a6d2ec54594",
+  "production_sha256": "92d0c7d673a1801e23b793cf705eea2bd401f99fa8f6558abee6e0cba5556070",
+  "patch_sha256": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+  "regression_patch_sha256": "be2ef72a14d4e692111de41ee85ec5f0c8fabf802839ccf9d255693109d477b6",
+  "red": {
+    "total": 43,
+    "failed": 15,
+    "passed": 28,
+    "exit": 2
+  },
+  "green": {
+    "total": 43,
+    "failed": 0,
+    "passed": 43,
+    "exit": 0
+  },
+  "coverage": {
+    "configuration": "Checked",
+    "changed_lines": 4,
+    "covered_changed_lines": 4,
+    "new_branch_outcomes": 2,
+    "covered_new_branch_outcomes": 2
+  },
+  "mutations": {
+    "valid": 9,
+    "killed": 9,
+    "survived": 0,
+    "timeout": 0,
+    "no_coverage": 0,
+    "invalid_attempts_replaced": 1
+  },
+  "cloud_jobs": 0
+}

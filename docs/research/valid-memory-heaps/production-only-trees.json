@@ -1,0 +1,26 @@
+[
+  {
+    "name": "baseline",
+    "original_ref": "19e17c5ba364392ca6bf84b00c11a7d709771ded",
+    "original_tree": "70737af29b08536ded3369336b36fa04116f29b1",
+    "production_only_fixed_tree": "31d82893378a43a06b8911f7842bfddc39a61ecb",
+    "changed_paths": [
+      "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs"
+    ],
+    "patch_sha256": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+    "new_commit_created": false,
+    "branch_modified": false
+  },
+  {
+    "name": "candidate",
+    "original_ref": "468dc19d0f5e247819f24bfaea297919439c7b4f",
+    "original_tree": "80c5e1fb074699a8eb613639ab0e0f2f8827cb00",
+    "production_only_fixed_tree": "402d40ad2f0567b14e4e16056bbb110be86905a5",
+    "changed_paths": [
+      "src/Tertius.Rendering/Vulkan/DeviceAllocator.cs"
+    ],
+    "patch_sha256": "61c94080b16aacd672c3ebc233590eeac63dc19d4d067dbd0d0eb3b70f800813",
+    "new_commit_created": false,
+    "branch_modified": false
+  }
+]
