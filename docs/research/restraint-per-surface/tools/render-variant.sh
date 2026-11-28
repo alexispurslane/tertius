@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Research tool (issue #42): renders the pictures of one prototype restraint on the checked-out engine.
 #   nix develop --command bash docs/research/restraint-per-surface/tools/render-variant.sh <variant> <gain> <set>...
-# <variant> is RESTRAINT_VARIANT of volume.glsl (0 today, 1 Design 1, 2 Design 2, 3 hybrid), <gain> is COLOR_GAIN
-# with a decimal point (1.0, 4.0). Each set is one of:
+# <variant> is RESTRAINT_VARIANT of volume.glsl (0 today, 2 Design 2, 3 the weighted split, 4 today with glow in full).
+# For variant 3 a letter names the ramp, RESTRAINT_RAMP (A, B or C), and a trailing L sets RESTRAINT_LAMPS 1 (each lamp
+# judged alone): 3A, 3C, 3AL. <gain> is COLOR_GAIN with a decimal point (1.0, 4.0). Each set is one of:
 #   probe     the mixed probe and the red-only probe at both poses, with the volume and HDR readback
-#   lamps     the orange-lamp and the warm-white scenes at both poses
+#   lamps     the orange-lamp, warm-white and faint-beige scenes at both poses
+#   warm      the warm-white and faint-beige scenes at both poses
 #   orange    the orange-lamp scene at both poses
+#   two       the white and orange lamps together, and the orange lamp alone, at both poses
 #   crossing  the crossing film of the mixed probe (the camera path of #22's crossing.mp4), EV 0
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
@@ -35,11 +38,16 @@ restore() {
 trap restore EXIT
 python3 -I "$tools/prepare-render.py"
 python3 -I - "$glsl" "$variant" "$gain" <<'EOF'
+import re
 import sys
 from pathlib import Path
-path, variant, gain = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+path, spec, gain = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+number, ramp, lamps = re.fullmatch(r"([0-4])([ABC]?)(L?)", spec).groups()
+assert (number == "3") == (ramp != ""), "variant 3 needs a ramp letter, and only variant 3 takes one"
 text = path.read_text()
-for old, new in (("#define RESTRAINT_VARIANT 0", f"#define RESTRAINT_VARIANT {variant}"),
+for old, new in (("#define RESTRAINT_VARIANT 0", f"#define RESTRAINT_VARIANT {number}"),
+                 ("#define RESTRAINT_RAMP 0", f"#define RESTRAINT_RAMP {'ABC'.index(ramp) if ramp else 0}"),
+                 ("#define RESTRAINT_LAMPS 0", f"#define RESTRAINT_LAMPS {1 if lamps else 0}"),
                  ("#define COLOR_GAIN 1.0", f"#define COLOR_GAIN {gain}")):
     assert text.count(old) == 1, old
     text = text.replace(old, new)
@@ -76,9 +84,13 @@ for set in "$@"; do
             render "$out/$view" "$PWD/captures/issue22/$view.json" "${probe[@]}"
         done
         ;;
-    lamps | orange)
-        names=(orange)
-        [[ "$set" == lamps ]] && names+=(warm)
+    lamps | warm | orange | two)
+        case "$set" in
+        lamps) names=(orange warm faint) ;;
+        warm) names=(warm faint) ;;
+        orange) names=(orange) ;;
+        two) names=(two orange) ;;
+        esac
         for name in "${names[@]}"; do
             for pose in outside across; do
                 render "$out/$name-$pose" "$scope/$name-$pose.json" "${probe[@]}"

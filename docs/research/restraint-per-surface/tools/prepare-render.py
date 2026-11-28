@@ -8,6 +8,9 @@ face that looks at the receiver. The star's light does not reach the receiver's 
 wall's bounce light.
 - restraint-orange-lamp: an orange star of color (1, 0.4, 0) on a neutral wall of reflectance (0.8, 0.8, 0.8).
 - restraint-warm-white: a warm-white star of color (1, 0.9, 0.8) on a beige wall of reflectance (0.7, 0.6, 0.5).
+- restraint-faint-beige: the warm-white star on a fainter beige wall of reflectance (0.62, 0.6, 0.56), closer to hull paint.
+- restraint-two-lamps: a white star (1, 1, 1) and the orange star (1, 0.4, 0) at the same place on the gray wall
+  (0.8, 0.8, 0.8). Each star has the strength of the orange scene's star, so restraint-orange-lamp is the orange lamp alone.
 """
 import json
 import subprocess
@@ -34,7 +37,18 @@ public static partial class DemoScenes
     private static SceneInstance RestraintWarmWhite(World world, IRenderResources resources) =>
         RestraintLampWall(world: world, resources: resources, lamp: new(1, 0.9f, 0.8f), wall: new(x: 0.7f, y: 0.6f, z: 0.5f, w: 1));
 
-    private static SceneInstance RestraintLampWall(World world, IRenderResources resources, Vector3 lamp, Vector4 wall)
+    private static SceneInstance RestraintFaintBeige(World world, IRenderResources resources) =>
+        RestraintLampWall(world: world, resources: resources, lamp: new(1, 0.9f, 0.8f), wall: new(x: 0.62f, y: 0.6f, z: 0.56f, w: 1));
+
+    private static SceneInstance RestraintTwoLamps(World world, IRenderResources resources) =>
+        RestraintLampWall(
+            world: world, resources: resources, lamp: new(1, 0.4f, 0), wall: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1),
+            secondLamp: Vector3.One
+        );
+
+    private static SceneInstance RestraintLampWall(
+        World world, IRenderResources resources, Vector3 lamp, Vector4 wall, Vector3 secondLamp = default
+    )
     {
         var scene = new SceneInstance();
         FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(100)));
@@ -51,6 +65,13 @@ public static partial class DemoScenes
             "sun",
             world.Spawn(StarAt(frame: room, place: new Double3(0, 1, -0.5).Normalized() * AstronomicalUnit, color: lamp))
         );
+        if (secondLamp != Vector3.Zero)
+            scene.Add(
+                "second-sun",
+                world.Spawn(
+                    StarAt(frame: room, place: new Double3(0, 1, -0.5).Normalized() * AstronomicalUnit, color: secondLamp)
+                )
+            );
         world.Ambient = new() { Intensity = 0 };
         AddCamera(world: world, scene: scene, frame: room, pose: LookingAt(new(0.05, 0, 0), new(0.8, -0.25, -3)));
         scene.Add("across", world.Spawn(ViewIn(room, LookingAt(new(0.2, 0, 0), new(0.8, -0.25, -3)))));
@@ -64,7 +85,9 @@ text = table.read_text()
 line = '            new("volume-boundary-red", VolumeBoundaryRed),'
 assert text.count(line) == 1
 table.write_text(text.replace(line, line + '\n            new("restraint-orange-lamp", RestraintOrangeLamp),'
-                                       '\n            new("restraint-warm-white", RestraintWarmWhite),'))
+                                       '\n            new("restraint-warm-white", RestraintWarmWhite),'
+                                       '\n            new("restraint-faint-beige", RestraintFaintBeige),'
+                                       '\n            new("restraint-two-lamps", RestraintTwoLamps),'))
 
 # The deck cameras of set 1b: three views beside the warm gray glow of the station's floor, which lies from about 5 m
 # behind the deck camera and curves up. The offsets are from the deck camera's eye in the station's frame (+X up).
@@ -91,7 +114,8 @@ for view in ("glow-back", "glow-up", "glow-along"):
     steps = [dict(step, entity=view) if step.get("entity") == "deck-camera" else step for step in deck["steps"]]
     (folder / f"{view}.json").write_text(json.dumps(dict(deck, steps=steps), indent=1) + "\n")
 
-for scene, name in (("restraint-orange-lamp", "orange"), ("restraint-warm-white", "warm")):
+for scene, name in (("restraint-orange-lamp", "orange"), ("restraint-warm-white", "warm"),
+                    ("restraint-faint-beige", "faint"), ("restraint-two-lamps", "two")):
     for camera, pose in (("camera", "outside"), ("across", "across")):
         script = {"scene": scene, "window": {"width": 640, "height": 360},
                   "steps": [{"do": "camera", "entity": camera}, {"do": "capture", "name": f"{name}-{pose}"}]}

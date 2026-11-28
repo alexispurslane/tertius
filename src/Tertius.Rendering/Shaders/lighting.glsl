@@ -760,6 +760,12 @@ DirectTerms pathLight(uint index, bool fiber, uint shape, ShadingInput s, Surfac
     return terms;
 }
 
+#ifdef VOLUME_JUDGES_LAMPS
+// PROTOTYPE (issue #42): volume_shade.frag defines VOLUME_JUDGES_LAMPS and volume.glsl defines this function. With it,
+// the loop below sums in `specular` what gray paint keeps of each lamp's diffuse light alone.
+vec3 lampGrayKeeps(vec3 light);
+#endif
+
 // modelLight's loop over the lights of the list of one shape, `shape`, added to `sum`. `fiber` as in respond, `tinted`
 // and `shape` as in lightIrradiance. modelLight is the one caller, and it passes constants. A light's response is
 // evaluated only where its shadows let some of it through.
@@ -781,7 +787,11 @@ void shapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobe
         {
             DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
             sum.diffuse += terms.diffuse * visibility;
+#ifdef VOLUME_JUDGES_LAMPS
+            sum.specular += lampGrayKeeps(terms.diffuse * visibility);
+#else
             sum.specular += terms.specular * visibility;
+#endif
         }
     }
 }

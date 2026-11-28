@@ -36,7 +36,7 @@ void main()
         front += area;
         vec3 radiance = uintBitsToFloat(bucket.source.rgb) / float(an.w);
         if (pass.bounceNumber != 0u)
-            radiance += reflectedLight(vec4(bucket.color), float(an.w), volume.bounce[k].rgb, 1.0) / float(an.w);
+            radiance += reflectedLight(vec4(bucket.color), float(an.w), volume.bounce[k].rgb, grayPaintKeeps(volume.bounce[k].rgb, 1.0), 1.0) / float(an.w);
         source += area * radiance;
     }
     float clear = 1.0 - min(1.0, max(front, back));
