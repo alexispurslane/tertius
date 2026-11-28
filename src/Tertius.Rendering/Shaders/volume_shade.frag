@@ -24,7 +24,7 @@ vec3 whiteLightAt(int level, int side, ivec3 origin)
         if (!withinGrid(level, c))
             continue;
         int k = bucketIndex(level, c, side);
-        if (all(equal(volume.surfaces[k].color.rgb, uvec3(0))))
+        if (all(equal(volume.surfaces[k].color, uvec4(0))))
             continue;
         ivec4 an = volume.surfaces[k].areaNormal;
         float w = float(an.w);
@@ -70,7 +70,7 @@ void main()
         if (area <= 0.0)
             continue;
         vec3 emission = vec3(volume.surfaces[k].source.rgb) * EmissionScale;
-        vec3 diffuse = restrainNeutral(vec3(volume.surfaces[k].color.rgb) * light / area);
-        volume.surfaces[k].source.rgb = floatBitsToUint(emission + area * diffuse);
+        vec3 reflected = reflectedLight(vec4(volume.surfaces[k].color), area, light);
+        volume.surfaces[k].source.rgb = floatBitsToUint(emission + reflected);
     }
 }
