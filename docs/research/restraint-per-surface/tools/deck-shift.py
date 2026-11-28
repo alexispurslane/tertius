@@ -1,7 +1,7 @@
 """Research tool (issue #42): the color shift of a still between today's rule and a variant, from the scene-linear HDR
 readback (volume.bin.hdr, before the tone map). Prints the whole frame's mean RGB of both and their difference, and the
 8 x 4 tiles of the frame with the largest change of mean RGB, as fractions of today's tile mean. With --image, it also
-writes the absolute difference of the display PNGs (c.png) times 8.
+writes the absolute difference of the display PNGs (c.png) times 16.
 usage: deck-shift.py <today folder> <variant folder> [--image <out.png>]"""
 import argparse
 import subprocess
@@ -38,5 +38,5 @@ for change, tx, ty, ta, tb in tiles[:4]:
     print(f"  tile column {tx} row {ty} (of 8 x 4): {100 * change:.1f} % of today's brightest channel, "
           f"RGB {np.round(ta, 4)} -> {np.round(tb, 4)}")
 if args.image:
-    subprocess.run(["magick", str(Path(args.today) / "c.png"), str(Path(args.variant) / "c.png"), "-compose",
-                    "difference", "-composite", "-evaluate", "multiply", "8", args.image], check=True)
+    subprocess.run(["magick", str(Path(args.today) / "c.png"), str(Path(args.variant) / "c.png"), "-alpha", "off", "-compose",
+                    "difference", "-composite", "-evaluate", "multiply", "16", args.image], check=True)

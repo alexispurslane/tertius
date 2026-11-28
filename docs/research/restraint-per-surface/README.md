@@ -45,6 +45,25 @@ The second bounce (`volume_source.comp`) uses the same rule with the light that 
 - The hybrid multiplies the colored paint by the light as it is. The light's knee acts only on the light that falls on gray paint.
 - `whiteLightAt` skips a cell face when all four color words are 0, not only `color.rgb`, because Designs 2 and 3 hold a gray surface in `color.w` alone. With today's rule `color.w` is always 0. The #20 lead, who owns the lighting points, agreed.
 
+## Set 1: the cost of glow in full on the deck
+
+The full-art hangar deck (`tools/deck-still.json`: `demo-exit.json` at its frame 500, the deck camera) at 1280 × 720, the headless render scale of 2/3 (848 × 477 rendered) and the automatic exposure. Each run takes three captures a, b and c of a frozen world. The exposure did not move between them: −3.1500 stops today and −3.1507 stops with glow in full (`evidence/exposure/`). The picture is c. Variant 0 (today) against variant 4 (today's restraint of scattered light, glow in full), both at commit `7f7a3979e`.
+
+| Today | Glow in full |
+|---|---|
+| ![today](evidence/deck-today.png) | ![glow in full](evidence/deck-glow-in-full.png) |
+
+[`evidence/deck-glow-difference-x16.png`](evidence/deck-glow-difference-x16.png) is the absolute difference of the two display images, times 16. It shows only thin lines on edges, the noise of the antialiasing. No surface is brighter as a whole.
+
+In the scene-linear frame (`tools/deck-shift.py`):
+
+- The mean RGB rises from (3.3839, 3.4839, 2.9210) to (3.3841, 3.4842, 2.9212) W/(m² sr), by 0.01%.
+- The largest change in a tile of an 8 × 4 split of the frame is 0.2%, on the floor at the bottom middle. All four largest tiles are floor tiles, and all four rise.
+
+The volume holds much more light (`tools/volume-totals.py`). The 0.5 m grid's summed outgoing light rises from (11.25, 12.38, 8.25) to (585.56, 600.69, 421.69) cell faces × W/(m² sr), and the 1 m grid's from (22.93, 23.68, 16.99) to (1154.57, 1184.73, 832.44): 50 times more. The added light is (6.4, 6.6, 4.6) W/(m² sr) on 96 faces of the 0.5 m grid and 271 faces of the 1 m grid. That is the floor's `glow0` of the station art (6.54, 6.71, 4.71), saturation 0.30, which today keeps 2% ([list of the #20 lead](https://github.com/alexispurslane/tertius/blob/t3/restore-panel-orange-light/docs/research/cockpit-helmet-light/self-lit-surfaces.md)). The strips lie 3.9 to 7.7 m from the camera and behind it, so this view sees little of their light. The bay lamps hold lights and send no glow, so they do not change.
+
+So at this pose the gray self-lit panels do not lift the deck visibly. A pose that faces the floor's glow strips can show more. This set does not measure that.
+
 ## Reproduce
 
 `tools/render-variant.sh` applies the probe of #22 (`docs/research/fine-grid-outgoing-light/tools/prepare-render.py`) and adds the two lamp scenes (`tools/prepare-render.py`), sets the two constants, builds the Demo and renders the sets that it names. It restores the checkout on exit.
@@ -66,4 +85,6 @@ nix develop --command python3 -I docs/research/fine-grid-outgoing-light/tools/me
 | `tools/compose.sh` | Two crossing films side by side, and a sheet of the frames around the grid's step. |
 | `tools/crossing-steps.py` | The steps between neighboring frames of a crossing film, in 8-bit display levels. |
 | `tools/stills.py` | The whole frame's and the receiver's mean scene-linear RGB, with saturation. |
-| `tools/deck-shift.py` | The color shift of the deck between two variants, by region. |
+| `tools/deck-shift.py` | The color shift of the deck between two variants, by region, and the display difference times 16. |
+| `tools/volume-totals.py` | The summed outgoing light that each grid holds. |
+| `tools/take.sh` | A list of `render-variant.sh` calls in one take, with logs in `captures/issue42/logs/`. |
