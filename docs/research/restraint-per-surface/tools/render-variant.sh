@@ -2,7 +2,7 @@
 # Research tool (issue #42): renders the pictures of one prototype restraint on the checked-out engine.
 #   nix develop --command bash docs/research/restraint-per-surface/tools/render-variant.sh <variant> <gain> <set>...
 # <variant> is RESTRAINT_VARIANT of volume.glsl (0 today, 2 Design 2, 3 the weighted split, 4 today with glow in full,
-# 5 the product rule on the mean paint). For variants 3 and 5 a letter names the ramp, RESTRAINT_RAMP (A, B or C), and a trailing L sets RESTRAINT_LAMPS 1 (each lamp
+# 5 the product rule on the mean paint). For variants 3 and 5 a letter names the ramp, RESTRAINT_RAMP (A, B, C or D), and a trailing L sets RESTRAINT_LAMPS 1 (each lamp
 # judged alone): 3A, 3C, 3AL. <gain> is COLOR_GAIN with a decimal point (1.0, 4.0). Each set is one of:
 #   probe     the mixed probe and the red-only probe at both poses, with the volume and HDR readback
 #   lamps     the orange-lamp, warm-white and faint-beige scenes at both poses
@@ -15,6 +15,7 @@
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
 #   glow      set 1b: three deck views beside the floor's glow (glow-back, glow-up, glow-along), like deck
+# COUNTERS=1 in the environment turns on the volume's research counters (tools/counters.py reads them).
 # Writes captures/issue42/v<variant>-g<gain>/<name>/. Needs no change under src/, and restores it on exit.
 # Each finished case leaves the file .done in its folder, and a later run skips it, so a take can resume after a restart.
 # Before each render it waits while any other Tertius.Demo render or Tertius.Rendering.Tests run exists on the machine
@@ -39,17 +40,18 @@ restore() {
 }
 trap restore EXIT
 python3 -I "$tools/prepare-render.py"
-python3 -I - "$glsl" "$variant" "$gain" <<'EOF'
+python3 -I - "$glsl" "$variant" "$gain" "${COUNTERS:-0}" <<'EOF'
 import re
 import sys
 from pathlib import Path
-path, spec, gain = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-number, ramp, lamps = re.fullmatch(r"([0-5])([ABC]?)(L?)", spec).groups()
+path, spec, gain, counters = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+number, ramp, lamps = re.fullmatch(r"([0-5])([ABCD]?)(L?)", spec).groups()
 assert (number in "35") == (ramp != ""), "variants 3 and 5 need a ramp letter, and only they take one"
 assert number == "3" or not lamps, "only variant 3 takes L; variant 5 always judges each lamp alone"
 text = path.read_text()
 for old, new in (("#define RESTRAINT_VARIANT 0", f"#define RESTRAINT_VARIANT {number}"),
-                 ("#define RESTRAINT_RAMP 0", f"#define RESTRAINT_RAMP {'ABC'.index(ramp) if ramp else 0}"),
+                 ("#define RESTRAINT_RAMP 0", f"#define RESTRAINT_RAMP {'ABCD'.index(ramp) if ramp else 0}"),
+                 ("#define VOLUME_COUNTERS 0", f"#define VOLUME_COUNTERS {counters}"),
                  ("#define RESTRAINT_LAMPS 0", f"#define RESTRAINT_LAMPS {1 if lamps else 0}"),
                  ("#define COLOR_GAIN 1.0", f"#define COLOR_GAIN {gain}")):
     assert text.count(old) == 1, old
@@ -59,8 +61,14 @@ EOF
 dotnet build src/Tertius.Demo -c Release -v quiet
 mkdir -p "$out"
 
+gpu_busy() {
+    # A render or a Rendering test run of any worktree, but not a shell, a wait or a search whose command names one.
+    ps -axo comm=,args= | awk '{ n = split($1, part, "/"); name = part[n] }
+        name !~ /^(-?bash|-?zsh|sh|sleep|grep|pgrep|rg|nix|awk|ps|tail)$/ && /Tertius\.Rendering\.Tests|Tertius\.Demo .*--headless/ { found = 1 }
+        END { exit !found }'
+}
 gpu_free() {
-    while pgrep -f 'Tertius.Demo.*--headless|Tertius.Rendering.Tests' > /dev/null; do
+    while gpu_busy; do
         echo "$(date +%T) waiting: another GPU job runs"
         sleep 30
     done

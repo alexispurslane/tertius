@@ -52,6 +52,10 @@ DirectTerms whiteLightAt(int level, int side, ivec3 origin)
     s.position += 0.5 * g.w * s.normal;
     atomicAdd(volume.stats.x, 1u);
     DirectTerms light = directLight(s, lobesOf(s, s.normal), s.normal, ShadowMapsHolding, (MainView - 1u));
+#if VOLUME_COUNTERS
+    atomicAdd(volume.surfaces[2].source.w, uint(volumeVisibleLamps));
+    atomicMax(volume.surfaces[3].source.w, uint(volumeVisibleLamps));
+#endif
     light.diffuse = min(light.diffuse, vec3(MaxRadiance));
     light.specular = min(light.specular, vec3(MaxRadiance));
     return light;

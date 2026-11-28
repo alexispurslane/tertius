@@ -28,6 +28,7 @@ The three ramps of a saturation s:
 | A | smoothstep(0.58, 0.78, s), today's knee |
 | B | (s / 0.78)³, at most 1 |
 | C | smoothstep(0, 0.78, s) |
+| D | ((s − 0.1) / 0.44)^1.8, limited to 0 and 1. With the weighted split it matches the product rule with ramp B on the two beige walls under the warm-white lamp, within 0.8% in red and 2% in green, and only there. It passes saturated paint in full from 0.54 upward. |
 
 | Variant | What the capture adds to the cell face, per unit of area | What the first bounce sends out, times area | Glow |
 |---|---|---|---|
@@ -51,6 +52,7 @@ Number 1 held Design 1 and now stops the shader build.
 | ramp C, summed direct light | `3C` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 0` |
 | ramp C, each lamp judged alone | `3CL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 2`, `RESTRAINT_LAMPS 1` |
 | ramp A (today's knee, out) | `3A`, `3AL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 0` |
+| ramp D, summed direct light / each lamp alone | `3D` / `3DL` | `RESTRAINT_VARIANT 3`, `RESTRAINT_RAMP 3`, `RESTRAINT_LAMPS` 0 / 1 |
 | product rule on the mean paint, ramp B | `5B` | `RESTRAINT_VARIANT 5`, `RESTRAINT_RAMP 1` |
 | product rule on the mean paint, ramp C | `5C` | `RESTRAINT_VARIANT 5`, `RESTRAINT_RAMP 2` |
 
@@ -175,4 +177,6 @@ nix develop --command python3 -I docs/research/fine-grid-outgoing-light/tools/me
 | `tools/deck-shift.py` | The color shift of the deck between two variants, by region, and the display difference times 16. |
 | `tools/volume-totals.py` | The summed outgoing light that each grid holds. |
 | `tools/sheet.sh` | One labeled row of stills of one capture from several variants. |
+| `tools/counters.py` | The research counters of one frame (`COUNTERS=1`): capture fragments and visible lamps per lighting point. |
+| `tools/compose-grid.sh` | Four crossing films in a 2 × 2 grid. |
 | `tools/take.sh` | A list of `render-variant.sh` calls in one take, with logs in `captures/issue42/logs/`. |

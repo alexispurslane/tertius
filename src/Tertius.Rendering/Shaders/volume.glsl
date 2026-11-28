@@ -107,8 +107,10 @@ vec3 restrainNeutral(vec3 radiance)
 #if RESTRAINT_VARIANT == 1 || RESTRAINT_VARIANT < 0 || RESTRAINT_VARIANT > 5
 #error RESTRAINT_VARIANT names no variant
 #endif
-// PROTOTYPE (issue #42): the ramp of variant 3, of a saturation s from 0 to 1.
+// PROTOTYPE (issue #42): the ramp of variants 3 and 5, of a saturation s from 0 to 1.
 //   0 (A): smoothstep(0.58, 0.78, s), today's knee.  1 (B): (s / 0.78)^3, at most 1.  2 (C): smoothstep(0, 0.78, s).
+//   3 (D): ((s - 0.1) / 0.44)^1.8, limited to 0 and 1. With variant 3 it matches the product rule with ramp B on the two
+//   beige walls under the warm-white lamp, and it passes saturated paint in full from 0.54 upward.
 #ifndef RESTRAINT_RAMP
 #define RESTRAINT_RAMP 0
 #endif
@@ -117,6 +119,14 @@ vec3 restrainNeutral(vec3 radiance)
 #ifndef RESTRAINT_LAMPS
 #define RESTRAINT_LAMPS 0
 #endif
+// PROTOTYPE (issue #42): 1 counts, in the unused word source.w of the first four cell faces of the 0.25 m grid:
+// [0] capture fragments that reach the cell-face write, [1] capture fragments before the axis test, [2] the sum over the
+// lighting points of the lamps with visibility above zero, [3] the largest such count at one lighting point.
+#ifndef VOLUME_COUNTERS
+#define VOLUME_COUNTERS 0
+#endif
+int volumeVisibleLamps = 0;
+
 // PROTOTYPE (issue #42, stage 1): the color gain multiplies the part of the first bounce that variants 2 and 3 keep of
 // the colored parts. It does not act on emission, and the second bounce carries the boosted light on with no second
 // gain.
@@ -146,6 +156,8 @@ float coloredWeight(vec3 c)
     float ramp = min(1.0, pow(saturation / 0.78, 3.0));
 #elif RESTRAINT_RAMP == 2
     float ramp = smoothstep(0.0, 0.78, saturation);
+#elif RESTRAINT_RAMP == 3
+    float ramp = pow(clamp((saturation - 0.1) / 0.44, 0.0, 1.0), 1.8);
 #else
 #error RESTRAINT_RAMP names no ramp
 #endif
@@ -201,6 +213,7 @@ int volumeLampCount = 0;
 // each lamp's light in volumeLamps instead.
 vec3 lampGrayKeeps(vec3 light)
 {
+    ++volumeVisibleLamps;
 #if RESTRAINT_VARIANT == 3 && RESTRAINT_LAMPS == 1
     return grayPaintKeeps(light, COLOR_GAIN);
 #elif RESTRAINT_VARIANT == 5

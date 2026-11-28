@@ -17,6 +17,9 @@ layout(push_constant) uniform VolumeDraw
 draw;
 void main()
 {
+#if VOLUME_COUNTERS
+    atomicAdd(volume.surfaces[1].source.w, 1u);
+#endif
     vec2 uvDx = dFdx(uv), uvDy = dFdy(uv);
     vec3 crossArea = cross(dFdx(world), dFdy(world));
     vec3 a = abs(crossArea);
@@ -50,6 +53,9 @@ void main()
     vec4 reflectance = capturedReflectance(diffuse);
     vec3 glow = capturedEmission(min(glowSent(m.emissive, draw.words.z), vec3(32256)));
     float area = length(crossArea) / (g.w * g.w) * 4096.0;
+#if VOLUME_COUNTERS
+    atomicAdd(volume.surfaces[0].source.w, 1u);
+#endif
     int k = bucketIndex(finest, c, side);
     atomicAdd(volume.surfaces[k].areaNormal.w, int(round(area)));
     for (int i = 0; i < 3; ++i)
