@@ -67,3 +67,35 @@ own panel mesh with `LampPanelMaterial`, so that panel's glow is not sent. The a
 knows "this entity holds a light", not "this surface is the face of a light".
 
 Tools: `tools/art_glow_patches.py` prints the patches, and `tools/art_glow_map.py` draws the views.
+
+## Between the nose lamps and the cabin (2026-11-28)
+
+A true reference with full glow does not exist. No path-traced image of the cockpit exists. `current-three-renderers.jpg`
+shows legacy, the merged grid and the current code, and `tools/Tertius.ReflectionReference` traces reflections only.
+
+The geometry, from `tools/nose_floor_rays.py`:
+
+- The cabin floor (`Cabin_Floor`) is one sheet at y -0.500, with no thickness. Its six triangles all face up. The
+  material is single-sided. The sheet covers |x| up to 2.6 and z from -8.7 to -13.5.
+- The nose patches sit 0.9 to 1.7 m below the floor height (y -1.42 to -2.18) and 0.65 to 1.4 m ahead of the floor's
+  front edge (z -14.15 to -14.94). The fuselage skin under the cabin is at y -2.20 and faces down. The fuselage and all
+  four glow materials are double-sided.
+- Each segment from a nose glow triangle to a point 0.55 m above the cabin floor crosses 1 to 8 triangles (the floor
+  sheet, the console and the upholstery). No segment is clear. So no direct light from the nose reaches the cabin, and
+  the floor's top face cannot receive any from below.
+
+The grids, from `tools/glow_cells.py` on the dumps of `cases/glow` and `cases/today`, relative to the camera at about
+(0.35, 1.18, -9.0) in the shuttle frame:
+
+| Level | Cell size | Origin | Glow cells |
+|---|---|---|---|
+| 0 | 0.25 m | (-2.1, -1.9, -2.0) | the two ceiling glow0 patches, near (-0.97, +0.73..+0.98, -1.12) and (-0.72, +0.73, -0.88) |
+| 1 | 0.5 m | (-4.1, -4.15, -4.0) | the same two ceiling patches, (-0.85..-2.35, +0.60..+1.10, -0.75..-1.25) |
+| 2 | 1 m | (-8.6, -9.15, -9.0) | the nose, near (-3.10 and -0.10, -3.65, -5.50) |
+
+Only level 2 holds the nose, because level 1 reaches z -13 in the shuttle frame. In the nose cells, the glow is in all
+six signed buckets in equal amounts, so both sides of each patch emit. The level-2 cell boundaries in the shuttle frame
+are at y -1.97, -0.97 and 0.03, and at whole z values. The floor (y -0.5) lies in the cell row y -0.97..0.03. The nose
+patches lie in the two rows below it and in the z column -15..-14, ahead of the floor's last column -14..-13. So no
+cell holds both the nose and the floor. They are in cells next to each other, one row down and one or two columns
+forward.
