@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_the_final_command_carries_a_bound_external_approval_record (__main__.LaunchProposalTests.test_the_final_command_carries_a_bound_external_approval_record)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/t3-042655f4-5c326eb10494e236/tools/test_camera_cut_launch.py", line 25, in test_the_final_command_carries_a_bound_external_approval_record
+    self.assertIsNotNone(record, 'The final launch still has no external authorization step')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : The final launch still has no external authorization step
+
+----------------------------------------------------------------------
+Ran 1 test in 0.010s
+
+FAILED (failures=1)

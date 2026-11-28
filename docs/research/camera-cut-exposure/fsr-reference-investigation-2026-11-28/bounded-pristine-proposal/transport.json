@@ -27,9 +27,9 @@
     "authorized_submissions": 0,
     "automatic_retry": false
   },
-  "local_linux_reproduction": "Unavailable; exact Linux limit remains unverified locally.",
+  "local_linux_reproduction": "PASS: existing loopback Nix builder, Linux aarch64, 4096-byte pages. Original exact argument raises E2BIG; final inert command refuses and representative approved command reaches a harmless real-worker gate.",
   "handler_preparation_margin_seconds": 60,
   "extra_harness_fetch_runtime_seconds": null,
   "runtime_fit": "Unverified; three-tree checkout adds work inside the existing 60-second fetch/output allowance.",
-  "future_authorization": "Immutable config is inert. A future paid run requires a separately reviewed external authorization command as well as the duration-policy decision. No such command is provided here."
+  "future_authorization": "External record is embedded in the review command. Parent must approve paid execution and duration policy, bind final argv and reviewed HEAD, and reuse the exclusive consumed-attempt wrapper before the unchanged canonical CLI."
 }

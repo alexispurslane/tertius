@@ -1,0 +1,115 @@
+{
+  "artifacts": {
+    "README.md": {
+      "bytes": 13140,
+      "sha256": "bd7743fd798c384f19d918bf4071bc07f01428b315f376b11a8af0cc4c66160e"
+    },
+    "affected-transport-tests.log": {
+      "bytes": 102,
+      "sha256": "e4314138524b7759a30bac36e3f3f289ba983862e0e66318fdb89bcc956420f6"
+    },
+    "approval.template.json": {
+      "bytes": 1515,
+      "sha256": "33853b0ed0eca4498c51cc7f8fa128d92bcdb7d115b06b99e04b4ed111174fce"
+    },
+    "canonical-argv.after-approval.json": {
+      "bytes": 4959,
+      "sha256": "06009dcbf879d66a0e58cd70d572cf3174b2ea9548e80f3ff2e0b1c76cb57452"
+    },
+    "external-wrapper-inert.json": {
+      "bytes": 421,
+      "sha256": "9faa6c1afd97385eeab09785250cfc5d8974c947963c162c2015e55aafde93d3"
+    },
+    "final-command.after-approval.txt": {
+      "bytes": 4226,
+      "sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c"
+    },
+    "final-command.inert.txt": {
+      "bytes": 4229,
+      "sha256": "5a171c31f9d693dfb5a9bcee9b40a3762913a021f93cee28ab24b7d5a2fbf705"
+    },
+    "final-linux-build.log": {
+      "bytes": 2924,
+      "sha256": "47fc71c27af2bb62b61ff7af4ed7a8efeb1238c2d7722f0caf19dee6b61a4a5f"
+    },
+    "final-linux-build.log.gz": {
+      "bytes": 686,
+      "sha256": "277167e25d0011ce8201213cc5b81db976589fb6851e04adf363d3b52f4b3992"
+    },
+    "final-linux-result.json": {
+      "bytes": 857,
+      "sha256": "d1fe0bed6ee91e4dbc6365cc3e44b476132b700fb5fa7a9b479137db8a6e3b2b"
+    },
+    "final-proof.nix.txt": {
+      "bytes": 388,
+      "sha256": "01fd0831e78c5c497c650f99ac8625e83f5ce69382d17dabafda4b53b9976599"
+    },
+    "final-runner.py.txt": {
+      "bytes": 1375,
+      "sha256": "fd28e221b7243f0fd1de66666270c733edb72aa0a2bcf692134f711f9c8e1aee"
+    },
+    "final-store-output.txt": {
+      "bytes": 82,
+      "sha256": "6bc52aea4eb550233080eb6927bd529dd6627b84073063f5ed2aa8869e304ee3"
+    },
+    "launch-once.proposal.ps1": {
+      "bytes": 186,
+      "sha256": "d14dbba86659a8fdbd115ea2050f1b23ed4aea9bd803ab780ab1ee20a214d5c5"
+    },
+    "mac-tests.log": {
+      "bytes": 121,
+      "sha256": "c51375cbd93d7f19c40212345fb6a5793ec5ee6c541692d898449e1cd2a14b42"
+    },
+    "original-linux-result.json": {
+      "bytes": 172,
+      "sha256": "363caeac6d95daab627a294ab8eb5aefd5814fc1e901c0309ca3b8142ae845b1"
+    },
+    "original-proof-inputs.json": {
+      "bytes": 1541,
+      "sha256": "f614a3ea7142cc25f6b58e39f9d8c5e3e83abdb30f1c0877bdfa1ca93d671a94"
+    },
+    "proof.nix": {
+      "bytes": 481,
+      "sha256": "87ee723d5a91d1adef47d71e15a6ecc84467b1385d8d2e4b17ba5c3e3c7b273a"
+    },
+    "proof.py": {
+      "bytes": 1395,
+      "sha256": "47798b665f141c3081263c50d12aa23496ed1b1aae0fa7de75d5101958c5ee38"
+    },
+    "red.log": {
+      "bytes": 931,
+      "sha256": "4346acb47e5d6af671d593f048df4188b5f29d644511fb594eb7dc55ba0500e7"
+    },
+    "run_once.proposed.py.txt": {
+      "bytes": 7944,
+      "sha256": "db31d948557adc5b8218a4c3473634a69e0e2d0e48ffa5414702f63bba9507be"
+    },
+    "run_once.py.txt": {
+      "bytes": 7236,
+      "sha256": "b35c8bbc8cf9cfa9e5e24ec76c52671f51ddc61dab2cfbbe2aa3d24c72899074"
+    },
+    "short": {
+      "bytes": 418,
+      "sha256": "1c924468ac9a7fb46ed73724b0e02a63e55b69e8116632b1913f99297f5c7d1a"
+    }
+  },
+  "local_source_sha256": {
+    "tools/test_camera_cut_launch.py": "6fe83c8c414015bc36971468e92320836321808048c02056a97350c10fa8355c",
+    "tools/test_camera_cut_transport.py": "2c99510b3a30edc280510b7f437f88ea09310d5bee5ba7f368085999d99113d6",
+    "tools/camera-cut-pristine/external_launch.py": "c2a0a4346bae041e8bba1ab3030c5b0126ad11a837cbef98b8a031685c262df8",
+    "tools/camera-cut-pristine/proof_gate.py": "da94b2ee23ab8f966eefc68e42951b585ca16620db7e981bc91057f6fe7821c2",
+    "tools/camera-cut-pristine/linux_proof.py": "8e05ad1810fdbc41c00ddaba06d81d6e9a510ceccdf648c540251f915c698682",
+    "tools/camera-cut-pristine/prepare.py": "b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21",
+    "tools/camera-cut-pristine/payload-manifest.json": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+    "tools/camera-cut-pristine/worker.py": "0dceefd84228d562a0e23945d014f57247fcf66bc097e9ab1fe5253fab7e0c25",
+    "tools/runpod/handler.py": "d9f9a0cbb2bc703eedf62219b3385b4e376719dc3f8040f685ad008a36089fab",
+    "tools/runpod/endpoint.json": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+    "tools/camera-cut-pristine/proof-data/old-command.gz": "5f669792d5b3430bdf2a7a51f1ed94ef897217045a0fd694ff380953bddbfa37",
+    "docs/research/camera-cut-exposure/fsr-reference-investigation-2026-11-28/bounded-pristine-proposal/emit_proposal.py": "58df103c1e2b49be3f7247f86a21a2dde5be6c74c7c4395f1dd76661abed45db"
+  },
+  "linux_source_snapshot": "/nix/store/xdhyg3mfkfvyiw47175mqr2qcrilb15j-source",
+  "linux_source_snapshot_location": "Existing loopback builder store; copied by the reproducible script",
+  "raw_linux_build_log_sha256": "d77e28cdbf6e64ccd54196f96965986435dd5a5d715431317c016cec27bf0daf",
+  "paid_submissions": 0,
+  "actual_approval": false
+}

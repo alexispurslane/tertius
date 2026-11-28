@@ -48,7 +48,7 @@ class TransportTests(unittest.TestCase):
             self.assertFalse(metadata['approval']['issue4_explicit_paid_approval'])
             self.assertEqual(0, metadata['approval']['authorized_submissions'])
 
-    def test_the_short_command_verifies_every_input_then_refuses_measurement(self):
+    def test_the_unapproved_short_command_refuses_before_preparation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             path = root / 'proposal.ps1'
@@ -63,10 +63,9 @@ class TransportTests(unittest.TestCase):
             handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
             steps, log = [], bytearray()
             self.assertEqual('failed', handler.run_commands([command], root, ['bash', '-c'], 20, steps, log))
-            self.assertIn('INERT: new Issue #4 paid approval', bytes(log).decode())
+            self.assertIn('INERT: external approval', bytes(log).decode())
             self.assertFalse((root / 'linux-out').exists())
-            for name, expected in json.loads((folder / 'payload-manifest.json').read_text()).items():
-                self.assertEqual(expected, hashlib.sha256((root / name).read_bytes()).hexdigest())
+            self.assertFalse((root / 'worker.py').exists())
             self.assertEqual(({}, {}), handler.collect(['linux-out/return/*'], root, 8_000_000))
 
     def test_short_command_runs_inside_local_offline_nix_shell(self):
@@ -80,7 +79,7 @@ class TransportTests(unittest.TestCase):
             steps, log = [], bytearray()
             local_shell = ['nix', 'develop', str(REPO), '--offline', '--command', 'bash', '-c']
             self.assertEqual('failed', handler.run_commands([command], root, local_shell, 45, steps, log))
-            self.assertIn('INERT: new Issue #4 paid approval', bytes(log).decode())
+            self.assertIn('INERT: external approval', bytes(log).decode())
             self.assertFalse((root / 'linux-out').exists())
 
 
@@ -105,7 +104,7 @@ class TransportTests(unittest.TestCase):
             (folder / 'prepare.py').write_text("raise RuntimeError('UNVERIFIED CODE RAN')")
             result = subprocess.run(['bash', '-c', command], cwd=root, capture_output=True, text=True)
             self.assertNotEqual(0, result.returncode)
-            self.assertIn('Preparation script hash differs', result.stderr)
+            self.assertIn('External launch source hash differs: prepare.py', result.stderr)
             self.assertNotIn('UNVERIFIED CODE RAN', result.stderr)
             self.assertFalse((root / 'worker.py').exists())
 
@@ -159,7 +158,7 @@ class NamedTreeProtocolTests(unittest.TestCase):
             handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
             result = handler.handle(job, baked=baked, work=work, shell=['bash', '-c'])
             self.assertEqual('failed', result['status'])
-            self.assertIn('INERT: new Issue #4 paid approval', result['log'])
+            self.assertIn('INERT: external approval', result['log'])
             self.assertEqual(1, len(result['steps']))
             self.assertEqual({}, result['skipped']); self.assertEqual({}, result['files'])
             self.assertEqual(b'baseline untouched', (work / 'before/identity').read_bytes())
@@ -167,8 +166,10 @@ class NamedTreeProtocolTests(unittest.TestCase):
             self.assertFalse((work / 'harness/docs/excluded.txt').exists())
             self.assertFalse((work / 'before/worker.py').exists())
             self.assertFalse((work / 'after/worker.py').exists())
-            self.assertEqual((REPO / 'tools/camera-cut-pristine/worker.py').read_bytes(), (work / 'worker.py').read_bytes())
-            self.assertEqual((REPO / 'tools/camera-cut-pristine/config.json').read_bytes(), (work / 'config.json').read_bytes())
+            self.assertEqual((REPO / 'tools/camera-cut-pristine/worker.py').read_bytes(),
+                             (work / 'harness/tools/camera-cut-pristine/worker.py').read_bytes())
+            self.assertFalse((work / 'worker.py').exists())
+            self.assertFalse((work / 'config.runtime.json').exists())
             self.assertFalse((work / 'linux-out').exists())
             # A mismatching harness shell must still be rejected by the unchanged handler.
             mismatch = commit({'flake.lock': b'{"different":true}'})

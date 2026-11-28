@@ -1,0 +1,31 @@
+{
+  "coordinator_reviewed": false,
+  "issue4_explicit_paid_approval": false,
+  "duration_policy_approved": false,
+  "authorized_submissions": 0,
+  "automatic_retry": false,
+  "harness_sha": "6f14335c629b25e36899699006c268026d33ce7e",
+  "manifest_sha256": "445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57",
+  "source_config_sha256": "69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e",
+  "baseline_sha": "b002351eb48d33f008f8333e53e61345de3260cd",
+  "candidate_sha": "588b6d2747560c73aac542fb25ce80eec1ba8db7",
+  "command_seconds": 1920,
+  "execution_seconds": 1980,
+  "maximum_modeled_usd": 0.328,
+  "daily_cap_usd": 5,
+  "total_cap_usd": 30,
+  "gpu_workers_max": 5,
+  "output_globs": [
+    "linux-out/return/*"
+  ],
+  "routing": "Unmodified canonical CLI and shared routing, with its normal effects",
+  "reviewed_head": null,
+  "canonical_argv_sha256": "fb2624c14611b7cb4c4e6cb8f1605e63764c51f7fac1dc48c0bb58ebfc6018ab",
+  "worker_command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c",
+  "full_command_sha256": "8edcc5168bfcff9c25e9ce80b4f09224eadca0795aeb85fb9b4a90f2127f8e2c",
+  "temporary_config_sha256": "6cc6990f6a024f9cb6c326de260612047841dc42c1eaa395bfd3402024776c6b",
+  "original_config_sha256": "d6579e48c7fa847e54c07e2cfac3757a77451882882ea4d4856bfd2920cbc52f",
+  "authorized_at": null,
+  "authorization_source": null,
+  "note": "INERT template. Parent must record fresh consent, reviewed HEAD and time. The previous approval is consumed."
+}

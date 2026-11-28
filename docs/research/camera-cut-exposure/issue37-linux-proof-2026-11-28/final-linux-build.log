@@ -1,0 +1,22 @@
+this derivation will be built:
+  /nix/store/7b3xfksnipb39ky7q3yw590i7w9lhv1y-tertius-issue37-external-launch-proof.drv
+building '/nix/store/7b3xfksnipb39ky7q3yw590i7w9lhv1y-tertius-issue37-external-launch-proof.drv' on 'ssh://nixbuilder@127.0.0.1:64237'...
+copying 1 paths...
+copying path '/nix/store/xdhyg3mfkfvyiw47175mqr2qcrilb15j-source' to 'ssh://nixbuilder@127.0.0.1:64237'...
+tertius-issue37-external-launch-proof> test_approved_scope_reaches_the_real_worker_with_only_three_runtime_changes (<run_path>.ExternalLaunchTests.test_approved_scope_reaches_the_real_worker_with_only_three_runtime_changes) ... ok
+tertius-issue37-external-launch-proof> test_consumed_attempt_refuses_before_policy_or_api_access (<run_path>.ExternalLaunchTests.test_consumed_attempt_refuses_before_policy_or_api_access) ... ok
+tertius-issue37-external-launch-proof> test_corrupted_payload_is_refused_before_any_copy (<run_path>.ExternalLaunchTests.test_corrupted_payload_is_refused_before_any_copy) ... ok
+tertius-issue37-external-launch-proof> test_linux_rejects_the_exact_original_argument_before_a_child_starts (<run_path>.ExternalLaunchTests.test_linux_rejects_the_exact_original_argument_before_a_child_starts) ... ok
+tertius-issue37-external-launch-proof> test_mismatched_or_inconsistent_approval_fields_are_refused (<run_path>.ExternalLaunchTests.test_mismatched_or_inconsistent_approval_fields_are_refused) ... ok
+tertius-issue37-external-launch-proof> test_one_approved_attempt_consumes_its_marker_and_restores_policy (<run_path>.ExternalLaunchTests.test_one_approved_attempt_consumes_its_marker_and_restores_policy) ... ok
+tertius-issue37-external-launch-proof> test_reconstructed_payload_seals_and_returns_every_required_output (<run_path>.ExternalLaunchTests.test_reconstructed_payload_seals_and_returns_every_required_output) ... ok
+tertius-issue37-external-launch-proof> test_unapproved_final_command_stops_before_copying_or_measurement (<run_path>.ExternalLaunchTests.test_unapproved_final_command_stops_before_copying_or_measurement) ... ok
+tertius-issue37-external-launch-proof> test_unapproved_one_attempt_wrapper_stops_before_git_policy_or_api_access (<run_path>.ExternalLaunchTests.test_unapproved_one_attempt_wrapper_stops_before_git_policy_or_api_access) ... ok
+tertius-issue37-external-launch-proof> test_the_final_command_carries_a_bound_external_approval_record (<run_path>.LaunchProposalTests.test_the_final_command_carries_a_bound_external_approval_record) ... ok
+tertius-issue37-external-launch-proof>
+tertius-issue37-external-launch-proof> ----------------------------------------------------------------------
+tertius-issue37-external-launch-proof> Ran 10 tests in 1.941s
+tertius-issue37-external-launch-proof>
+tertius-issue37-external-launch-proof> OK
+copying 1 paths...
+copying path '/nix/store/4nhjpzpwsjk907941f8pnjx0p58w3rdi-tertius-issue37-external-launch-proof' from 'ssh://nixbuilder@127.0.0.1:64237'...

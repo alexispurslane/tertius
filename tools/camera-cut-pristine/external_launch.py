@@ -1,0 +1,59 @@
+"""Review-only external launch program, embedded in the canonical command argument.
+
+The immutable harness remains pinned. This program neither submits nor grants approval.
+The caller must supply the separately approved record; the emitter supplies an inert one.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+
+HARNESS = '6f14335c629b25e36899699006c268026d33ce7e'
+PREPARE = 'b34b921ce27f674de3c15fa206a10e0deda59ec218abafdd1af3e9bee29e3d21'
+MANIFEST = '445a4fb94e70d6326ec0fd8bf7d0a39aace36b5794c593bf225f0137f89bea57'
+CONFIG = '69816100815599666260236b10abf315a908b85494dc62d418a7d69263dfd39e'
+
+
+def approval_record(config):
+    """The exact scope to approve, including the original inert config's full hash."""
+    return {
+        'coordinator_reviewed': False, 'issue4_explicit_paid_approval': False,
+        'duration_policy_approved': False, 'authorized_submissions': 0, 'automatic_retry': False,
+        'harness_sha': HARNESS, 'manifest_sha256': MANIFEST, 'source_config_sha256': CONFIG,
+        'baseline_sha': config['baseline_sha'], 'candidate_sha': config['candidate_sha'],
+        'command_seconds': 1920, 'execution_seconds': 1980, 'maximum_modeled_usd': 0.328,
+        'daily_cap_usd': 5, 'total_cap_usd': 30, 'gpu_workers_max': 5,
+        'output_globs': ['linux-out/return/*'],
+        'routing': 'Unmodified canonical CLI and shared routing, with its normal effects',
+    }
+
+
+def launch(record):
+    """Verify the pinned source, allow three approval-field changes, then call its worker."""
+    root = Path('harness/tools/camera-cut-pristine')
+    for name, digest in [('prepare.py', PREPARE), ('config.json', CONFIG)]:
+        if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:
+            raise ValueError('External launch source hash differs: ' + name)
+    config = json.loads((root / 'config.json').read_bytes())
+    expected = approval_record(config)
+    expected.update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,
+                    duration_policy_approved=True, authorized_submissions=1)
+    # JSON comparison also distinguishes true from 1 and false from 0.
+    if json.dumps(record, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        raise ValueError('INERT: external approval is absent, inconsistent, or differs from the reviewed scope')
+    prepare = runpy.run_path(str(root / 'prepare.py'))['prepare']
+    prepare(root, Path.cwd(), MANIFEST)
+    config['approval'].update(coordinator_reviewed=True, issue4_explicit_paid_approval=True,
+                              authorized_submissions=1)
+    with Path('config.runtime.json').open('x') as stream:
+        json.dump(config, stream)
+    subprocess.run([sys.executable, '-I', 'worker.py', '--config', 'config.runtime.json'], check=True)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--authorization-json', required=True, type=json.loads)
+    launch(parser.parse_args().authorization_json)

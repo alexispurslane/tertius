@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import runpy
 import os
 from pathlib import Path
 import shlex
@@ -52,18 +53,18 @@ def emit(root, out):
     for name, digest in payload.items():
         if hashlib.sha256((root / name).read_bytes()).hexdigest() != digest:
             raise ValueError('Proposal input differs from the immutable harness: ' + name)
-    path = 'harness/' + transport['harness_path'] + '/prepare.py'
-    program = ('import hashlib,pathlib,runpy\n'
-        + 'p=pathlib.Path(' + repr(path) + ')\n'
-        + 'if hashlib.sha256(p.read_bytes()).hexdigest()!=' + repr(transport['prepare_sha256']) + ':\n'
-        + ' raise ValueError("Preparation script hash differs")\n'
-        + 'runpy.run_path(str(p),run_name="__main__")\n')
-    shell = 'python3 -I -c ' + shlex.quote(program) + ' --manifest-sha256 ' + transport['manifest_sha256']
-    bounds = command_bounds([shell], {key: value for key, value in os.environ.items() if not key.startswith('RUNPOD_')})
+    launch_path = Path(__file__).resolve().parents[5] / 'tools/camera-cut-pristine/external_launch.py'
+    program = launch_path.read_text()
+    record = runpy.run_path(str(launch_path))['approval_record'](config)
+    shell = 'python3 -I -c ' + shlex.quote(program) + ' --authorization-json ' + shlex.quote(json.dumps(record, sort_keys=True))
+    proposed_record = {**record, 'coordinator_reviewed': True, 'issue4_explicit_paid_approval': True,
+        'duration_policy_approved': True, 'authorized_submissions': 1}
+    proposed_shell = 'python3 -I -c ' + shlex.quote(program) + ' --authorization-json ' + shlex.quote(json.dumps(proposed_record, sort_keys=True))
+    bounds = command_bounds([shell, proposed_shell], {key: value for key, value in os.environ.items() if not key.startswith('RUNPOD_')})
     argv = ['python3', '-I', 'tools/runpod/gpu_job.py', 'submit', '--agent', 'issue4-exposure',
         '--tree', 'before=' + config['baseline_sha'], '--tree', 'after=' + config['candidate_sha'],
         '--tree', 'harness=' + pin, '--run', shell, '--timeout', str(config['command_timeout_seconds']),
-        '--out', config['result_folder'] or 'INERT-parent-must-select-result-folder']
+        '--out', config['result_folder'] or '/tmp/tertius-issue37-one-attempt/returned']
     for pattern in config['output_globs']:
         argv += ['--output', pattern]
     # The body shape and hidden-ref names match canonical submit. This is never sent.
@@ -72,8 +73,10 @@ def emit(root, out):
     body = {'input': {'protocol': 3, 'repository': 'https://github.com/alexispurslane/tertius.git',
         'trees': trees, 'commands': [shell], 'outputs': config['output_globs'], 'seconds': 1920},
         'policy': {'executionTimeout': 1980000, 'ttl': 7200000}}
+    proposed_body = {**body, 'input': {**body['input'], 'commands': [proposed_shell]}}
     body_bytes = len(json.dumps(body).encode())
-    if body_bytes > 65536:
+    proposed_body_bytes = len(json.dumps(proposed_body).encode())
+    if max(body_bytes, proposed_body_bytes) > 65536:
         raise ValueError('The proposed service request exceeds the conservative 65536-byte budget')
     command = ("throw 'INERT: duration policy and paid submission remain unapproved. This is a review copy only.'\n"
         + '& ' + ' '.join("'" + word.replace("'", "''") + "'" for word in argv) + '\n')
@@ -87,7 +90,16 @@ def emit(root, out):
         'manifest_sha256': transport['manifest_sha256'], 'payload_sha256': payload,
         'command_bounds': bounds, 'request_body_bytes': body_bytes,
         'request_body_budget_bytes': 65536, 'conditional_request_body': body,
-        'future_authorization': transport['future_authorization'],
+        'future_authorization': 'External record is embedded in the command. All four approval fields must change together after parent approval.',
+        'external_approval_record': record,
+        'representative_approved_record': proposed_record,
+        'representative_approved_request_body': proposed_body,
+        'representative_approved_request_body_bytes': proposed_body_bytes,
+        'representative_approved_command_sha256': hashlib.sha256(proposed_shell.encode()).hexdigest(),
+        'inert_command_sha256': hashlib.sha256(shell.encode()).hexdigest(),
+        'canonical_argv_inert': argv,
+        'canonical_argv_after_parent_approval': [proposed_shell if arg == shell else arg for arg in argv],
+        'external_program_sha256': hashlib.sha256(program.encode()).hexdigest(),
         'submit_command_sha256': hashlib.sha256(command.encode()).hexdigest()}
     out.with_suffix('.json').write_text(json.dumps(metadata, indent=2) + '\n')
     return metadata

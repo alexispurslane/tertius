@@ -1,0 +1,13 @@
+import json,os,platform,runpy,sys,unittest
+from pathlib import Path
+sys.dont_write_bytecode=True
+suite=runpy.run_path(os.environ['source']+'/tools/test_camera_cut_launch.py')
+result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(type('Suite',(),suite)))
+report={'system':platform.system(),'machine':platform.machine(),'page_bytes':os.sysconf('SC_PAGE_SIZE'),'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped)}
+import tempfile,hashlib
+with tempfile.TemporaryDirectory() as temporary:
+ emitter=suite['load']('emitter',suite['PROPOSAL']/'emit_proposal.py')
+ metadata=emitter.emit(suite['PROPOSAL'],Path(temporary)/'proposal.ps1')
+report.update(handler_sha256=hashlib.sha256((suite['REPO']/'tools/runpod/handler.py').read_bytes()).hexdigest(),command_bounds=metadata['command_bounds'],inert_command_sha256=metadata['inert_command_sha256'],representative_approved_command_sha256=metadata['representative_approved_command_sha256'],request_body_bytes=metadata['request_body_bytes'],representative_approved_request_body_bytes=metadata['representative_approved_request_body_bytes'],payload_verified_files=len(metadata['payload_sha256']))
+Path(os.environ['out']).write_text(json.dumps(report,sort_keys=True)+'\n')
+if not result.wasSuccessful() or result.skipped: raise SystemExit(1)
