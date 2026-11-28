@@ -66,6 +66,31 @@ assert text.count(line) == 1
 table.write_text(text.replace(line, line + '\n            new("restraint-orange-lamp", RestraintOrangeLamp),'
                                        '\n            new("restraint-warm-white", RestraintWarmWhite),'))
 
+# The deck cameras of set 1b: three views beside the warm gray glow of the station's floor, which lies from about 5 m
+# behind the deck camera and curves up. The offsets are from the deck camera's eye in the station's frame (+X up).
+exits = Path("src/Tertius.Demo/DemoScenes.StationExit.cs")
+text = exits.read_text()
+line = '            scene.Add("deck-camera", world.Spawn(ViewIn(station, DeckCamera)));\n'
+assert text.count(line) == 1
+exits.write_text(text.replace(line, line + """            foreach (
+                (string id, Double3 eye, Double3 target) in new[]
+                {
+                    ("glow-back", new Double3(-1.0, 0, 3.0), new Double3(-2.0, 0, 9.0)),
+                    ("glow-up", new Double3(-1.6, 0, 5.5), new Double3(3.5, 0, 3.0)),
+                    ("glow-along", new Double3(-1.0, 0, 5.5), new Double3(-1.5, 8, 6.0)),
+                }
+            )
+            {
+                Double3 at = DeckCamera.Position;
+                scene.Add(id, world.Spawn(ViewIn(station, Camera(at + eye, at + target, Double3.UnitX))));
+                scene.AddView(id);
+            }
+"""))
+deck = json.loads((tools / "deck-still.json").read_text())
+for view in ("glow-back", "glow-up", "glow-along"):
+    steps = [dict(step, entity=view) if step.get("entity") == "deck-camera" else step for step in deck["steps"]]
+    (folder / f"{view}.json").write_text(json.dumps(dict(deck, steps=steps), indent=1) + "\n")
+
 for scene, name in (("restraint-orange-lamp", "orange"), ("restraint-warm-white", "warm")):
     for camera, pose in (("camera", "outside"), ("across", "across")):
         script = {"scene": scene, "window": {"width": 640, "height": 360},

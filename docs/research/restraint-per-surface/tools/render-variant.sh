@@ -9,6 +9,7 @@
 #   crossing  the crossing film of the mixed probe (the camera path of #22's crossing.mp4), EV 0
 #   deck      the full-art hangar deck (tools/deck-still.json) at 1280 x 720 and the automatic exposure: three captures
 #             a, b and c of a frozen world, with exposure.json
+#   glow      set 1b: three deck views beside the floor's glow (glow-back, glow-up, glow-along), like deck
 # Writes captures/issue42/v<variant>-g<gain>/<name>/. Needs no change under src/, and restores it on exit.
 # Each finished case leaves the file .done in its folder, and a later run skips it, so a take can resume after a restart.
 # Before each render it waits while any other Tertius.Demo render or Tertius.Rendering.Tests run exists on the machine
@@ -28,6 +29,7 @@ if [[ -n $(git status --short --untracked-files=no -- src) ]]; then
 fi
 restore() {
     git restore --worktree -- src/Tertius.Demo/DemoScenes.cs src/Tertius.Rendering/VulkanRenderer.cs "$glsl"
+    git restore --worktree -- src/Tertius.Demo/DemoScenes.StationExit.cs
     rm -f src/Tertius.Demo/DemoScenes.Issue22Probe.cs src/Tertius.Demo/DemoScenes.Issue42Probe.cs
 }
 trap restore EXIT
@@ -96,6 +98,18 @@ for set in "$@"; do
         ;;
     deck)
         TERTIUS_CONTENT_ROOT="$content" render "$out/deck" "$tools/deck-still.json" --size 1280x720
+        ;;
+    glow)
+        # Set 1b: the three deck views beside the floor's glow, at the automatic exposure, or at the fixed exposure
+        # GLOW_EXPOSURE (stops) into glow-<view>-fixed. GLOW_VIEWS can name fewer views.
+        for view in ${GLOW_VIEWS:-glow-back glow-up glow-along}; do
+            if [[ -n "${GLOW_EXPOSURE:-}" ]]; then
+                TERTIUS_CONTENT_ROOT="$content" render "$out/$view-fixed" "$scope/$view.json" --size 1280x720 \
+                    --exposure "$GLOW_EXPOSURE"
+            else
+                TERTIUS_CONTENT_ROOT="$content" render "$out/$view" "$scope/$view.json" --size 1280x720
+            fi
+        done
         ;;
     *)
         echo "unknown set $set"
